@@ -27,3 +27,33 @@ function formatearFechaConDia(fechaIso) {
 
     return `${DIAS_SEMANA_ES[d.getDay()]}, ${formatearFecha(fechaIso)}`;
 }
+
+// -----------------------------------------------------------------
+// Los <input type="date"> nativos muestran el formato del navegador
+// (ej. "12/27/1989") y eso no se puede cambiar. Este par de funciones ata
+// un input de fecha a un <span class="fecha-legible"> que siempre muestra
+// dd/mmm/yyyy (o con dia de semana), actualizado en vivo. Mismo patron que
+// ya usaba la agenda (campo-fecha-agenda / fecha-seleccionada-legible).
+// -----------------------------------------------------------------
+
+// Vuelve a pintar el span a partir del valor actual del input. Llamar
+// tambien manualmente despues de asignar input.value por JS (asignar
+// .value no dispara 'input'/'change').
+function sincronizarFechaLegible(idInput, idSpan, conDia) {
+    const input = document.getElementById(idInput);
+    const span = document.getElementById(idSpan);
+    if (!input || !span) return;
+    if (!input.value) { span.textContent = ''; return; }
+    span.textContent = conDia ? formatearFechaConDia(input.value) : formatearFecha(input.value);
+}
+
+// Ata los listeners de actualizacion en vivo y pinta el valor inicial.
+// Llamar una vez al inicializar la pantalla.
+function vincularFechaLegible(idInput, idSpan, conDia) {
+    const input = document.getElementById(idInput);
+    if (!input) return;
+    const actualizar = () => sincronizarFechaLegible(idInput, idSpan, conDia);
+    input.addEventListener('input', actualizar);
+    input.addEventListener('change', actualizar);
+    actualizar();
+}

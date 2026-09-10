@@ -47,6 +47,7 @@ const CLASE_ESTADO_CITA = {
     document.getElementById('btn-restaurar-paciente').addEventListener('click', restaurarPaciente);
     document.getElementById('form-subir-documento').addEventListener('submit', subirDocumento);
     document.getElementById('btn-nueva-cita-paciente').addEventListener('click', irANuevaCita);
+    vincularFechaLegible('p-fecha-nacimiento', 'p-fecha-nacimiento-legible');
 
     await cargarPaciente();
     await cargarDocumentos();
@@ -92,7 +93,7 @@ async function cargarPaciente() {
             ${campoVista('Nombres', pacienteActual.nombres)}
             ${campoVista('Apellidos', pacienteActual.apellidos)}
             ${campoVista('Cedula', pacienteActual.cedula)}
-            ${campoVista('Fecha de nacimiento', formatearFecha(pacienteActual.fecha_nacimiento))}
+            ${campoVista('Fecha de nacimiento', textoFechaNacimientoConEdad(pacienteActual))}
             ${campoVista('Sexo', ETIQUETAS_SEXO[pacienteActual.sexo])}
             ${campoVista('Origen', ETIQUETAS_ORIGEN[pacienteActual.origen])}
             ${campoVista('Telefono', pacienteActual.telefono)}
@@ -118,6 +119,13 @@ async function cargarPaciente() {
     }
 }
 
+// "27/dic/1989 · 36 años" (la edad viene ya calculada por el servidor)
+function textoFechaNacimientoConEdad(paciente) {
+    if (!paciente.fecha_nacimiento) return '';
+    const fecha = formatearFecha(paciente.fecha_nacimiento);
+    return paciente.edad !== null && paciente.edad !== undefined ? `${fecha} · ${paciente.edad} años` : fecha;
+}
+
 function campoVista(etiqueta, valor, ancho) {
     return `
         <div class="campo ${ancho ? 'campo--ancho' : ''}">
@@ -134,6 +142,7 @@ function abrirModalEdicion() {
     document.getElementById('p-apellidos').value = pacienteActual.apellidos || '';
     document.getElementById('p-cedula').value = pacienteActual.cedula || '';
     document.getElementById('p-fecha-nacimiento').value = pacienteActual.fecha_nacimiento || '';
+    sincronizarFechaLegible('p-fecha-nacimiento', 'p-fecha-nacimiento-legible');
     document.getElementById('p-sexo').value = pacienteActual.sexo || '';
     document.getElementById('p-origen').value = pacienteActual.origen || '';
     document.getElementById('p-telefono').value = pacienteActual.telefono || '';

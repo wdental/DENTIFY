@@ -136,6 +136,7 @@ function sumarDias(fechaStr, dias) {
     document.getElementById('c-buscar-paciente').addEventListener('input', buscarPacientesEnVivo);
 
     document.getElementById('btn-sincronizar-ahora').addEventListener('click', sincronizarAhora);
+    vincularFechaLegible('c-fecha', 'c-fecha-legible');
 
     // Refrescar el indicador de sincronizacion periodicamente
     setInterval(actualizarIndicadorSync, 60 * 1000);
@@ -413,6 +414,7 @@ function abrirModalNuevaCita(prefijo) {
     document.getElementById('resultados-paciente').classList.add('oculto');
 
     document.getElementById('c-fecha').value = prefijo.fecha || fechaSeleccionada;
+    sincronizarFechaLegible('c-fecha', 'c-fecha-legible');
     document.getElementById('c-hora-inicio').value = prefijo.horaInicio || '';
     document.getElementById('c-sillon').value = prefijo.sillon || 1;
     document.getElementById('c-duracion').value = '30';
@@ -443,6 +445,7 @@ async function abrirModalEdicion(citaId) {
         selectSillon.value = cita.sillon || 1;
 
         document.getElementById('c-fecha').value = cita.fecha;
+        sincronizarFechaLegible('c-fecha', 'c-fecha-legible');
         document.getElementById('c-hora-inicio').value = cita.hora_inicio;
 
         const duracionMin = cita.hora_fin

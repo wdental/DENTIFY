@@ -27,6 +27,7 @@ let temporizadorBusqueda = null;
     document.getElementById('cerrar-modal-paciente').addEventListener('click', cerrarModalPaciente);
     document.getElementById('cancelar-modal-paciente').addEventListener('click', cerrarModalPaciente);
     document.getElementById('form-paciente').addEventListener('submit', guardarPaciente);
+    vincularFechaLegible('p-fecha-nacimiento', 'p-fecha-nacimiento-legible');
 })();
 
 async function cargarPacientes() {
@@ -81,6 +82,7 @@ function abrirModalPaciente() {
     document.getElementById('form-paciente').reset();
     document.getElementById('paciente-id').value = '';
     document.getElementById('error-modal-paciente').innerHTML = '';
+    sincronizarFechaLegible('p-fecha-nacimiento', 'p-fecha-nacimiento-legible');
     document.getElementById('modal-paciente').classList.add('abierto');
 }
 
