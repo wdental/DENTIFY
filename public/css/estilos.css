@@ -19,6 +19,7 @@
     --rojo-patologia: #C0392B;      /* seccion K del F033: patologia actual / hallazgo por realizar - distinto del rojo de alerta general */
     --azul-tratamiento: #1F5FBF;    /* seccion K del F033: tratamiento realizado */
     --neutro-hallazgo: #4A4642;     /* hallazgos "otros" del F033 (perdida otra causa, ausente): ni rojo ni azul */
+    --ambar-alerta: #C9962E;        /* resalta sutilmente valores fuera de rango (seccion F), sin bloquear el guardado */
 
     --fuente-titulos: 'Cormorant Garamond', serif;
     --fuente-cuerpo: 'Montserrat', sans-serif;
@@ -1320,6 +1321,85 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     margin-left: 24px;
 }
 
+/* Antecedentes D/E: estados explicitos Si / No / sin registrar */
+.antecedente-item {
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    padding: 8px 10px;
+    background-color: var(--blanco);
+}
+
+.antecedente-item__fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.antecedente-item__etiqueta {
+    font-size: 0.82rem;
+}
+
+.antecedente-item__botones {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.antecedente-boton {
+    min-width: 34px;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: var(--radio);
+    border: 1.5px solid var(--gris-claro);
+    background-color: var(--blanco);
+    color: var(--texto-secundario);
+    cursor: pointer;
+}
+
+.antecedente-boton--activo.antecedente-boton--si {
+    background-color: var(--rojo-alerta);
+    border-color: var(--rojo-alerta);
+    color: var(--blanco);
+}
+
+.antecedente-boton--activo.antecedente-boton--no {
+    background-color: var(--gris-calido);
+    border-color: var(--gris-calido);
+    color: var(--blanco);
+}
+
+.antecedente-item__extra {
+    margin-top: 8px;
+}
+
+/* Rangos de referencia (seccion F) */
+.campo__ayuda-rango {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--texto-secundario);
+    margin-top: 3px;
+}
+
+.campo--fuera-rango {
+    border-color: var(--ambar-alerta) !important;
+    box-shadow: 0 0 0 1px var(--ambar-alerta);
+}
+
+/* Examen estomatognatico (seccion G): "sin patologia aparente" atenua */
+.estomatognatico-items--atenuado {
+    opacity: 0.5;
+}
+
+/* CPO manual (seccion J) */
+.cpo-aviso-manual {
+    font-size: 0.74rem;
+    color: var(--dorado);
+    font-style: italic;
+    margin: 0 0 8px 0;
+}
+
 /* Tabla de indicadores de salud bucal (seccion I) */
 .tabla-indicadores select,
 .tabla-indicadores input {
@@ -1376,7 +1456,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 
 .odonto-layout {
     display: grid;
-    grid-template-columns: 165px 1fr 180px;
+    grid-template-columns: 190px 1fr;
     gap: 12px;
     align-items: start;
 }
@@ -1426,21 +1506,49 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     gap: 4px;
 }
 
+.odonto-grupo__botones--grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+}
+
+.odonto-grupo--acceso-rapido .odonto-grupo__botones--grid {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.odonto-grupo--acceso-rapido {
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--gris-claro);
+}
+
 .paleta-boton {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 6px 8px;
+    gap: 6px;
+    min-height: 40px;
+    padding: 4px 6px;
     background-color: var(--blanco);
     border: 1.5px solid var(--gris-claro);
     border-radius: var(--radio);
     cursor: pointer;
     font-family: var(--fuente-cuerpo);
-    font-size: 0.76rem;
+    font-size: 0.68rem;
+    line-height: 1.05;
     color: var(--texto-principal);
     text-align: left;
     transition: border-color .12s ease, background-color .12s ease;
+}
+
+.paleta-boton--acceso-rapido {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 6px 2px;
+    gap: 2px;
+}
+
+.paleta-boton--acceso-rapido .paleta-boton__texto {
+    font-size: 0.6rem;
 }
 
 .paleta-boton:hover {
@@ -1478,9 +1586,22 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     font-style: normal;
 }
 
+.odonto-contadores {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
 .odonto-contador-hallazgos {
     font-size: 0.76rem;
     color: var(--texto-secundario);
+    font-weight: 600;
+}
+
+.odonto-contador-cpo {
+    font-size: 0.72rem;
+    color: var(--dorado);
     font-weight: 600;
 }
 
@@ -1496,12 +1617,21 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     touch-action: manipulation;
 }
 
+/* Las reglas de color/forma de abajo NO se limitan a ".odontograma-svg":
+   los mismos simbolos (con las mismas clases) se reutilizan en miniatura
+   dentro de la paleta y la leyenda (ver iconoPaletaPorCodigo en
+   odontograma.js), que deben mostrar siempre el color real. Solo el
+   comportamiento interactivo (hover, cursor, seleccion) queda limitado
+   al SVG real, donde tiene sentido. */
 .odontograma-svg .pieza-zona {
+    cursor: pointer;
+    transition: fill .1s ease;
+}
+
+.pieza-zona {
     fill: var(--blanco);
     stroke: var(--negro);
     stroke-width: 1.5;
-    cursor: pointer;
-    transition: fill .1s ease;
 }
 
 .odontograma-svg[data-modo-lectura="1"] .pieza-zona,
@@ -1523,13 +1653,13 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     stroke-width: 1;
 }
 
-.odontograma-svg .pieza-zona--rojo { fill: var(--rojo-patologia); }
-.odontograma-svg .pieza-zona--azul { fill: var(--azul-tratamiento); }
+.pieza-zona--rojo { fill: var(--rojo-patologia); }
+.pieza-zona--azul { fill: var(--azul-tratamiento); }
 .odontograma-svg .pieza-zona--rojo:hover { fill: var(--rojo-patologia); opacity: 0.85; }
 .odontograma-svg .pieza-zona--azul:hover { fill: var(--azul-tratamiento); opacity: 0.85; }
-.odontograma-svg .pieza-zona--atenuada { opacity: 0.35; }
+.pieza-zona--atenuada { opacity: 0.35; }
 
-.odontograma-svg .pieza-numero {
+.pieza-numero {
     font-family: var(--fuente-cuerpo);
     font-size: 7.5px;
     fill: var(--texto-principal);
@@ -1550,7 +1680,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     cursor: pointer;
 }
 
-.odontograma-svg .pieza-caja {
+.pieza-caja {
     fill: var(--blanco);
     stroke: var(--gris-calido);
     stroke-width: 0.75;
@@ -1559,7 +1689,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 
 .odontograma-svg .pieza-caja:hover { fill: rgba(156, 122, 48, 0.15); }
 
-.odontograma-svg .pieza-caja-texto {
+.pieza-caja-texto {
     font-family: var(--fuente-cuerpo);
     font-size: 7px;
     font-weight: 700;
@@ -1568,48 +1698,48 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     pointer-events: none;
 }
 
-.odontograma-svg .pieza-simbolo-contorno {
+.pieza-simbolo-contorno {
     fill: none;
     stroke-width: 1.6;
     pointer-events: none;
 }
 
-.odontograma-svg .pieza-simbolo-relleno {
+.pieza-simbolo-relleno {
     stroke: none;
     pointer-events: none;
 }
 
-.odontograma-svg .pieza-simbolo-fino {
+.pieza-simbolo-fino {
     fill: none;
     stroke-width: 0.9;
     pointer-events: none;
 }
 
-.odontograma-svg .color-rojo { stroke: var(--rojo-patologia); fill: var(--rojo-patologia); }
-.odontograma-svg .color-azul { stroke: var(--azul-tratamiento); fill: var(--azul-tratamiento); }
-.odontograma-svg .color-neutro { stroke: var(--neutro-hallazgo); fill: var(--neutro-hallazgo); }
+.color-rojo { stroke: var(--rojo-patologia); fill: var(--rojo-patologia); }
+.color-azul { stroke: var(--azul-tratamiento); fill: var(--azul-tratamiento); }
+.color-neutro { stroke: var(--neutro-hallazgo); fill: var(--neutro-hallazgo); }
 
-.odontograma-svg .pieza-simbolo-contorno.color-rojo,
-.odontograma-svg .pieza-simbolo-fino.color-rojo { fill: none; }
-.odontograma-svg .pieza-simbolo-contorno.color-azul,
-.odontograma-svg .pieza-simbolo-fino.color-azul { fill: none; }
-.odontograma-svg .pieza-simbolo-contorno.color-neutro,
-.odontograma-svg .pieza-simbolo-fino.color-neutro { fill: none; }
+.pieza-simbolo-contorno.color-rojo,
+.pieza-simbolo-fino.color-rojo { fill: none; }
+.pieza-simbolo-contorno.color-azul,
+.pieza-simbolo-fino.color-azul { fill: none; }
+.pieza-simbolo-contorno.color-neutro,
+.pieza-simbolo-fino.color-neutro { fill: none; }
 
-.odontograma-svg .pieza-texto-simbolo {
+.pieza-texto-simbolo {
     font-family: var(--fuente-cuerpo);
     font-weight: 700;
     text-anchor: middle;
     pointer-events: none;
 }
 
-.odontograma-svg .odonto-tramo-linea {
+.odonto-tramo-linea {
     stroke-width: 3;
     fill: none;
     pointer-events: none;
 }
 
-.odontograma-svg .odonto-tramo-pendiente {
+.odonto-tramo-pendiente {
     stroke-dasharray: 4 3;
     stroke-width: 2;
     fill: none;
@@ -1673,64 +1803,6 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     color: var(--texto-principal);
 }
 
-/* --------------------------- Panel CPO (derecha) --------------------------- */
-.odonto-cpo-panel {
-    background-color: var(--blanco);
-    border: 1px solid var(--gris-claro);
-    border-radius: var(--radio);
-    padding: 0;
-    position: sticky;
-    top: 14px;
-    overflow: hidden;
-}
-
-.odonto-cpo-panel > summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 14px 16px;
-    font-family: var(--fuente-titulos);
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: var(--negro);
-    background-color: var(--marfil);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.odonto-cpo-panel > summary::-webkit-details-marker { display: none; }
-.odonto-cpo-panel > summary::after { content: "\25BE"; color: var(--texto-secundario); }
-.odonto-cpo-panel[open] > summary::after { content: "\25B4"; }
-
-.odonto-cpo-cuerpo { padding: 14px 16px; }
-
-.odonto-cpo-nota {
-    font-size: 0.7rem;
-    color: var(--texto-secundario);
-    font-style: italic;
-    margin-bottom: 12px;
-}
-
-.odonto-cpo-tabla {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.78rem;
-    margin-bottom: 10px;
-}
-
-.odonto-cpo-tabla th, .odonto-cpo-tabla td {
-    padding: 6px 4px;
-    text-align: center;
-    border-bottom: 1px solid var(--gris-claro);
-}
-
-.odonto-cpo-tabla th:first-child, .odonto-cpo-tabla td:first-child { text-align: left; }
-
-.odonto-cpo-tabla tfoot td {
-    font-weight: 700;
-    color: var(--dorado);
-}
-
 /* --------------------------- Selector de valor (movilidad/recesion) --------------------------- */
 .odonto-selector-valor {
     display: flex;
@@ -1781,8 +1853,10 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 
     .odonto-grupo { flex-shrink: 0; }
 
-    .odonto-grupo__botones {
+    .odonto-grupo__botones,
+    .odonto-grupo__botones--grid {
         flex-direction: row;
+        display: flex;
     }
 
     .paleta-boton {
@@ -1793,10 +1867,6 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     }
 
     .odonto-centro { order: -1; }
-
-    .odonto-cpo-panel {
-        position: static;
-    }
 }
 
 /* ---------------------------------------------------------------

@@ -83,8 +83,9 @@ router.get('/:pacienteId/alertas', (req, res) => {
         return res.json({ tieneAlertas: false, etiquetas: [] });
     }
 
-    const marcados = Array.isArray(datos.marcados) ? datos.marcados : [];
-    const etiquetas = marcados.filter((codigo) => CODIGOS_ALERTA[codigo]).map((codigo) => CODIGOS_ALERTA[codigo]);
+    const estados = datos.estados && typeof datos.estados === 'object' ? datos.estados : {};
+    const marcadosSi = Object.keys(estados).filter((codigo) => estados[codigo] === 'si');
+    const etiquetas = marcadosSi.filter((codigo) => CODIGOS_ALERTA[codigo]).map((codigo) => CODIGOS_ALERTA[codigo]);
 
     res.json({ tieneAlertas: etiquetas.length > 0, etiquetas });
 });

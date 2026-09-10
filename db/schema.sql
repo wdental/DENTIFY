@@ -180,7 +180,8 @@ CREATE TABLE IF NOT EXISTS odontogramas (
     doctor_id INTEGER REFERENCES doctores(id),
     observaciones TEXT,
     creado_por INTEGER REFERENCES usuarios(id),
-    es_version_activa INTEGER NOT NULL DEFAULT 1
+    es_version_activa INTEGER NOT NULL DEFAULT 1,
+    tipo TEXT NOT NULL DEFAULT 'evolucion' CHECK (tipo IN ('inicial', 'evolucion', 'alta'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_odontogramas_paciente ON odontogramas (paciente_id);

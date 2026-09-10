@@ -69,6 +69,57 @@ function migrar(db) {
         reconstruir();
         console.log('Migracion: tabla "odontograma_piezas" actualizada (fuera_simbologia_f033 + color_tipo "neutro"), hallazgos existentes conservados');
     }
+
+    // Tipos de odontograma (inicial / evolucion / alta): agrega la columna
+    // "tipo" y marca como 'inicial' el odontograma mas antiguo de cada
+    // paciente (el resto queda como 'evolucion', el default de la columna).
+    const columnasOdontogramas2 = db.prepare("PRAGMA table_info(odontogramas)").all().map((c) => c.name);
+    if (columnasOdontogramas2.length > 0 && !columnasOdontogramas2.includes('tipo')) {
+        const migrarTipos = db.transaction(() => {
+            db.exec("ALTER TABLE odontogramas ADD COLUMN tipo TEXT NOT NULL DEFAULT 'evolucion' CHECK (tipo IN ('inicial', 'evolucion', 'alta'))");
+            const primeros = db.prepare('SELECT MIN(id) AS id FROM odontogramas GROUP BY paciente_id').all();
+            const marcarInicial = db.prepare("UPDATE odontogramas SET tipo = 'inicial' WHERE id = ?");
+            primeros.forEach((fila) => marcarInicial.run(fila.id));
+        });
+        migrarTipos();
+        console.log('Migracion: columna "tipo" agregada a odontogramas (inicial/evolucion/alta); odontograma mas antiguo de cada paciente marcado como "inicial"');
+    }
+
+    // Antecedentes personales/familiares (secciones D y E): pasan de una
+    // lista "marcados" (checkbox) a estados explicitos si/no/sin-registrar
+    // por item. Los items previamente marcados quedan en "si"; los demas
+    // quedan sin registrar (no se infiere "no" para no inventar un dato
+    // que el profesional nunca ingreso).
+    const columnasFichas = db.prepare("PRAGMA table_info(fichas_clinicas)").all().map((c) => c.name);
+    if (columnasFichas.includes('antecedentes_personales_json')) {
+        const filas = db.prepare('SELECT id, antecedentes_personales_json, antecedentes_familiares_json FROM fichas_clinicas').all();
+        const actualizar = db.prepare('UPDATE fichas_clinicas SET antecedentes_personales_json = ?, antecedentes_familiares_json = ? WHERE id = ?');
+        let migradas = 0;
+        const transaccion = db.transaction(() => {
+            filas.forEach((fila) => {
+                const convertir = (json) => {
+                    if (!json) return { valor: json, cambio: false };
+                    let datos;
+                    try { datos = JSON.parse(json); } catch (e) { return { valor: json, cambio: false }; }
+                    if (!Array.isArray(datos.marcados)) return { valor: json, cambio: false };
+                    const estados = {};
+                    datos.marcados.forEach((codigo) => { estados[codigo] = 'si'; });
+                    const { marcados, ...resto } = datos;
+                    return { valor: JSON.stringify({ ...resto, estados }), cambio: true };
+                };
+                const personales = convertir(fila.antecedentes_personales_json);
+                const familiares = convertir(fila.antecedentes_familiares_json);
+                if (personales.cambio || familiares.cambio) {
+                    actualizar.run(personales.valor, familiares.valor, fila.id);
+                    migradas++;
+                }
+            });
+        });
+        transaccion();
+        if (migradas > 0) {
+            console.log(`Migracion: ${migradas} ficha(s) clinica(s) con antecedentes D/E convertidos de checkbox ("marcados") a estados explicitos si/no`);
+        }
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)

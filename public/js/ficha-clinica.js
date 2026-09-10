@@ -56,50 +56,120 @@ const PIEZAS_HIGIENE = [
 ];
 
 let fichaClinicaActual = null;
+let examenSinPatologiaAparente = false;
+let cpoModoManual = false; // true mientras el usuario edita J con "Ajustar manualmente"
 
 // -----------------------------------------------------------------
 // Arranque: se ejecuta cuando la pestana existe (paciente.js ya cargo
 // pacienteActual antes de llamar cargarFichaClinica desde su propio flujo)
 // -----------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-    construirGrillaChecks('grilla-antecedentes-personales', ANTECEDENTES_PERSONALES);
-    construirGrillaChecks('grilla-antecedentes-familiares', ANTECEDENTES_FAMILIARES);
+    construirGrillaEstados('grilla-antecedentes-personales', ANTECEDENTES_PERSONALES);
+    construirGrillaEstados('grilla-antecedentes-familiares', ANTECEDENTES_FAMILIARES);
     construirListaEstomatognatico();
     construirTablaHigiene();
     inicializarAvisoDeSalida();
+    inicializarRangosVitales();
+    inicializarBotonesCpoManual();
 });
 
-function construirGrillaChecks(contenedorId, items) {
+// -----------------------------------------------------------------
+// D / E - Antecedentes: estados explicitos Si / No / sin registrar (nunca
+// checkboxes). "Sin registrar" es el estado inicial, distinto de "No".
+// -----------------------------------------------------------------
+function construirGrillaEstados(contenedorId, items) {
     const contenedor = document.getElementById(contenedorId);
     contenedor.innerHTML = items.map((item) => `
-        <div>
-            <label class="check-item">
-                <input type="checkbox" data-codigo="${item.codigo}">
-                ${item.etiqueta}
-            </label>
-            ${item.conTexto ? `<div class="check-item__extra"><input type="text" data-codigo-texto="${item.codigo}" placeholder="Especificar..."></div>` : ''}
+        <div class="antecedente-item" data-codigo="${item.codigo}" data-estado="">
+            <div class="antecedente-item__fila">
+                <span class="antecedente-item__etiqueta">${item.etiqueta}</span>
+                <div class="antecedente-item__botones" role="group">
+                    <button type="button" class="antecedente-boton antecedente-boton--si" data-valor="si">Sí</button>
+                    <button type="button" class="antecedente-boton antecedente-boton--no" data-valor="no">No</button>
+                </div>
+            </div>
+            ${item.conTexto ? `<div class="check-item__extra oculto" data-extra-de="${item.codigo}"><input type="text" data-codigo-texto="${item.codigo}" placeholder="Especificar..."></div>` : ''}
         </div>
     `).join('');
+    contenedor.addEventListener('click', manejarClicEstadoAntecedente);
 }
 
+function manejarClicEstadoAntecedente(evento) {
+    const boton = evento.target.closest('.antecedente-boton');
+    if (!boton) return;
+    const item = boton.closest('.antecedente-item');
+    const nuevoValor = item.dataset.estado === boton.dataset.valor ? '' : boton.dataset.valor;
+    aplicarEstadoAntecedente(item, nuevoValor);
+    marcarCambioPendiente('secciones');
+}
+
+function aplicarEstadoAntecedente(item, valor) {
+    item.dataset.estado = valor;
+    item.querySelectorAll('.antecedente-boton').forEach((b) => {
+        b.classList.toggle('antecedente-boton--activo', b.dataset.valor === valor);
+    });
+    const extra = item.parentElement.querySelector(`[data-extra-de="${item.dataset.codigo}"]`);
+    if (extra) extra.classList.toggle('oculto', valor !== 'si');
+}
+
+function marcarTodoNoAntecedentes(prefijo) {
+    const contenedorId = prefijo === 'personales' ? 'grilla-antecedentes-personales' : 'grilla-antecedentes-familiares';
+    document.querySelectorAll(`#${contenedorId} .antecedente-item`).forEach((item) => {
+        if (item.dataset.estado === '') aplicarEstadoAntecedente(item, 'no');
+    });
+    marcarCambioPendiente('secciones');
+}
+
+// -----------------------------------------------------------------
+// G - Examen estomatognatico: boton "Sin patologia aparente" colapsa/
+// atenua los 13 items; se desactiva solo si luego se marca una patologia.
+// -----------------------------------------------------------------
 function construirListaEstomatognatico() {
     const contenedor = document.getElementById('lista-examen-estomatognatico');
-    contenedor.innerHTML = EXAMEN_ESTOMATOGNATICO_ITEMS.map((item) => `
-        <div style="border-bottom: 1px solid var(--gris-claro); padding: 10px 0;">
-            <label class="check-item">
-                <input type="checkbox" data-item="${item.num}" onchange="alternarDescripcionEstomatognatico(${item.num})">
-                ${item.num}. ${item.etiqueta} — con patología
-            </label>
-            <div class="check-item__extra oculto" id="descripcion-envoltura-${item.num}">
-                <input type="text" id="descripcion-item-${item.num}" placeholder="Describir la patología (region ${item.num})">
-            </div>
+    contenedor.innerHTML = `
+        <button type="button" class="btn btn-secundario btn-sm" id="btn-sin-patologia-aparente" onclick="alternarSinPatologiaAparente()">Sin patología aparente</button>
+        <div id="lista-examen-estomatognatico-items">
+            ${EXAMEN_ESTOMATOGNATICO_ITEMS.map((item) => `
+                <div style="border-bottom: 1px solid var(--gris-claro); padding: 10px 0;">
+                    <label class="check-item">
+                        <input type="checkbox" data-item="${item.num}" onchange="alternarDescripcionEstomatognatico(${item.num})">
+                        ${item.num}. ${item.etiqueta} — con patología
+                    </label>
+                    <div class="check-item__extra oculto" id="descripcion-envoltura-${item.num}">
+                        <input type="text" id="descripcion-item-${item.num}" placeholder="Describir la patología (region ${item.num})">
+                    </div>
+                </div>
+            `).join('')}
         </div>
-    `).join('');
+    `;
 }
 
 function alternarDescripcionEstomatognatico(num) {
     const marcado = document.querySelector(`#lista-examen-estomatognatico input[data-item="${num}"]`).checked;
     document.getElementById(`descripcion-envoltura-${num}`).classList.toggle('oculto', !marcado);
+    if (marcado && examenSinPatologiaAparente) {
+        aplicarSinPatologiaAparente(false);
+    }
+    marcarCambioPendiente('secciones');
+}
+
+function alternarSinPatologiaAparente() {
+    aplicarSinPatologiaAparente(!examenSinPatologiaAparente);
+    if (examenSinPatologiaAparente) {
+        EXAMEN_ESTOMATOGNATICO_ITEMS.forEach((item) => {
+            document.querySelector(`#lista-examen-estomatognatico input[data-item="${item.num}"]`).checked = false;
+            document.getElementById(`descripcion-item-${item.num}`).value = '';
+            document.getElementById(`descripcion-envoltura-${item.num}`).classList.add('oculto');
+        });
+    }
+    marcarCambioPendiente('secciones');
+}
+
+function aplicarSinPatologiaAparente(valor) {
+    examenSinPatologiaAparente = valor;
+    document.getElementById('btn-sin-patologia-aparente').classList.toggle('btn-primario', valor);
+    document.getElementById('btn-sin-patologia-aparente').classList.toggle('btn-secundario', !valor);
+    document.getElementById('lista-examen-estomatognatico-items').classList.toggle('estomatognatico-items--atenuado', valor);
 }
 
 function construirTablaHigiene() {
@@ -176,8 +246,10 @@ async function cargarFichaClinica() {
     document.getElementById('fc-frecuencia-respiratoria').value = vitales.frecuencia_respiratoria ?? '';
     document.getElementById('fc-presion-arterial').value = vitales.presion_arterial || '';
     marcarCompletitud('constantes-vitales', !!(vitales.temperatura || vitales.pulso || vitales.presion_arterial));
+    ['fc-temperatura', 'fc-pulso', 'fc-frecuencia-respiratoria', 'fc-presion-arterial'].forEach(revisarRangoVital);
 
-    const examen = (fichaClinicaActual.examen_estomatognatico_json || {}).items || {};
+    const examenData = fichaClinicaActual.examen_estomatognatico_json || {};
+    const examen = examenData.items || {};
     let algunItemConPatologia = false;
     EXAMEN_ESTOMATOGNATICO_ITEMS.forEach((item) => {
         const dato = examen[item.num];
@@ -187,7 +259,8 @@ async function cargarFichaClinica() {
         document.getElementById(`descripcion-envoltura-${item.num}`).classList.toggle('oculto', !checkbox.checked);
         if (checkbox.checked) algunItemConPatologia = true;
     });
-    marcarCompletitud('examen-estomatognatico', algunItemConPatologia);
+    aplicarSinPatologiaAparente(!!examenData.sin_patologia_aparente && !algunItemConPatologia);
+    marcarCompletitud('examen-estomatognatico', algunItemConPatologia || examenSinPatologiaAparente);
 
     const indicadores = fichaClinicaActual.indicadores_salud_bucal_json || {};
     const higiene = indicadores.higiene || [];
@@ -203,34 +276,26 @@ async function cargarFichaClinica() {
     document.getElementById('fc-fluorosis').value = indicadores.fluorosis || 'ninguna';
     marcarCompletitud('indicadores-salud-bucal', !!(indicadores.periodontal || indicadores.oclusion));
 
-    const cpo = fichaClinicaActual.indices_cpo_json || {};
-    const permanente = cpo.permanente || {};
-    const temporal = cpo.temporal || {};
-    document.getElementById('cpo-perm-c').value = permanente.c ?? '';
-    document.getElementById('cpo-perm-p').value = permanente.p ?? '';
-    document.getElementById('cpo-perm-o').value = permanente.o ?? '';
-    document.getElementById('cpo-temp-c').value = temporal.c ?? '';
-    document.getElementById('cpo-temp-e').value = temporal.e ?? '';
-    document.getElementById('cpo-temp-o').value = temporal.o ?? '';
-    recalcularCpo();
-    marcarCompletitud('indices-cpo', cpo.permanente !== undefined || cpo.temporal !== undefined);
+    await cargarIndicesCpo();
 
     await actualizarBannerAlertaMedica();
 }
 
 function aplicarAntecedentes(prefijo, catalogo, datos) {
-    const marcados = new Set(datos.marcados || []);
+    const estados = datos.estados || {};
     catalogo.forEach((item) => {
-        const checkbox = document.querySelector(`#grilla-${prefijo} input[data-codigo="${item.codigo}"]`);
-        checkbox.checked = marcados.has(item.codigo);
+        const contenedorId = `grilla-${prefijo}`;
+        const fila = document.querySelector(`#${contenedorId} .antecedente-item[data-codigo="${item.codigo}"]`);
+        aplicarEstadoAntecedente(fila, estados[item.codigo] || '');
         if (item.conTexto) {
-            const campoTexto = document.querySelector(`#grilla-${prefijo} input[data-codigo-texto="${item.codigo}"]`);
+            const campoTexto = document.querySelector(`#${contenedorId} input[data-codigo-texto="${item.codigo}"]`);
             campoTexto.value = datos.otro_texto || '';
         }
     });
     const observacionesId = prefijo === 'antecedentes-personales' ? 'fc-personales-observaciones' : 'fc-familiares-observaciones';
     document.getElementById(observacionesId).value = datos.observaciones || '';
-    marcarCompletitud(prefijo, marcados.size > 0 || !!datos.observaciones);
+    const hayRegistrado = Object.keys(estados).length > 0;
+    marcarCompletitud(prefijo, hayRegistrado || !!datos.observaciones);
 }
 
 function marcarCompletitud(seccion, completo) {
@@ -262,20 +327,50 @@ function recopilarAntecedentesFamiliares() {
 }
 
 function leerAntecedentes(prefijo, catalogo, observacionesId) {
-    const marcados = [];
+    const estados = {};
     let otroTexto = '';
     catalogo.forEach((item) => {
-        const checkbox = document.querySelector(`#grilla-${prefijo} input[data-codigo="${item.codigo}"]`);
-        if (checkbox.checked) marcados.push(item.codigo);
+        const fila = document.querySelector(`#grilla-${prefijo} .antecedente-item[data-codigo="${item.codigo}"]`);
+        if (fila.dataset.estado === 'si' || fila.dataset.estado === 'no') estados[item.codigo] = fila.dataset.estado;
         if (item.conTexto) {
             otroTexto = document.querySelector(`#grilla-${prefijo} input[data-codigo-texto="${item.codigo}"]`).value.trim();
         }
     });
     return {
-        marcados,
+        estados,
         otro_texto: otroTexto || null,
         observaciones: document.getElementById(observacionesId).value.trim() || null
     };
+}
+
+// Rangos de referencia en adultos (F033); en niños varian segun la edad,
+// ver nota fija en la seccion. Solo resaltan el campo (borde ambar), nunca
+// bloquean el guardado.
+const RANGOS_VITALES = {
+    'fc-temperatura': { min: 36.1, max: 37.2 },
+    'fc-pulso': { min: 60, max: 100 },
+    'fc-frecuencia-respiratoria': { min: 12, max: 20 }
+};
+
+function inicializarRangosVitales() {
+    Object.keys(RANGOS_VITALES).forEach((id) => {
+        document.getElementById(id).addEventListener('input', () => revisarRangoVital(id));
+    });
+    document.getElementById('fc-presion-arterial').addEventListener('input', () => revisarRangoVital('fc-presion-arterial'));
+}
+
+function revisarRangoVital(id) {
+    const campo = document.getElementById(id);
+    let fueraDeRango = false;
+    if (id === 'fc-presion-arterial') {
+        const coincide = /^(\d{2,3})\s*\/\s*(\d{2,3})$/.exec(campo.value.trim());
+        if (coincide) fueraDeRango = Number(coincide[1]) >= 120 || Number(coincide[2]) >= 80;
+    } else {
+        const rango = RANGOS_VITALES[id];
+        const valor = campo.value === '' ? null : Number(campo.value);
+        if (rango && valor !== null) fueraDeRango = valor < rango.min || valor > rango.max;
+    }
+    campo.classList.toggle('campo--fuera-rango', fueraDeRango);
 }
 
 function recopilarConstantesVitales() {
@@ -301,7 +396,7 @@ function recopilarExamenEstomatognatico() {
             items[item.num] = { patologia: marcado, descripcion: descripcion || null };
         }
     });
-    return { items };
+    return { items, sin_patologia_aparente: examenSinPatologiaAparente };
 }
 
 function recopilarIndicadoresSaludBucal() {
@@ -333,23 +428,110 @@ function recopilarIndicesCpo() {
     };
     datos.permanente.total = datos.permanente.c + datos.permanente.p + datos.permanente.o;
     datos.temporal.total = datos.temporal.c + datos.temporal.e + datos.temporal.o;
+    if (cpoModoManual) {
+        datos.ajustado_manualmente = true;
+        datos.ajustado_por = usuarioActual.nombre;
+        datos.ajustado_en = new Date().toISOString();
+    } else {
+        datos.ajustado_manualmente = false;
+        datos.ajustado_por = null;
+        datos.ajustado_en = null;
+    }
     return datos;
+}
+
+// -----------------------------------------------------------------
+// J - Indices CPO-ceo: fuente unica (se elimino el panel lateral del
+// odontograma). Solo lectura por defecto, mostrando el autocalculo
+// derivado del odontograma activo; "Ajustar manualmente" habilita la
+// edicion y "Restaurar calculo automatico" vuelve al valor derivado.
+// -----------------------------------------------------------------
+async function cargarIndicesCpo() {
+    const cpo = fichaClinicaActual.indices_cpo_json || {};
+    if (cpo.ajustado_manualmente) {
+        aplicarValoresCpo(cpo.permanente || {}, cpo.temporal || {});
+        cpoModoManual = false;
+        actualizarEstadoUiCpo(true, cpo.ajustado_por, cpo.ajustado_en);
+    } else {
+        await cargarCpoAutomatico();
+        cpoModoManual = false;
+        actualizarEstadoUiCpo(false);
+    }
+    marcarCompletitud('indices-cpo', cpo.permanente !== undefined || cpo.temporal !== undefined);
+}
+
+async function cargarCpoAutomatico() {
+    try {
+        const sugerido = await api.get(`/api/odontograma/${pacienteId}/cpo-sugerido`);
+        aplicarValoresCpo(sugerido.permanente, sugerido.temporal);
+    } catch (error) {
+        aplicarValoresCpo({}, {});
+    }
+}
+
+function aplicarValoresCpo(permanente, temporal) {
+    document.getElementById('cpo-perm-c').value = permanente.c ?? 0;
+    document.getElementById('cpo-perm-p').value = permanente.p ?? 0;
+    document.getElementById('cpo-perm-o').value = permanente.o ?? 0;
+    document.getElementById('cpo-temp-c').value = temporal.c ?? 0;
+    document.getElementById('cpo-temp-e').value = temporal.e ?? 0;
+    document.getElementById('cpo-temp-o').value = temporal.o ?? 0;
+    recalcularCpo();
+}
+
+function actualizarEstadoUiCpo(ajustadoManualmente, ajustadoPor, ajustadoEn) {
+    const inputs = ['cpo-perm-c', 'cpo-perm-p', 'cpo-perm-o', 'cpo-temp-c', 'cpo-temp-e', 'cpo-temp-o'];
+    const enEdicion = cpoModoManual;
+    inputs.forEach((id) => { document.getElementById(id).disabled = !enEdicion; });
+    document.getElementById('btn-cpo-ajustar').classList.toggle('oculto', enEdicion);
+    document.getElementById('btn-cpo-restaurar').classList.toggle('oculto', !enEdicion && !ajustadoManualmente);
+    document.getElementById('btn-cpo-usar-sugerido').classList.toggle('oculto', !enEdicion);
+
+    const aviso = document.getElementById('cpo-aviso-manual');
+    if (ajustadoManualmente && !enEdicion) {
+        aviso.textContent = `Ajustado manualmente por ${ajustadoPor || '—'} el ${ajustadoEn ? formatearFecha(ajustadoEn.slice(0, 10)) : '—'}`;
+        aviso.classList.remove('oculto');
+    } else if (enEdicion) {
+        aviso.textContent = 'Editando manualmente — use "Guardar ficha clínica" para registrar el ajuste.';
+        aviso.classList.remove('oculto');
+    } else {
+        aviso.classList.add('oculto');
+    }
+}
+
+function iniciarAjusteManualCpo() {
+    cpoModoManual = true;
+    actualizarEstadoUiCpo(false);
+    marcarCambioPendiente('secciones');
+}
+
+async function restaurarCpoAutomatico() {
+    await cargarCpoAutomatico();
+    cpoModoManual = false;
+    actualizarEstadoUiCpo(false);
+    marcarCambioPendiente('secciones');
+}
+
+function inicializarBotonesCpoManual() {
+    document.getElementById('btn-cpo-ajustar').addEventListener('click', iniciarAjusteManualCpo);
+    document.getElementById('btn-cpo-restaurar').addEventListener('click', restaurarCpoAutomatico);
 }
 
 async function usarCpoSugerido() {
     try {
         const sugerido = await api.get(`/api/odontograma/${pacienteId}/cpo-sugerido`);
-        document.getElementById('cpo-perm-c').value = sugerido.permanente.c;
-        document.getElementById('cpo-perm-p').value = sugerido.permanente.p;
-        document.getElementById('cpo-perm-o').value = sugerido.permanente.o;
-        document.getElementById('cpo-temp-c').value = sugerido.temporal.c;
-        document.getElementById('cpo-temp-e').value = sugerido.temporal.e;
-        document.getElementById('cpo-temp-o').value = sugerido.temporal.o;
-        recalcularCpo();
+        aplicarValoresCpo(sugerido.permanente, sugerido.temporal);
         marcarCambioPendiente('secciones'); // .value= no dispara 'input', se marca a mano
     } catch (error) {
         alert('No se pudo calcular el sugerido: ' + error.message);
     }
+}
+
+// Llamado desde odontograma.js tras guardar una nueva version, para que J
+// refleje el nuevo calculo derivado si no esta ajustado manualmente.
+async function refrescarCpoTrasNuevaVersionOdontograma() {
+    if (cpoModoManual || (fichaClinicaActual && fichaClinicaActual.indices_cpo_json && fichaClinicaActual.indices_cpo_json.ajustado_manualmente)) return;
+    await cargarCpoAutomatico();
 }
 
 // -----------------------------------------------------------------
@@ -384,14 +566,17 @@ async function guardarFichaCompleta() {
 
         marcarCompletitud('motivo-consulta', !!motivo.texto);
         marcarCompletitud('enfermedad-actual', !!enfermedad.texto);
-        marcarCompletitud('antecedentes-personales', personales.marcados.length > 0 || !!personales.observaciones);
-        marcarCompletitud('antecedentes-familiares', familiares.marcados.length > 0 || !!familiares.observaciones);
+        marcarCompletitud('antecedentes-personales', Object.keys(personales.estados).length > 0 || !!personales.observaciones);
+        marcarCompletitud('antecedentes-familiares', Object.keys(familiares.estados).length > 0 || !!familiares.observaciones);
         marcarCompletitud('constantes-vitales', !!(vitales.temperatura || vitales.pulso || vitales.presion_arterial));
-        marcarCompletitud('examen-estomatognatico', Object.values(examen.items).some((i) => i.patologia));
+        marcarCompletitud('examen-estomatognatico', Object.values(examen.items).some((i) => i.patologia) || examen.sin_patologia_aparente);
         marcarCompletitud('indicadores-salud-bucal', !!(indicadores.periodontal || indicadores.oclusion));
         marcarCompletitud('indices-cpo', true);
 
         fichaClinicaActual.antecedentes_personales_json = personales;
+        fichaClinicaActual.indices_cpo_json = cpo;
+        cpoModoManual = false;
+        actualizarEstadoUiCpo(cpo.ajustado_manualmente, cpo.ajustado_por, cpo.ajustado_en);
         await actualizarBannerAlertaMedica();
 
         limpiarCambioPendiente('secciones');

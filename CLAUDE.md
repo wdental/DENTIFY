@@ -40,7 +40,7 @@ Sistema de gestión **interno** de la clínica dental World Dental (Quito, Ecuad
 - **Fase 1** — completa: login, pacientes (CRUD + ficha + documentos + borrado lógico con restauración), importador desde Excel/CSV, usuarios, dashboard inicial, respaldo automático diario.
 - **Fase 2** — completa: doctores en base de datos, agenda de citas.
 - **Fase 2.5** — completa: agenda con vista Día (2 sillones, franjas de 15 min) y vista Semana, validación de horario y solapamientos, sincronización con Google Calendar, pestaña "Citas" en la ficha del paciente, tarjetas de dashboard ("Citas de hoy" con cambio de estado rápido, "No-shows del mes"), formato de fechas unificado.
-- **Fase 3A** — en curso: ficha clínica según Formulario 033 MSP + odontograma.
+- **Fase 3A** — refinada tras revisión de usuario: ficha clínica según Formulario 033 MSP (antecedentes D/E con Sí/No explícito, rangos de referencia en F, "sin patología aparente" en G, CPO-ceo con fuente única y ajuste manual en J) + odontograma (paleta compacta, símbolos fieles al F033, tipos inicial/evolución/alta, reglas de exclusión clínica validadas en cliente y servidor) + guardado unificado con aviso de salida.
 - **Pendiente — Fase 3B**: impresión en PDF del F033 y codificación CIE-10.
 - **Pendiente — Fase 3C**: consentimientos informados con firma digital.
 - **Pendiente — Fase 4**: presupuestos y pagos.

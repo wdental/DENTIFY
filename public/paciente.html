@@ -132,6 +132,8 @@
                     D. Antecedentes patológicos personales
                 </summary>
                 <div class="seccion-clinica__cuerpo">
+                    <p class="seccion-clinica__ayuda">Cada ítem inicia "sin registrar". Marque Sí o No explícitamente; "No" es un dato (anamnesis negativa), distinto de vacío.</p>
+                    <button type="button" class="btn btn-secundario btn-sm" onclick="marcarTodoNoAntecedentes('personales')">Marcar todo No</button>
                     <div class="grilla-checks" id="grilla-antecedentes-personales"></div>
                     <div class="campo campo--ancho">
                         <label for="fc-personales-observaciones">Observaciones</label>
@@ -147,6 +149,8 @@
                     E. Antecedentes patológicos familiares
                 </summary>
                 <div class="seccion-clinica__cuerpo">
+                    <p class="seccion-clinica__ayuda">Cada ítem inicia "sin registrar". Marque Sí o No explícitamente; "No" es un dato (anamnesis negativa), distinto de vacío.</p>
+                    <button type="button" class="btn btn-secundario btn-sm" onclick="marcarTodoNoAntecedentes('familiares')">Marcar todo No</button>
                     <div class="grilla-checks" id="grilla-antecedentes-familiares"></div>
                     <div class="campo campo--ancho">
                         <label for="fc-familiares-observaciones">Observaciones</label>
@@ -166,20 +170,25 @@
                         <div class="campo">
                             <label for="fc-temperatura">Temperatura (°C)</label>
                             <input type="number" id="fc-temperatura" step="0.1" min="30" max="43">
+                            <span class="campo__ayuda-rango">Normal en adultos: 36.1–37.2 °C</span>
                         </div>
                         <div class="campo">
                             <label for="fc-pulso">Pulso (lat/min)</label>
                             <input type="number" id="fc-pulso" min="30" max="220">
+                            <span class="campo__ayuda-rango">Normal en adultos: 60–100 lpm</span>
                         </div>
                         <div class="campo">
                             <label for="fc-frecuencia-respiratoria">Frecuencia respiratoria (resp/min)</label>
                             <input type="number" id="fc-frecuencia-respiratoria" min="5" max="60">
+                            <span class="campo__ayuda-rango">Normal en adultos: 12–20 rpm</span>
                         </div>
                         <div class="campo">
                             <label for="fc-presion-arterial">Presion arterial (mmHg)</label>
                             <input type="text" id="fc-presion-arterial" placeholder="Ej. 120/80">
+                            <span class="campo__ayuda-rango">Normal en adultos: &lt;120/80 mmHg</span>
                         </div>
                     </div>
+                    <p class="seccion-clinica__ayuda">Valores de referencia en adultos; en niños varían según la edad.</p>
                 </div>
             </details>
 
@@ -266,9 +275,14 @@
                 </summary>
                 <div class="seccion-clinica__cuerpo">
                     <div class="flex-entre" style="margin-bottom: 10px;">
-                        <p class="texto-secundario mb-0">Autocalculo sugerido desde el odontograma activo, ajustable manualmente.</p>
-                        <button type="button" class="btn btn-secundario btn-sm" onclick="usarCpoSugerido()">Usar sugerido</button>
+                        <p class="texto-secundario mb-0">Autocálculo derivado del odontograma activo, en solo lectura por defecto.</p>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secundario btn-sm" id="btn-cpo-ajustar">Ajustar manualmente</button>
+                            <button type="button" class="btn btn-secundario btn-sm oculto" id="btn-cpo-usar-sugerido" onclick="usarCpoSugerido()">Usar sugerido</button>
+                            <button type="button" class="btn btn-secundario btn-sm oculto" id="btn-cpo-restaurar">Restaurar cálculo automático</button>
+                        </div>
                     </div>
+                    <p class="cpo-aviso-manual oculto" id="cpo-aviso-manual"></p>
                     <div class="tabla-envoltorio">
                         <table class="tabla-cpo">
                             <thead>

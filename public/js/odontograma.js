@@ -52,6 +52,13 @@ const GRUPOS_PALETA = [
     { id: 'herramientas', titulo: 'Herramientas', especiales: ['movilidad', 'recesion', 'borrar'] }
 ];
 
+// Fila superior de "Acceso rapido": herramientas mas usadas + el Borrador,
+// siempre visible junto con su presencia normal al final de la paleta.
+const ACCESO_RAPIDO = ['caries', 'obturado', 'ausente', 'extraccion_indicada', 'borrar'];
+
+// Los 4 estados que excluyen cualquier otro hallazgo en la misma pieza.
+const ESTADOS_EXCLUSIVOS_PIEZA = ['ausente', 'perdida_caries', 'perdida_otra_causa', 'extraccion_indicada'];
+
 // -----------------------------------------------------------------
 // Denticion (nomenclatura FDI) y geometria del diagrama
 // -----------------------------------------------------------------
@@ -150,12 +157,21 @@ async function cargarOdontograma() {
 
     await recargarDatosOdontograma();
     construirLayoutOdontograma();
-    mostrarVersionActiva();
+
+    if (!odontogramaActivo.odontograma) {
+        // Paciente sin ningun odontograma: entra directo en edicion de un
+        // INICIAL, sin exigir el clic en "Registrar nuevo odontograma".
+        iniciarNuevaVersionOdontograma('inicial', true);
+    } else {
+        mostrarVersionActiva();
+    }
 
     document.addEventListener('keydown', (evento) => {
         if (evento.key === 'Escape' && herramientaActiva) activarHerramienta(null);
     });
 }
+
+const ETIQUETAS_TIPO_ODONTOGRAMA = { inicial: 'Inicial', evolucion: 'Evolución', alta: 'Alta' };
 
 async function recargarDatosOdontograma() {
     try {
@@ -176,15 +192,19 @@ async function recargarDatosOdontograma() {
 // -----------------------------------------------------------------
 function construirLayoutOdontograma() {
     const contenedor = document.getElementById('seccion-odontograma');
+    const tieneOdontogramas = !!odontogramaActivo.odontograma;
+    const etiquetaBotonNuevo = tieneOdontogramas ? 'Registrar odontograma de evolución' : 'Registrar nuevo odontograma';
+    const etiquetaActiva = tieneOdontogramas ? `${ETIQUETAS_TIPO_ODONTOGRAMA[odontogramaActivo.odontograma.tipo] || 'Evolución'} (activa) — ${formatearFecha(odontogramaActivo.odontograma.fecha_registro)}` : 'Versión activa (vacía)';
+
     contenedor.innerHTML = `
         <div class="odontograma-barra">
             <select id="selector-version-odontograma" onchange="cambiarVersionOdontograma(this.value)">
-                <option value="activo">Version activa${odontogramaActivo.odontograma ? '' : ' (vacia)'}</option>
+                <option value="activo">${etiquetaActiva}</option>
                 ${versionesOdontograma.filter((v) => !v.es_version_activa).map((v) => `
-                    <option value="${v.id}">Historica · ${formatearFecha(v.fecha_registro)} · ${v.doctor_nombre || 'Sin doctor'}</option>
+                    <option value="${v.id}">${ETIQUETAS_TIPO_ODONTOGRAMA[v.tipo] || 'Evolución'} — ${formatearFecha(v.fecha_registro)} · ${v.doctor_nombre || 'Sin doctor'}</option>
                 `).join('')}
             </select>
-            <button type="button" class="btn btn-primario btn-sm" id="btn-nueva-version-odontograma" onclick="iniciarNuevaVersionOdontograma()">Registrar nuevo odontograma</button>
+            <button type="button" class="btn btn-primario btn-sm" id="btn-nueva-version-odontograma" onclick="iniciarNuevaVersionOdontograma()">${etiquetaBotonNuevo}</button>
             <button type="button" class="btn btn-secundario btn-sm oculto" id="btn-cancelar-version-odontograma" onclick="cancelarNuevaVersionOdontograma()">Cancelar edición</button>
             <button type="button" class="btn btn-primario btn-sm oculto" id="btn-guardar-version-odontograma" onclick="guardarNuevaVersionOdontograma()">Guardar nueva versión</button>
             <button type="button" class="btn btn-secundario btn-sm" onclick="window.print()">Imprimir vista actual</button>
@@ -195,6 +215,13 @@ function construirLayoutOdontograma() {
                 <select id="odo-doctor">
                     <option value="">Sin especificar</option>
                     ${doctoresParaOdontograma.map((d) => `<option value="${d.id}">${d.nombre_completo}</option>`).join('')}
+                </select>
+            </div>
+            <div class="campo" id="odo-tipo-envoltura">
+                <label for="odo-tipo">Tipo de odontograma</label>
+                <select id="odo-tipo">
+                    <option value="evolucion">Evolución</option>
+                    <option value="alta">Alta</option>
                 </select>
             </div>
             <div class="campo campo--ancho">
@@ -212,7 +239,10 @@ function construirLayoutOdontograma() {
             <div class="odonto-centro">
                 <div class="flex-entre">
                     <div class="odonto-hint" id="odonto-hint"></div>
-                    <div class="odonto-contador-hallazgos" id="odonto-contador-hallazgos">0 hallazgos</div>
+                    <div class="odonto-contadores">
+                        <span class="odonto-contador-hallazgos" id="odonto-contador-hallazgos">0 hallazgos</span>
+                        <span class="odonto-contador-cpo" id="odonto-contador-cpo"></span>
+                    </div>
                 </div>
                 <div class="odontograma-envoltorio">
                     <svg id="odontograma-svg" class="odontograma-svg"></svg>
@@ -223,28 +253,6 @@ function construirLayoutOdontograma() {
                     En Dentify cada cambio genera una versión nueva con autor y fecha.
                 </div>
             </div>
-
-            <details class="odonto-cpo-panel" open>
-                <summary>Índices CPO-ceo — calculados</summary>
-                <div class="odonto-cpo-cuerpo">
-                    <p class="odonto-cpo-nota">Derivados del odontograma; ajustables manualmente en la sección J.</p>
-                    <table class="odonto-cpo-tabla">
-                        <thead><tr><th>Índice</th><th>C/c</th><th>P/e</th><th>O/o</th><th>Total</th></tr></thead>
-                        <tbody>
-                            <tr>
-                                <td>D — Permanente</td>
-                                <td id="cpo-vivo-perm-c">0</td><td id="cpo-vivo-perm-p">0</td><td id="cpo-vivo-perm-o">0</td>
-                                <td id="cpo-vivo-perm-total">0</td>
-                            </tr>
-                            <tr>
-                                <td>d — Temporal</td>
-                                <td id="cpo-vivo-temp-c">0</td><td id="cpo-vivo-temp-e">0</td><td id="cpo-vivo-temp-o">0</td>
-                                <td id="cpo-vivo-temp-total">0</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </details>
         </div>
     `;
 
@@ -256,11 +264,20 @@ function construirLayoutOdontograma() {
 }
 
 function construirPaleta() {
-    return GRUPOS_PALETA.map((grupo) => `
+    const accesoRapido = `
+        <div class="odonto-grupo odonto-grupo--acceso-rapido">
+            <div class="odonto-grupo__titulo">Acceso rápido</div>
+            <div class="odonto-grupo__botones odonto-grupo__botones--grid">
+                ${ACCESO_RAPIDO.map((id) => botonPaleta(id, id === 'borrar' ? ETIQUETAS_ESPECIALES[id] : HALLAZGOS[id].etiqueta, true)).join('')}
+            </div>
+        </div>
+    `;
+
+    return accesoRapido + GRUPOS_PALETA.map((grupo) => `
         <div class="odonto-grupo odonto-grupo--${grupo.id}">
             <div class="odonto-grupo__titulo">${grupo.titulo}</div>
             ${grupo.subtitulo ? `<div class="odonto-grupo__subtitulo">${grupo.subtitulo}</div>` : ''}
-            <div class="odonto-grupo__botones">
+            <div class="odonto-grupo__botones odonto-grupo__botones--grid">
                 ${(grupo.codigos || []).map((codigo) => botonPaleta(codigo, HALLAZGOS[codigo].etiqueta)).join('')}
                 ${(grupo.especiales || []).map((id) => botonPaleta(id, ETIQUETAS_ESPECIALES[id])).join('')}
             </div>
@@ -269,11 +286,11 @@ function construirPaleta() {
     `).join('');
 }
 
-function botonPaleta(id, etiqueta) {
+function botonPaleta(id, etiqueta, esAccesoRapido) {
     return `
-        <button type="button" class="paleta-boton" data-herramienta="${id}" title="${etiqueta}">
+        <button type="button" class="paleta-boton ${esAccesoRapido ? 'paleta-boton--acceso-rapido' : ''}" data-herramienta="${id}" title="${etiqueta}" aria-label="${etiqueta}">
             <span class="paleta-boton__icono">${iconoPaletaPorCodigo(id)}</span>
-            <span>${etiqueta}</span>
+            <span class="paleta-boton__texto">${etiqueta}</span>
         </button>
     `;
 }
@@ -331,8 +348,8 @@ async function mostrarVersionHistorica(id) {
 // -----------------------------------------------------------------
 // Registrar nueva version (inmutable al guardar)
 // -----------------------------------------------------------------
-function iniciarNuevaVersionOdontograma() {
-    if (!confirm('Va a registrar un nuevo odontograma. Al guardar, esta version quedara fija y no podra editarse despues (se creara una nueva version para cualquier cambio futuro). ¿Continuar?')) {
+function iniciarNuevaVersionOdontograma(tipoForzado, esAutomatico) {
+    if (!esAutomatico && !confirm('Va a registrar un nuevo odontograma. Al guardar, esta version quedara fija y no podra editarse despues (se creara una nueva version para cualquier cambio futuro). ¿Continuar?')) {
         return;
     }
 
@@ -350,8 +367,14 @@ function iniciarNuevaVersionOdontograma() {
     document.getElementById('btn-cancelar-version-odontograma').classList.remove('oculto');
     document.getElementById('btn-guardar-version-odontograma').classList.remove('oculto');
     document.getElementById('odontograma-form-nueva-version').classList.remove('oculto');
-    document.getElementById('odontograma-marca-agua-envoltura').innerHTML =
-        '<div class="odontograma-marca-agua">Editando nueva versión — aun no guardada</div>';
+
+    const esInicial = tipoForzado === 'inicial';
+    document.getElementById('odo-tipo-envoltura').classList.toggle('oculto', esInicial);
+    document.getElementById('odo-tipo').value = 'evolucion';
+
+    document.getElementById('odontograma-marca-agua-envoltura').innerHTML = esInicial
+        ? '<div class="odontograma-marca-agua">Este paciente aún no tiene un odontograma registrado. Está editando el odontograma INICIAL — aún no se ha guardado: use "Guardar nueva versión" para registrarlo.</div>'
+        : '<div class="odontograma-marca-agua">Editando nueva versión — aun no guardada</div>';
 
     if (typeof marcarCambioPendiente === 'function') marcarCambioPendiente('odontograma');
     sincronizarUiModo();
@@ -373,10 +396,12 @@ async function guardarNuevaVersionOdontograma() {
         return;
     }
 
+    const esInicial = document.getElementById('odo-tipo-envoltura').classList.contains('oculto');
     const datos = {
         doctor_id: document.getElementById('odo-doctor').value || null,
         observaciones: document.getElementById('odo-observaciones').value.trim() || null,
-        piezas: piezasVisibles
+        piezas: piezasVisibles,
+        tipo: esInicial ? 'inicial' : document.getElementById('odo-tipo').value
     };
 
     try {
@@ -386,6 +411,7 @@ async function guardarNuevaVersionOdontograma() {
         await recargarDatosOdontograma();
         construirLayoutOdontograma();
         mostrarVersionActiva();
+        if (typeof refrescarCpoTrasNuevaVersionOdontograma === 'function') await refrescarCpoTrasNuevaVersionOdontograma();
     } catch (error) {
         alert('No se pudo guardar el odontograma: ' + error.message);
     }
@@ -548,6 +574,8 @@ function manejarClicOdontograma(evento) {
     if (herramientaActiva === 'movilidad' || herramientaActiva === 'recesion') {
         if (esPiezaTemporal(pieza)) return; // no aplica a piezas temporales, igual que en el F033
         if (!valorSeleccionadoEspecial) { actualizarHint('Elija primero un valor (1-4) junto a la paleta.', true); return; }
+        const exclusiva = tienePiezaExclusiva(pieza);
+        if (exclusiva) { alert(mensajeBloqueoExclusion(pieza, exclusiva)); return; }
         aplicarValorEspecial(pieza, herramientaActiva, valorSeleccionadoEspecial);
         finalizarCambio();
         return;
@@ -559,11 +587,15 @@ function manejarClicOdontograma(evento) {
     if (meta.nivel === 'superficie') {
         if (!superficie || superficie === 'completa') return; // exige clic en una cara especifica
         const actual = filaSuperficie(pieza, superficie);
-        establecerHallazgoSuperficie(pieza, superficie, actual && actual.hallazgo === herramientaActiva ? null : herramientaActiva);
+        const codigoDestino = actual && actual.hallazgo === herramientaActiva ? null : herramientaActiva;
+        if (codigoDestino && !autorizarAplicacionHallazgo(pieza, codigoDestino)) return;
+        establecerHallazgoSuperficie(pieza, superficie, codigoDestino);
         finalizarCambio();
     } else if (meta.nivel === 'pieza') {
         const actual = filaPiezaCompleta(pieza);
-        establecerHallazgoPieza(pieza, actual && actual.hallazgo === herramientaActiva ? null : herramientaActiva);
+        const codigoDestino = actual && actual.hallazgo === herramientaActiva ? null : herramientaActiva;
+        if (codigoDestino && !autorizarAplicacionHallazgo(pieza, codigoDestino)) return;
+        establecerHallazgoPieza(pieza, codigoDestino);
         finalizarCambio();
     } else if (meta.nivel === 'tramo') {
         manejarClicTramo(pieza);
@@ -571,10 +603,64 @@ function manejarClicOdontograma(evento) {
     }
 }
 
+// -----------------------------------------------------------------
+// Reglas de exclusion clinica entre hallazgos (ver tambien la validacion
+// espejo en el servidor, routes/odontograma.js -> validarExclusiones).
+// -----------------------------------------------------------------
+function tienePiezaExclusiva(pieza) {
+    const fila = filaPiezaCompleta(pieza);
+    return fila && ESTADOS_EXCLUSIVOS_PIEZA.includes(fila.hallazgo) ? fila.hallazgo : null;
+}
+
+function tieneOtrosHallazgos(pieza, ignorarExclusiva) {
+    return piezasVisibles.some((f) => {
+        if (f.pieza !== pieza || esFilaTramo(f)) return false;
+        if (ignorarExclusiva && f.superficie === 'completa' && f.hallazgo && ESTADOS_EXCLUSIVOS_PIEZA.includes(f.hallazgo)) return false;
+        return !!f.hallazgo || (f.movilidad !== null && f.movilidad !== undefined) || (f.recesion !== null && f.recesion !== undefined);
+    });
+}
+
+function mensajeBloqueoExclusion(pieza, codigoExclusivo) {
+    return `La pieza ${pieza} está marcada como ${etiquetaHallazgo(codigoExclusivo).toLowerCase()}. Quite ese hallazgo para registrar otros.`;
+}
+
+function etiquetaHallazgo(codigo) {
+    const meta = HALLAZGOS[codigo];
+    return meta ? meta.etiqueta : codigo;
+}
+
+// Devuelve true si el hallazgo puede aplicarse; false si se bloqueo o el
+// usuario cancelo la confirmacion. Si corresponde, limpia primero los
+// demas hallazgos de la pieza (con confirmacion del usuario).
+function autorizarAplicacionHallazgo(pieza, codigoNuevo) {
+    const exclusivaActual = tienePiezaExclusiva(pieza);
+    const nuevoEsExclusivo = ESTADOS_EXCLUSIVOS_PIEZA.includes(codigoNuevo);
+
+    if (exclusivaActual && exclusivaActual !== codigoNuevo) {
+        if (!nuevoEsExclusivo) {
+            alert(mensajeBloqueoExclusion(pieza, exclusivaActual));
+            return false;
+        }
+        if (!confirm(`Esto eliminará los demás hallazgos de la pieza ${pieza}. ¿Continuar?`)) return false;
+        limpiarPiezaCompleta(pieza);
+        return true;
+    }
+
+    if (nuevoEsExclusivo && tieneOtrosHallazgos(pieza, true)) {
+        if (!confirm(`Esto eliminará los demás hallazgos de la pieza ${pieza}. ¿Continuar?`)) return false;
+        limpiarPiezaCompleta(pieza);
+        return true;
+    }
+
+    return true;
+}
+
 function manejarClicTramo(pieza) {
     const meta = HALLAZGOS[herramientaActiva];
 
     if (!tramoEnProgreso) {
+        const exclusiva = tienePiezaExclusiva(pieza);
+        if (exclusiva) { alert(mensajeBloqueoExclusion(pieza, exclusiva)); return; }
         tramoEnProgreso = { codigo: herramientaActiva, piezaInicio: pieza };
         actualizarHint(`"${meta.etiqueta}": pieza inicial ${pieza} seleccionada. Ahora seleccione la pieza final.`, true);
         return;
@@ -588,6 +674,13 @@ function manejarClicTramo(pieza) {
     }
     if (arcadaPorPieza[pieza] !== arcadaPorPieza[inicio]) {
         alert('Ambas piezas del tramo deben pertenecer a la misma arcada.');
+        return;
+    }
+    const exclusivaFin = tienePiezaExclusiva(pieza);
+    if (exclusivaFin) {
+        alert(mensajeBloqueoExclusion(pieza, exclusivaFin));
+        tramoEnProgreso = null;
+        actualizarHintPredeterminado();
         return;
     }
 
@@ -695,16 +788,11 @@ function calcularCpoEnVivo() {
 }
 
 function actualizarCpoEnVivo() {
+    const linea = document.getElementById('odonto-contador-cpo');
+    if (!linea) return;
+    if (!modoEdicion) { linea.textContent = ''; return; }
     const cpo = calcularCpoEnVivo();
-    const asignar = (id, valor) => { const el = document.getElementById(id); if (el) el.textContent = valor; };
-    asignar('cpo-vivo-perm-c', cpo.permanente.c);
-    asignar('cpo-vivo-perm-p', cpo.permanente.p);
-    asignar('cpo-vivo-perm-o', cpo.permanente.o);
-    asignar('cpo-vivo-perm-total', cpo.permanente.total);
-    asignar('cpo-vivo-temp-c', cpo.temporal.c);
-    asignar('cpo-vivo-temp-e', cpo.temporal.e);
-    asignar('cpo-vivo-temp-o', cpo.temporal.o);
-    asignar('cpo-vivo-temp-total', cpo.temporal.total);
+    linea.textContent = `CPO permanente C:${cpo.permanente.c} P:${cpo.permanente.p} O:${cpo.permanente.o} · ceo temporal c:${cpo.temporal.c} e:${cpo.temporal.e} o:${cpo.temporal.o}`;
 }
 
 // -----------------------------------------------------------------

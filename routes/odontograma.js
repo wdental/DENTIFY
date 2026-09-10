@@ -13,6 +13,11 @@ router.use(requiereSesion);
 
 const SUPERFICIES_VALIDAS = ['oclusal', 'mesial', 'distal', 'vestibular', 'lingual_palatino', 'completa'];
 const PATRON_TRAMO = /^tramo_a_(\d{2})$/;
+const TIPOS_VALIDOS = ['inicial', 'evolucion', 'alta'];
+
+// Estados que, aplicados a una pieza, excluyen cualquier otro hallazgo en
+// esa misma pieza (superficie, movilidad/recesion u otro hallazgo de pieza).
+const ESTADOS_EXCLUSIVOS_PIEZA = ['ausente', 'perdida_caries', 'perdida_otra_causa', 'extraccion_indicada'];
 
 function esPiezaTemporal(pieza) {
     return ['5', '6', '7', '8'].includes(String(pieza)[0]);
@@ -48,12 +53,45 @@ function cargarPiezas(odontogramaId) {
     return db.prepare('SELECT * FROM odontograma_piezas WHERE odontograma_id = ?').all(odontogramaId);
 }
 
+// Reglas de exclusion clinica entre hallazgos (seccion K del F033): se
+// validan tambien en el servidor para no depender unicamente del frontend.
+function validarExclusiones(piezas) {
+    const porPieza = {};
+    for (const p of piezas) {
+        if (!p.hallazgo) continue;
+        if (typeof p.superficie === 'string' && PATRON_TRAMO.test(p.superficie)) continue; // los tramos no compiten por pieza
+        const pieza = String(p.pieza);
+        if (!porPieza[pieza]) porPieza[pieza] = [];
+        porPieza[pieza].push(p);
+    }
+
+    for (const [pieza, filas] of Object.entries(porPieza)) {
+        const exclusivas = filas.filter((f) => ESTADOS_EXCLUSIVOS_PIEZA.includes(f.hallazgo));
+        if (exclusivas.length > 1) {
+            return `La pieza ${pieza} no puede tener mas de un estado entre ausente, perdida por caries, perdida (otra causa) y extraccion indicada`;
+        }
+        if (exclusivas.length === 1 && filas.length > 1) {
+            return `La pieza ${pieza} esta marcada como "${exclusivas[0].hallazgo}" y no admite otros hallazgos; quite ese estado primero`;
+        }
+
+        const combosVistos = new Set();
+        for (const f of filas) {
+            if (combosVistos.has(f.superficie)) {
+                return `La pieza ${pieza} tiene mas de un hallazgo registrado en la misma superficie (${f.superficie})`;
+            }
+            combosVistos.add(f.superficie);
+        }
+    }
+
+    return null;
+}
+
 // -----------------------------------------------------------------
 // GET /api/odontograma/:pacienteId/versiones - listado para el selector
 // -----------------------------------------------------------------
 router.get('/:pacienteId/versiones', (req, res) => {
     const versiones = db.prepare(`
-        SELECT o.id, o.fecha_registro, o.es_version_activa, o.observaciones,
+        SELECT o.id, o.fecha_registro, o.es_version_activa, o.observaciones, o.tipo,
                d.nombre_completo AS doctor_nombre, u.nombre AS creado_por_nombre
         FROM odontogramas o
         LEFT JOIN doctores d ON d.id = o.doctor_id
@@ -148,12 +186,23 @@ router.post('/:pacienteId', (req, res) => {
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
 
     const { doctor_id, observaciones, piezas } = req.body;
+    let tipo = req.body.tipo || 'evolucion';
+    if (!TIPOS_VALIDOS.includes(tipo)) return res.status(400).json({ error: 'Tipo de odontograma invalido' });
+
     const errorValidacion = validarPiezas(piezas || []);
     if (errorValidacion) return res.status(400).json({ error: errorValidacion });
+
+    const errorExclusion = validarExclusiones(piezas || []);
+    if (errorExclusion) return res.status(400).json({ error: errorExclusion });
 
     if (doctor_id) {
         const doctor = db.prepare('SELECT id FROM doctores WHERE id = ?').get(doctor_id);
         if (!doctor) return res.status(400).json({ error: 'Doctor no encontrado' });
+    }
+
+    if (tipo === 'inicial') {
+        const yaTieneInicial = db.prepare("SELECT id FROM odontogramas WHERE paciente_id = ? AND tipo = 'inicial'").get(req.params.pacienteId);
+        if (yaTieneInicial) return res.status(400).json({ error: 'El paciente ya tiene un odontograma inicial registrado' });
     }
 
     const transaccion = db.transaction(() => {
@@ -161,9 +210,9 @@ router.post('/:pacienteId', (req, res) => {
             .run(req.params.pacienteId);
 
         const resultado = db.prepare(`
-            INSERT INTO odontogramas (paciente_id, doctor_id, observaciones, creado_por, es_version_activa)
-            VALUES (?, ?, ?, ?, 1)
-        `).run(req.params.pacienteId, doctor_id || null, observaciones || null, req.session.usuario.id);
+            INSERT INTO odontogramas (paciente_id, doctor_id, observaciones, creado_por, es_version_activa, tipo)
+            VALUES (?, ?, ?, ?, 1, ?)
+        `).run(req.params.pacienteId, doctor_id || null, observaciones || null, req.session.usuario.id, tipo);
 
         const odontogramaId = resultado.lastInsertRowid;
 
