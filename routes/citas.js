@@ -312,7 +312,14 @@ router.delete('/:id', requiereAdmin, async (req, res) => {
         calendarioGoogleId = doctor ? doctor.calendario_google_id : null;
     }
 
-    db.prepare('DELETE FROM citas WHERE id = ?').run(id);
+    try {
+        db.prepare('DELETE FROM citas WHERE id = ?').run(id);
+    } catch (error) {
+        // Nunca debe tumbar el servidor por una restriccion de la base de
+        // datos (p.ej. una referencia desde otra tabla): se responde con un
+        // error claro en vez de una excepcion no controlada.
+        return res.status(400).json({ error: 'No se pudo eliminar la cita: ' + error.message });
+    }
 
     if (cita.google_event_id && calendarioGoogleId) {
         await sincronizacion.eliminarEventoRemoto(id, cita.google_event_id, calendarioGoogleId);

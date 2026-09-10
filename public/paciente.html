@@ -21,6 +21,7 @@
             </div>
             <div>
                 <button class="btn btn-secundario" id="btn-editar-paciente">Editar datos</button>
+                <button class="btn btn-secundario" id="btn-imprimir-f033">Imprimir F033</button>
                 <button class="btn btn-peligro oculto" id="btn-eliminar-paciente">Eliminar paciente</button>
                 <button class="btn btn-primario oculto" id="btn-restaurar-paciente">Restaurar paciente</button>
             </div>
@@ -309,6 +310,134 @@
                     </div>
                 </div>
             </details>
+
+            <!-- L. Pedido de examenes complementarios -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-examenes-solicitados"></span>
+                    L. Pedido de exámenes complementarios
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="grilla-checks">
+                        <label class="check-item"><input type="checkbox" id="fc-examen-biometria"> Biometría</label>
+                        <label class="check-item"><input type="checkbox" id="fc-examen-quimica"> Química sanguínea</label>
+                        <label class="check-item"><input type="checkbox" id="fc-examen-rx"> Rayos X</label>
+                        <div>
+                            <label class="check-item"><input type="checkbox" id="fc-examen-otros"> Otros</label>
+                            <div class="check-item__extra"><input type="text" id="fc-examen-otros-texto" placeholder="Especificar..."></div>
+                        </div>
+                    </div>
+                    <div class="campo campo--ancho">
+                        <label for="fc-examenes-detalle">Detalle / indicaciones</label>
+                        <textarea id="fc-examenes-detalle"></textarea>
+                    </div>
+                </div>
+            </details>
+
+            <!-- M. Informe de examenes -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-examenes-informe"></span>
+                    M. Informe de exámenes
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="form-grid">
+                        <div class="campo">
+                            <label for="fc-informe-fecha">Fecha del informe</label>
+                            <input type="date" id="fc-informe-fecha">
+                            <span class="fecha-legible" id="fc-informe-fecha-legible"></span>
+                        </div>
+                    </div>
+                    <div class="campo campo--ancho">
+                        <label for="fc-informe-texto">Resultado / informe</label>
+                        <textarea id="fc-informe-texto" rows="4"></textarea>
+                    </div>
+                    <div class="campo campo--ancho">
+                        <label>Adjuntar documentos ya subidos (pestaña Documentos)</label>
+                        <div id="fc-informe-documentos"><p class="texto-secundario mb-0">Sin documentos subidos todavía.</p></div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- N. Diagnostico CIE-10 -->
+            <details class="seccion-clinica" open>
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-diagnosticos"></span>
+                    N. Diagnóstico
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <p class="seccion-clinica__ayuda">Hasta 6 diagnósticos por ficha. Busque por código o descripción CIE-10.</p>
+                    <div id="lista-diagnosticos"></div>
+                    <div class="form-grid" style="margin-top:14px;">
+                        <div class="campo campo--ancho dx-buscador-envoltura">
+                            <label for="dx-buscar-cie10">Buscar CIE-10</label>
+                            <input type="text" id="dx-buscar-cie10" placeholder="Código o descripción... ej. K02 o caries" autocomplete="off">
+                            <div id="dx-resultados-cie10" class="dx-resultados-cie10 oculto"></div>
+                        </div>
+                        <input type="hidden" id="dx-codigo-cie10">
+                        <div class="campo campo--ancho">
+                            <label for="dx-descripcion">Diagnóstico seleccionado</label>
+                            <input type="text" id="dx-descripcion" readonly placeholder="Seleccione un código CIE-10 arriba">
+                        </div>
+                        <div class="campo">
+                            <label for="dx-tipo">Tipo</label>
+                            <select id="dx-tipo">
+                                <option value="PRE">Presuntivo (PRE)</option>
+                                <option value="DEF">Definitivo (DEF)</option>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="dx-doctor">Doctor</label>
+                            <select id="dx-doctor"><option value="">Sin especificar</option></select>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secundario btn-sm" id="btn-agregar-diagnostico" style="margin-top:10px;">Agregar diagnóstico</button>
+                    <div id="error-diagnostico" style="margin-top:8px;"></div>
+                </div>
+            </details>
+
+            <!-- O. Profesional responsable -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-profesional-responsable"></span>
+                    O. Datos del profesional responsable
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="form-grid">
+                        <div class="campo">
+                            <label for="fc-profesional-doctor">Doctor</label>
+                            <select id="fc-profesional-doctor"><option value="">Sin especificar</option></select>
+                        </div>
+                        <div class="campo">
+                            <label>Registro profesional</label>
+                            <p class="mt-0 mb-0" id="fc-profesional-registro">—</p>
+                        </div>
+                        <div class="campo">
+                            <label>Fecha y hora de apertura de la ficha</label>
+                            <p class="mt-0 mb-0" id="fc-profesional-fecha-apertura">—</p>
+                        </div>
+                    </div>
+                    <p class="seccion-clinica__ayuda oculto" id="fc-profesional-aviso-admin">Ya hay un profesional responsable registrado — solo un administrador puede modificarlo.</p>
+                </div>
+            </details>
+
+            <!-- P. Tratamiento / evoluciones por sesion -->
+            <details class="seccion-clinica" open>
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-evoluciones"></span>
+                    P. Tratamiento — evoluciones por sesión
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="flex-entre" style="margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                        <p class="texto-secundario mb-0">Registro inmutable por sesión: un error se corrige con una nueva evolución aclaratoria, nunca editando o borrando.</p>
+                        <div style="display:flex; gap:8px; flex-shrink:0;">
+                            <button type="button" class="btn btn-secundario btn-sm" id="btn-nueva-evolucion">+ Nueva evolución</button>
+                            <button type="button" class="btn btn-primario btn-sm" id="btn-registrar-alta">Registrar ALTA</button>
+                        </div>
+                    </div>
+                    <div id="lista-evoluciones-completa"><p class="texto-secundario">Cargando evoluciones...</p></div>
+                </div>
+            </details>
         </div>
 
         <button type="button" class="btn-guardar-flotante oculto" id="btn-guardar-ficha-flotante">
@@ -432,11 +561,81 @@
     </div>
 </div>
 
+<!-- Modal: Nueva evolucion / registrar ALTA (seccion P) -->
+<div class="modal-fondo" id="modal-evolucion">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-evolucion">&times;</button>
+        <h2 id="titulo-modal-evolucion">Nueva evolución</h2>
+        <p class="seccion-clinica__ayuda">Este registro es inmutable una vez guardado: revíselo antes de guardar.</p>
+        <div id="error-modal-evolucion"></div>
+        <div id="aviso-cita-evolucion" class="alerta oculto" style="margin-bottom:12px;"></div>
+
+        <form id="form-evolucion">
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="ev-fecha">Fecha</label>
+                    <input type="date" id="ev-fecha" required>
+                    <span class="fecha-legible" id="ev-fecha-legible"></span>
+                </div>
+                <div class="campo">
+                    <label for="ev-doctor">Doctor</label>
+                    <select id="ev-doctor"><option value="">Sin especificar</option></select>
+                </div>
+            </div>
+            <div class="campo campo--ancho">
+                <div class="flex-entre">
+                    <label for="ev-diagnostico-complicaciones" class="mb-0">Diagnóstico / complicaciones</label>
+                    <button type="button" class="btn-texto" id="btn-sin-complicaciones">Sin complicaciones</button>
+                </div>
+                <textarea id="ev-diagnostico-complicaciones" placeholder="Ej. Sin complicaciones"></textarea>
+            </div>
+            <div class="campo campo--ancho">
+                <label for="ev-procedimientos">Procedimientos realizados *</label>
+                <textarea id="ev-procedimientos" required></textarea>
+            </div>
+            <div class="campo campo--ancho">
+                <label for="ev-prescripciones">Prescripciones</label>
+                <textarea id="ev-prescripciones"></textarea>
+            </div>
+            <div class="campo campo--ancho">
+                <label for="ev-piezas">Piezas tratadas (opcional, FDI separadas por coma)</label>
+                <input type="text" id="ev-piezas" placeholder="Ej. 16, 25, 36">
+            </div>
+            <input type="hidden" id="ev-cita-id">
+            <input type="hidden" id="ev-es-alta" value="0">
+
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-evolucion">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar evolución</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Anular evolucion (solo admin) -->
+<div class="modal-fondo" id="modal-anular-evolucion">
+    <div class="modal">
+        <h2>Anular evolución</h2>
+        <p class="seccion-clinica__ayuda">La evolución no se borra: queda visible tachada con el motivo indicado.</p>
+        <div id="error-modal-anular"></div>
+        <div class="campo campo--ancho">
+            <label for="anular-motivo">Motivo de la anulación *</label>
+            <textarea id="anular-motivo"></textarea>
+        </div>
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-anular">Cancelar</button>
+            <button type="button" class="btn btn-peligro" id="confirmar-modal-anular">Anular evolución</button>
+        </div>
+    </div>
+</div>
+
 <script src="/js/api.js"></script>
 <script src="/js/fechas.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/paciente.js"></script>
 <script src="/js/ficha-clinica.js"></script>
 <script src="/js/odontograma.js"></script>
+<script src="/js/evoluciones.js"></script>
+<script src="/js/diagnosticos.js"></script>
 </body>
 </html>

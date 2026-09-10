@@ -120,6 +120,74 @@ function migrar(db) {
             console.log(`Migracion: ${migradas} ficha(s) clinica(s) con antecedentes D/E convertidos de checkbox ("marcados") a estados explicitos si/no`);
         }
     }
+
+    // Fase 3B: secciones L (examenes solicitados), M (informe de examenes)
+    // y O (profesional responsable) de fichas_clinicas - columnas nuevas,
+    // nulas por defecto, no se pierde ningun dato existente.
+    const columnasFichas2 = db.prepare("PRAGMA table_info(fichas_clinicas)").all().map((c) => c.name);
+    if (columnasFichas2.length > 0 && !columnasFichas2.includes('examenes_solicitados_json')) {
+        db.exec('ALTER TABLE fichas_clinicas ADD COLUMN examenes_solicitados_json TEXT');
+        db.exec('ALTER TABLE fichas_clinicas ADD COLUMN examenes_informe_json TEXT');
+        db.exec('ALTER TABLE fichas_clinicas ADD COLUMN profesional_responsable_json TEXT');
+        console.log('Migracion: columnas de las secciones L, M y O (Fase 3B) agregadas a fichas_clinicas');
+    }
+
+    // La tabla "evoluciones" era un stub de fases anteriores (fecha,
+    // descripcion) sin interfaz de usuario nunca implementada: no existen
+    // datos reales que perder. Se recrea con el esquema completo de la
+    // seccion P (Fase 3B): numero de sesion, procedimientos, prescripciones,
+    // inmutabilidad y anulacion logica por admin.
+    const columnasEvoluciones = db.prepare("PRAGMA table_info(evoluciones)").all().map((c) => c.name);
+    if (columnasEvoluciones.length > 0 && !columnasEvoluciones.includes('numero_sesion')) {
+        db.exec('DROP TABLE evoluciones');
+        console.log('Migracion: tabla "evoluciones" recreada con el esquema completo de la seccion P (Fase 3B)');
+    }
+
+    // La FK evoluciones.cita_id apuntaba a citas(id) sin ON DELETE SET NULL:
+    // borrar una cita vinculada a una evolucion hacia fallar la sentencia con
+    // una excepcion no controlada en routes/citas.js, tumbando el servidor
+    // entero. Las evoluciones son el registro legal (nunca deben borrarse
+    // solo porque se borre una cita de agenda), asi que se reconstruye la
+    // tabla con ON DELETE SET NULL en esa columna - se conservan todas las
+    // evoluciones existentes, solo cambia el comportamiento del vinculo.
+    const tablaEvolucionesSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='evoluciones'").get();
+    if (tablaEvolucionesSql && /cita_id INTEGER REFERENCES citas\(id\),/.test(tablaEvolucionesSql.sql)) {
+        const reconstruirEvoluciones = db.transaction(() => {
+            db.exec(`
+                CREATE TABLE evoluciones_nueva (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                    numero_sesion INTEGER NOT NULL,
+                    fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                    doctor_id INTEGER REFERENCES doctores(id),
+                    diagnosticos_complicaciones TEXT,
+                    procedimientos TEXT,
+                    prescripciones TEXT,
+                    piezas_tratadas_json TEXT,
+                    es_alta INTEGER NOT NULL DEFAULT 0,
+                    cita_id INTEGER REFERENCES citas(id) ON DELETE SET NULL,
+                    anulada INTEGER NOT NULL DEFAULT 0,
+                    motivo_anulacion TEXT,
+                    anulado_por INTEGER REFERENCES usuarios(id),
+                    anulado_en TEXT,
+                    creado_por INTEGER REFERENCES usuarios(id),
+                    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            `);
+            db.exec(`
+                INSERT INTO evoluciones_nueva SELECT
+                    id, paciente_id, numero_sesion, fecha, doctor_id, diagnosticos_complicaciones,
+                    procedimientos, prescripciones, piezas_tratadas_json, es_alta, cita_id,
+                    anulada, motivo_anulacion, anulado_por, anulado_en, creado_por, fecha_creacion
+                FROM evoluciones
+            `);
+            db.exec('DROP TABLE evoluciones');
+            db.exec('ALTER TABLE evoluciones_nueva RENAME TO evoluciones');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_evoluciones_paciente ON evoluciones (paciente_id)');
+        });
+        reconstruirEvoluciones();
+        console.log('Migracion: evoluciones.cita_id ahora usa ON DELETE SET NULL (borrar una cita ya no falla ni afecta la evolucion vinculada); evoluciones existentes conservadas');
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)
@@ -140,4 +208,18 @@ function sembrarDoctores(db) {
     console.log(`Doctores iniciales migrados a la base de datos (${semilla.length})`);
 }
 
-module.exports = { migrar, sembrarDoctores };
+// Siembra el catalogo CIE-10 odontologico solo si esta vacio (primera vez)
+function sembrarCie10(db) {
+    const total = db.prepare('SELECT COUNT(*) AS total FROM cie10_odontologia').get().total;
+    if (total > 0) return;
+
+    const semilla = require('./semillaCie10');
+    const insertar = db.prepare('INSERT INTO cie10_odontologia (codigo, descripcion) VALUES (?, ?)');
+    const transaccion = db.transaction((codigos) => {
+        for (const c of codigos) insertar.run(c.codigo, c.descripcion);
+    });
+    transaccion(semilla);
+    console.log(`Catalogo CIE-10 odontologico sembrado (${semilla.length} codigos)`);
+}
+
+module.exports = { migrar, sembrarDoctores, sembrarCie10 };

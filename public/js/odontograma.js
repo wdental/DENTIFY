@@ -282,6 +282,10 @@ function construirLayoutOdontograma() {
                     En Dentify cada cambio genera una versión nueva con autor y fecha.
                 </div>
             </div>
+
+            <aside class="odonto-panel-lateral" id="odonto-panel-evoluciones">
+                <p class="texto-secundario">Cargando evoluciones...</p>
+            </aside>
         </div>
     `;
 
@@ -290,6 +294,9 @@ function construirLayoutOdontograma() {
     document.getElementById('odontograma-svg').addEventListener('mouseover', manejarHoverOdontograma);
     document.getElementById('odontograma-svg').addEventListener('mouseout', manejarHoverSalida);
     document.getElementById('odonto-paleta').addEventListener('click', manejarClicPaleta);
+
+    // Seccion P: panel compacto de las ultimas evoluciones (evoluciones.js)
+    if (typeof cargarPanelEvolucionesLateral === 'function') cargarPanelEvolucionesLateral();
 }
 
 function construirPaleta() {

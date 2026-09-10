@@ -47,6 +47,7 @@ const CLASE_ESTADO_CITA = {
     document.getElementById('btn-restaurar-paciente').addEventListener('click', restaurarPaciente);
     document.getElementById('form-subir-documento').addEventListener('submit', subirDocumento);
     document.getElementById('btn-nueva-cita-paciente').addEventListener('click', irANuevaCita);
+    document.getElementById('btn-imprimir-f033').addEventListener('click', irAImprimirF033);
     vincularFechaLegible('p-fecha-nacimiento', 'p-fecha-nacimiento-legible');
 
     await cargarPaciente();
@@ -55,6 +56,15 @@ const CLASE_ESTADO_CITA = {
     await cargarFichaClinica();
     await cargarOdontograma();
 })();
+
+function irAImprimirF033() {
+    if (typeof hayCambiosSinGuardar === 'function' && hayCambiosSinGuardar()) {
+        if (!confirm('Hay cambios sin guardar en la ficha. La impresión del F033 usa siempre los últimos datos guardados, no los cambios pendientes. ¿Continuar de todas formas?')) {
+            return;
+        }
+    }
+    window.open(`/imprimir-f033.html?id=${pacienteId}`, '_blank');
+}
 
 function irANuevaCita() {
     const nombre = `${pacienteActual.apellidos} ${pacienteActual.nombres}`;

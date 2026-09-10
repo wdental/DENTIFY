@@ -157,12 +157,15 @@ CREATE TABLE IF NOT EXISTS fichas_clinicas (
     paciente_id INTEGER NOT NULL UNIQUE REFERENCES pacientes(id),
     motivo_consulta_json TEXT,                    -- B: {texto, embarazada, actualizado_en, actualizado_por}
     enfermedad_actual_json TEXT,                  -- C: {texto, actualizado_en, actualizado_por}
-    antecedentes_personales_json TEXT,             -- D: {marcados:[], otro_texto, observaciones, actualizado_en, actualizado_por}
-    antecedentes_familiares_json TEXT,             -- E: {marcados:[], otro_texto, observaciones, actualizado_en, actualizado_por}
+    antecedentes_personales_json TEXT,             -- D: {estados:{codigo:'si'|'no'}, otro_texto, observaciones, actualizado_en, actualizado_por}
+    antecedentes_familiares_json TEXT,             -- E: {estados:{codigo:'si'|'no'}, otro_texto, observaciones, actualizado_en, actualizado_por}
     constantes_vitales_json TEXT,                  -- F: {temperatura, pulso, frecuencia_respiratoria, presion_arterial, actualizado_en, actualizado_por}
-    examen_estomatognatico_json TEXT,              -- G: {items:{1:{patologia,descripcion}, ...}, actualizado_en, actualizado_por}
+    examen_estomatognatico_json TEXT,              -- G: {items:{1:{patologia,descripcion}, ...}, sin_patologia_aparente, actualizado_en, actualizado_por}
     indicadores_salud_bucal_json TEXT,             -- I: {higiene:{...}, periodontal, oclusion, fluorosis, actualizado_en, actualizado_por}
-    indices_cpo_json TEXT,                         -- J: {permanente:{c,p,o,total}, temporal:{c,e,o,total}, actualizado_en, actualizado_por}
+    indices_cpo_json TEXT,                         -- J: {permanente:{c,p,o,total}, temporal:{c,e,o,total}, ajustado_manualmente, actualizado_en, actualizado_por}
+    examenes_solicitados_json TEXT,                -- L: {biometria, quimica_sanguinea, rayos_x, otros, otros_texto, detalle, actualizado_en, actualizado_por}
+    examenes_informe_json TEXT,                    -- M: {informes:[{tipo, texto, fecha, documento_id}], actualizado_en, actualizado_por}
+    profesional_responsable_json TEXT,             -- O: {doctor_id, fecha_apertura, actualizado_en, actualizado_por}
     fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -207,15 +210,61 @@ CREATE TABLE IF NOT EXISTS odontograma_piezas (
 CREATE INDEX IF NOT EXISTS idx_odopiezas_odontograma ON odontograma_piezas (odontograma_id);
 
 -- ---------------------------------------------------------------------
--- EVOLUCIONES / NOTAS CLINICAS (Fase 3)
+-- EVOLUCIONES POR SESION (Fase 3B, seccion P del F033) - INMUTABLE una vez
+-- guardada (registro legal): no se edita ni se borra. Un error se corrige
+-- con una nueva evolucion aclaratoria. Solo admin puede "anular" una
+-- (borrado logico: queda visible tachada con motivo, nunca desaparece).
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS evoluciones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+    numero_sesion INTEGER NOT NULL,                -- autoincremental por paciente (1, 2, 3...)
     fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     doctor_id INTEGER REFERENCES doctores(id),
-    descripcion TEXT,
-    creado_por INTEGER REFERENCES usuarios(id)
+    diagnosticos_complicaciones TEXT,
+    procedimientos TEXT,
+    prescripciones TEXT,
+    piezas_tratadas_json TEXT,                     -- ['16','25',...] FDI, opcional
+    es_alta INTEGER NOT NULL DEFAULT 0,
+    cita_id INTEGER REFERENCES citas(id) ON DELETE SET NULL, -- cita de agenda vinculada, opcional
+    anulada INTEGER NOT NULL DEFAULT 0,
+    motivo_anulacion TEXT,
+    anulado_por INTEGER REFERENCES usuarios(id),
+    anulado_en TEXT,
+    creado_por INTEGER REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_evoluciones_paciente ON evoluciones (paciente_id);
+
+-- ---------------------------------------------------------------------
+-- DIAGNOSTICOS CIE-10 (Fase 3B, seccion N del F033) - hasta 6 por ficha.
+-- tipo empieza en PRE (presuntivo) y puede promoverse a DEF (definitivo)
+-- conservando la fecha de cada estado para trazabilidad.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS diagnosticos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+    descripcion TEXT NOT NULL,
+    codigo_cie10 TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'PRE' CHECK (tipo IN ('PRE', 'DEF')),
+    doctor_id INTEGER REFERENCES doctores(id),
+    fecha_pre TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    fecha_def TEXT,
+    activo INTEGER NOT NULL DEFAULT 1,
+    creado_por INTEGER REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_diagnosticos_paciente ON diagnosticos (paciente_id);
+
+-- ---------------------------------------------------------------------
+-- CATALOGO CIE-10 ODONTOLOGICO (Fase 3B) - precargado (seed), de solo
+-- lectura para la aplicacion; usado por el buscador de la seccion N.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cie10_odontologia (
+    codigo TEXT PRIMARY KEY,
+    descripcion TEXT NOT NULL
 );
 
 -- ---------------------------------------------------------------------

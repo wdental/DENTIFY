@@ -1,0 +1,193 @@
+/* =====================================================================
+   Dentify - Vista de impresion del Formulario 033
+   Optimizada para imprimir / guardar como PDF desde el navegador.
+   ===================================================================== */
+
+.cuerpo-impresion {
+    background-color: #78716a;
+    font-family: var(--fuente-cuerpo);
+    color: var(--texto-principal);
+    margin: 0;
+}
+
+.barra-impresion {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background-color: var(--negro);
+    color: var(--marfil);
+    font-size: 0.85rem;
+}
+
+.barra-impresion div { display: flex; gap: 8px; }
+
+#contenido-impresion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 0 60px 0;
+}
+
+/* --------------------------- Hoja A4 --------------------------- */
+.hoja-f033 {
+    width: 210mm;
+    min-height: 297mm;
+    background-color: var(--blanco);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    padding: 10mm 12mm;
+    box-sizing: border-box;
+    font-size: 8.5px;
+    line-height: 1.12;
+}
+
+.f033-encabezado-forma {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid var(--negro);
+    padding-bottom: 3px;
+    margin-bottom: 5px;
+}
+
+.f033-marca {
+    font-family: var(--fuente-titulos);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--negro);
+}
+
+.f033-marca span { color: var(--dorado); }
+
+.f033-titulo-forma {
+    text-align: right;
+    font-size: 8.5px;
+    color: var(--texto-secundario);
+}
+
+.f033-titulo-forma strong { display: block; font-size: 10px; color: var(--negro); }
+
+.f033-seccion {
+    border: 1px solid #999;
+    margin-bottom: 3px;
+    break-inside: avoid;
+}
+
+.f033-seccion__titulo {
+    background-color: #e7e2d8;
+    font-weight: 700;
+    font-size: 8px;
+    padding: 2px 6px;
+    border-bottom: 1px solid #999;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.f033-seccion__cuerpo {
+    padding: 3px 6px;
+}
+
+.f033-fila {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    margin-bottom: 2px;
+}
+
+.f033-campo { display: flex; gap: 4px; }
+.f033-campo strong { font-weight: 700; white-space: nowrap; }
+
+.f033-tabla { width: 100%; border-collapse: collapse; font-size: 8px; }
+.f033-tabla th, .f033-tabla td { border: 1px solid #bbb; padding: 1px 4px; text-align: left; line-height: 1.15; }
+.f033-tabla th { background-color: #f2efe8; }
+
+.f033-lista-simple { margin: 0; padding-left: 12px; columns: 2; column-gap: 14px; }
+.f033-lista-simple li { margin-bottom: 0; break-inside: avoid; }
+
+.f033-raya { color: var(--texto-secundario); }
+
+.f033-odontograma-svg-envoltura { text-align: center; margin: 2px 0; }
+.f033-odontograma-svg-envoltura svg {
+    max-width: 92mm;
+    width: 100%;
+    height: auto;
+    display: inline-block;
+}
+
+/* La seccion K reutiliza .odontograma-leyenda tal cual (misma funcion que
+   la pantalla de edicion); se recorta su espaciado, pensado para pantalla. */
+.hoja-f033 .odontograma-leyenda {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    font-size: 7.5px;
+}
+.hoja-f033 .odontograma-leyenda__titulo { display: none; } /* ya esta el titulo de la seccion K */
+.hoja-f033 .odontograma-leyenda__columnas { gap: 0 14px; }
+.hoja-f033 .odontograma-leyenda__fila-extra { margin-top: 2px; padding-top: 2px; gap: 1px 14px; }
+.hoja-f033 .odontograma-leyenda__item { font-size: 7px; gap: 2px; }
+.hoja-f033 .odontograma-leyenda__item svg { width: 11px; height: 11px; }
+
+.f033-firma-espacio {
+    margin-top: 10px;
+    border-top: 1px solid var(--negro);
+    padding-top: 2px;
+    width: 60%;
+    font-size: 7.5px;
+    text-align: center;
+}
+
+.f033-sesion {
+    border: 1px solid #999;
+    padding: 3px 6px;
+    margin-bottom: 3px;
+    break-inside: avoid;
+}
+
+.f033-sesion--anulada { opacity: 0.55; }
+.f033-sesion--anulada .f033-sesion__cuerpo { text-decoration: line-through; }
+
+.f033-sesion__cabecera { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 3px; }
+
+.f033-pie {
+    margin-top: 10px;
+    padding-top: 4px;
+    border-top: 1px solid #999;
+    display: flex;
+    justify-content: space-between;
+    font-size: 7.5px;
+    color: var(--texto-secundario);
+}
+
+/* --------------------------- Impresion real --------------------------- */
+@media print {
+    .no-imprimir { display: none !important; }
+
+    .cuerpo-impresion {
+        background-color: var(--blanco);
+    }
+
+    #contenido-impresion {
+        padding: 0;
+        gap: 0;
+    }
+
+    .hoja-f033 {
+        box-shadow: none;
+        width: auto;
+        min-height: 0;
+        padding: 8mm 10mm;
+        page-break-after: always;
+    }
+
+    .hoja-f033:last-child { page-break-after: auto; }
+
+    @page {
+        size: A4;
+        margin: 10mm;
+    }
+}

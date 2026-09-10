@@ -6,7 +6,7 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 
-const { migrar, sembrarDoctores } = require('./migraciones');
+const { migrar, sembrarDoctores, sembrarCie10 } = require('./migraciones');
 
 const RUTA_DB = path.join(__dirname, 'dentify.db');
 const RUTA_SCHEMA = path.join(__dirname, 'schema.sql');
@@ -34,5 +34,8 @@ if (!existeDb) {
 
 // Poblar los doctores iniciales si la tabla esta vacia (migracion desde doctores.js)
 sembrarDoctores(db);
+
+// Poblar el catalogo CIE-10 odontologico si la tabla esta vacia (Fase 3B)
+sembrarCie10(db);
 
 module.exports = db;

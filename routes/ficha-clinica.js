@@ -1,8 +1,11 @@
 // =====================================================================
 // Rutas de la ficha clinica odontologica (Formulario 033 MSP Ecuador),
-// secciones B-G, I, J. El odontograma (seccion H) vive en routes/odontograma.js.
-// Cada seccion se guarda de forma independiente (un JSON por columna) para
-// no perder el resto del formulario si una seccion falla al guardar.
+// secciones B-G, I, J, L, M, O. El odontograma (seccion H) vive en
+// routes/odontograma.js; el diagnostico (N) en routes/diagnosticos.js y el
+// tratamiento por sesion (P) en routes/evoluciones.js (tablas propias, no
+// son parte de este JSON por seccion). Cada seccion se guarda de forma
+// independiente (un JSON por columna) para no perder el resto del
+// formulario si una seccion falla al guardar.
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
@@ -20,8 +23,15 @@ const SECCIONES = {
     'constantes-vitales': 'constantes_vitales_json',
     'examen-estomatognatico': 'examen_estomatognatico_json',
     'indicadores-salud-bucal': 'indicadores_salud_bucal_json',
-    'indices-cpo': 'indices_cpo_json'
+    'indices-cpo': 'indices_cpo_json',
+    'examenes-solicitados': 'examenes_solicitados_json',
+    'examenes-informe': 'examenes_informe_json',
+    'profesional-responsable': 'profesional_responsable_json'
 };
+
+// La seccion O (profesional responsable) solo la puede editar un admin,
+// una vez que ya tiene un doctor asignado (autollenado inicial libre).
+const SECCIONES_SOLO_ADMIN_SI_YA_TIENE_DATOS = ['profesional-responsable'];
 
 // Antecedentes personales cuyo marcado dispara el banner de alerta medica
 const CODIGOS_ALERTA = {
@@ -99,6 +109,14 @@ router.put('/:pacienteId/seccion/:seccion', (req, res) => {
 
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
+
+    if (SECCIONES_SOLO_ADMIN_SI_YA_TIENE_DATOS.includes(req.params.seccion) && req.session.usuario.rol !== 'admin') {
+        const filaExistente = obtenerFicha(req.params.pacienteId);
+        const yaTieneDatos = filaExistente && filaExistente[columna];
+        if (yaTieneDatos) {
+            return res.status(403).json({ error: 'Solo un administrador puede editar los datos del profesional responsable ya registrados' });
+        }
+    }
 
     const datos = {
         ...req.body,

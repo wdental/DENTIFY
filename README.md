@@ -134,6 +134,46 @@ La tabla `odontogramas` de las Fases 1–2 era un *stub* sin interfaz de usuario
 
 La base de datos ya incluye las tablas necesarias para las siguientes fases (presupuestos, pagos, firma digital), listas para desarrollarse sin modificar el esquema actual.
 
+## Contenido de la Fase 3B
+
+Completa las secciones L a P del Formulario 033 y agrega su **impresión oficial**.
+
+### N. Diagnóstico CIE-10
+
+Hasta **6 diagnósticos** por ficha (`routes/diagnosticos.js`, tabla `diagnosticos`), cada uno con descripción, código CIE-10, doctor y tipo **PRE** (presuntivo) o **DEF** (definitivo). Un diagnóstico se registra en PRE y puede **promoverse a DEF** con un clic (`PUT /api/diagnosticos/:id/promover`) conservando ambas fechas (`fecha_pre`/`fecha_def`) para trazabilidad — nunca se sobrescribe la fecha original. El **buscador CIE-10 en vivo** (`GET /api/cie10?q=`) consulta la tabla `cie10_odontologia`, precargada (seed, `db/semillaCie10.js`) con **91 códigos**: K00–K14 completos con sus subcódigos más frecuentes (incluye K07.20/21/22 para las clases de Angle), más S02.5 (fractura dental) y Z01.2 (examen dental).
+
+### P. Tratamiento — evoluciones por sesión
+
+El corazón de esta fase (`routes/evoluciones.js`, tabla `evoluciones`, rediseñada por completo respecto al *stub* sin uso de fases anteriores). Cada evolución tiene `numero_sesion` autoincremental **por paciente**, fecha, doctor, diagnóstico/complicaciones (con un botón "Sin complicaciones" de un clic), procedimientos, prescripciones y piezas tratadas (FDI, opcional).
+
+- **Inmutable**: una vez guardada no existe ruta para editarla ni borrarla — un error se corrige registrando una evolución aclaratoria nueva, nunca alterando la anterior. Solo `admin` puede **anularla** (`PUT /api/evoluciones/:id/anular`, con motivo obligatorio): es un borrado lógico, la evolución sigue visible pero tachada con el motivo y quién/cuándo la anuló.
+- **Vínculo opcional con la agenda**: al elegir la fecha, si existe una cita de ese paciente con estado `atendida` ese día (`GET /api/evoluciones/:pacienteId/cita-del-dia`), se ofrece vincularla automáticamente (se puede desvincular con un clic antes de guardar).
+- **"Registrar ALTA"**: crea una evolución marcada `es_alta = 1` con el campo de procedimientos pre-rellenado en "ALTA" (editable) — según el instructivo, al finalizar el tratamiento se escribe eso textualmente. Si el paciente no tiene todavía un odontograma de tipo `'alta'`, se sugiere registrarlo en la sección H.
+- **UI en dos lugares**: un panel compacto en la **columna derecha del odontograma** (antes vacía) con las últimas 3 sesiones y acceso directo a "Nueva evolución"; la lista completa, en orden cronológico inverso, vive como subsección P de la ficha.
+
+### L, M y O
+
+- **L — Pedido de exámenes complementarios**: checkboxes (Biometría, Química sanguínea, Rayos X, Otros con texto) + detalle libre.
+- **M — Informe de exámenes**: fecha del informe, texto libre, y referencia opcional a documentos ya subidos en la pestaña **Documentos** de la ficha (reutiliza `documentos_pacientes`, no hay un mecanismo de subida aparte).
+- **O — Datos del profesional responsable**: selector de doctor (autocompleta registro profesional desde la tabla `doctores`) + fecha/hora de apertura de la ficha (`fichas_clinicas.fecha_creacion`). Editable libremente la primera vez; una vez registrado, **solo un administrador** puede modificarlo (`routes/ficha-clinica.js`, `SECCIONES_SOLO_ADMIN_SI_YA_TIENE_DATOS`).
+
+Las tres viven como columnas JSON nuevas en `fichas_clinicas` (`examenes_solicitados_json`, `examenes_informe_json`, `profesional_responsable_json`) y se guardan con el mismo botón único "Guardar ficha clínica" que el resto de la ficha — no se agregó ningún botón de guardado nuevo.
+
+### Impresión oficial del Formulario 033
+
+Botón **"Imprimir F033"** en la ficha del paciente, abre `imprimir-f033.html?id=X` en una pestaña nueva. Si hay cambios sin guardar en la ficha, se avisa antes de continuar — **la impresión siempre usa los últimos datos guardados**, nunca un borrador en edición (llama a las mismas API que el resto de la app, no lee el estado en memoria del formulario).
+
+- **Dos páginas A4** (`public/css/impresion.css`, `@media print` con `@page { size: A4; margin: 10mm; }` y `page-break-after` entre hojas): página 1 con las secciones A–K (encabezado con condición de edad H-D-M-A, motivo entre comillas, antecedentes D/E con "—" para lo no registrado, odontograma dibujado, índices, simbología); página 2 con L–P, observaciones y el pie `SNS-MSP / HCU-form.033/2021 — ODONTOLOGÍA (1)/(2)` con el nombre y número de historia del paciente en ambas.
+- **El odontograma se dibuja reutilizando el renderizador real**: `imprimir-f033.html` carga `public/js/odontograma.js` (que no ejecuta nada por sí solo — sin `DOMContentLoaded`, solo define funciones) y llama directamente a `renderizarSvgOdontograma()` sobre un `<svg id="odontograma-svg">` propio, con `piezasVisibles` cargado desde la versión activa y `modoEdicion = false`. Mismos símbolos, mismos colores, mismas correcciones visuales que en pantalla — cero duplicación de lógica de dibujo. La leyenda (sección K) reutiliza igual `construirLeyenda()`.
+- **Observaciones de la impresión**: lista como texto cada hallazgo `fuera_simbologia_f033 = 1` (implantes: "Pieza 36: implante realizado") y las observaciones de texto libre de la versión del odontograma activa.
+- El contenido se ajustó para caber en una sola hoja A4 por página (tipografía compacta 8.5px, listas de antecedentes en dos columnas, odontograma y leyenda escalados) — verificado midiendo que la altura renderizada de cada página coincide exactamente con 297mm.
+
+### Migración de base de datos (Fase 3B)
+
+- `fichas_clinicas` gana tres columnas nuevas (`examenes_solicitados_json`, `examenes_informe_json`, `profesional_responsable_json`) vía `ALTER TABLE ADD COLUMN`, nulas por defecto — no se pierde ningún dato existente.
+- La tabla `evoluciones` (stub sin interfaz de usuario de fases anteriores, **sin datos reales**) se recrea con el esquema completo de la sección P.
+- **Incidente encontrado y corregido durante las pruebas**: la columna `evoluciones.cita_id` referenciaba `citas(id)` sin `ON DELETE SET NULL`. Borrar una cita vinculada a una evolución hacía fallar la sentencia `DELETE` con una excepción no controlada en `routes/citas.js`, **tumbando el servidor completo** (reproducido y confirmado en esta misma sesión). Corregido en dos frentes: (1) migración que reconstruye `evoluciones` con `ON DELETE SET NULL` en `cita_id` — borrar la cita ahora solo desvincula la referencia, nunca afecta ni borra la evolución (el registro legal se preserva siempre), conservando las evoluciones ya existentes; (2) `routes/citas.js` ahora envuelve el `DELETE` en un `try/catch` y responde con un error 400 claro ante cualquier restricción de base de datos, en vez de dejar caer una excepción no controlada que tumbe el proceso — protección general, no solo para este caso.
+
 ## Requisitos
 
 - **Node.js** versión LTS (18 o superior). Descargar de [https://nodejs.org](https://nodejs.org)
@@ -236,10 +276,12 @@ Dentify/
 │   ├── conexion.js            Conexion a SQLite, migraciones y siembra inicial
 │   ├── migraciones.js         Migraciones ligeras entre versiones del esquema
 │   ├── semillaDoctores.js     Datos iniciales de los doctores (solo se usa una vez)
+│   ├── semillaCie10.js         Catalogo CIE-10 odontologico precargado (solo se usa una vez)
 │   ├── schema.sql              Esquema de base de datos
 │   └── dentify.db              Base de datos (se crea automaticamente)
 ├── routes/                     Rutas de la API (auth, pacientes, usuarios, importador, dashboard,
-│                                doctores, citas, sync, ficha-clinica, odontograma)
+│                                doctores, citas, sync, ficha-clinica, odontograma, cie10,
+│                                diagnosticos, evoluciones)
 ├── middleware/                 Middlewares de autenticacion y roles
 ├── utils/                      Utilidades (respaldo, numero de historia, googleCalendar, sincronizacion)
 ├── public/                     Frontend (HTML, CSS, JS, sin frameworks)

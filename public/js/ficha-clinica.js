@@ -287,6 +287,26 @@ async function cargarFichaClinica() {
 
     await cargarIndicesCpo();
 
+    const examenesSolicitados = fichaClinicaActual.examenes_solicitados_json || {};
+    document.getElementById('fc-examen-biometria').checked = !!examenesSolicitados.biometria;
+    document.getElementById('fc-examen-quimica').checked = !!examenesSolicitados.quimica_sanguinea;
+    document.getElementById('fc-examen-rx').checked = !!examenesSolicitados.rayos_x;
+    document.getElementById('fc-examen-otros').checked = !!examenesSolicitados.otros;
+    document.getElementById('fc-examen-otros-texto').value = examenesSolicitados.otros_texto || '';
+    document.getElementById('fc-examenes-detalle').value = examenesSolicitados.detalle || '';
+    marcarCompletitud('examenes-solicitados', !!(examenesSolicitados.biometria || examenesSolicitados.quimica_sanguinea || examenesSolicitados.rayos_x || examenesSolicitados.otros || examenesSolicitados.detalle));
+
+    const examenesInforme = fichaClinicaActual.examenes_informe_json || {};
+    document.getElementById('fc-informe-fecha').value = examenesInforme.fecha || '';
+    sincronizarFechaLegible('fc-informe-fecha', 'fc-informe-fecha-legible');
+    document.getElementById('fc-informe-texto').value = examenesInforme.texto || '';
+    marcarCompletitud('examenes-informe', !!(examenesInforme.texto || (examenesInforme.documento_ids || []).length));
+    await cargarDocumentosParaInforme(examenesInforme.documento_ids || []);
+
+    const profesional = fichaClinicaActual.profesional_responsable_json || {};
+    await cargarProfesionalResponsable(profesional);
+    marcarCompletitud('profesional-responsable', !!profesional.doctor_id);
+
     await actualizarBannerAlertaMedica();
 }
 
@@ -424,6 +444,94 @@ function recopilarIndicadoresSaludBucal() {
         periodontal: document.getElementById('fc-enf-periodontal').value || null,
         oclusion: document.getElementById('fc-oclusion').value || null,
         fluorosis: document.getElementById('fc-fluorosis').value || null
+    };
+}
+
+// -----------------------------------------------------------------
+// L - Pedido de examenes complementarios
+// -----------------------------------------------------------------
+function recopilarExamenesSolicitados() {
+    return {
+        biometria: document.getElementById('fc-examen-biometria').checked,
+        quimica_sanguinea: document.getElementById('fc-examen-quimica').checked,
+        rayos_x: document.getElementById('fc-examen-rx').checked,
+        otros: document.getElementById('fc-examen-otros').checked,
+        otros_texto: document.getElementById('fc-examen-otros-texto').value.trim() || null,
+        detalle: document.getElementById('fc-examenes-detalle').value.trim() || null
+    };
+}
+
+// -----------------------------------------------------------------
+// M - Informe de examenes (reutiliza los documentos ya subidos en la
+// pestaña Documentos: aqui solo se referencian, no se sube un archivo
+// aparte)
+// -----------------------------------------------------------------
+async function cargarDocumentosParaInforme(documentoIdsSeleccionados) {
+    const contenedor = document.getElementById('fc-informe-documentos');
+    try {
+        const documentos = await api.get(`/api/pacientes/${pacienteId}/documentos`);
+        if (documentos.length === 0) {
+            contenedor.innerHTML = '<p class="texto-secundario mb-0">Sin documentos subidos todavía. Suba el informe desde la pestaña Documentos y selecciónelo aquí.</p>';
+            return;
+        }
+        const seleccionados = new Set(documentoIdsSeleccionados || []);
+        contenedor.innerHTML = documentos.map((doc) => `
+            <label class="check-item">
+                <input type="checkbox" data-documento-informe="${doc.id}" ${seleccionados.has(doc.id) ? 'checked' : ''}>
+                ${doc.nombre_original}
+            </label>
+        `).join('');
+    } catch (error) {
+        contenedor.innerHTML = '<p class="texto-secundario mb-0">Error al cargar documentos.</p>';
+    }
+}
+
+function recopilarExamenesInforme() {
+    const documentoIds = [...document.querySelectorAll('#fc-informe-documentos input[data-documento-informe]:checked')]
+        .map((el) => Number(el.dataset.documentoInforme));
+    return {
+        fecha: document.getElementById('fc-informe-fecha').value || null,
+        texto: document.getElementById('fc-informe-texto').value.trim() || null,
+        documento_ids: documentoIds
+    };
+}
+
+// -----------------------------------------------------------------
+// O - Datos del profesional responsable: autollenado desde el doctor
+// seleccionado; editable libremente hasta que ya tenga datos, desde
+// donde solo un admin puede modificarlo (ver routes/ficha-clinica.js).
+// -----------------------------------------------------------------
+async function cargarProfesionalResponsable(profesional) {
+    const select = document.getElementById('fc-profesional-doctor');
+    const doctores = typeof cargarDoctoresParaEvolucion === 'function' ? await cargarDoctoresParaEvolucion() : (doctoresParaEvolucion || []);
+    select.innerHTML = '<option value="">Sin especificar</option>' +
+        doctores.map((d) => `<option value="${d.id}">${d.nombre_completo}</option>`).join('');
+
+    const yaTieneDatos = !!profesional.doctor_id;
+    select.value = profesional.doctor_id || '';
+    select.disabled = yaTieneDatos && usuarioActual.rol !== 'admin';
+    document.getElementById('fc-profesional-aviso-admin').classList.toggle('oculto', !(yaTieneDatos && usuarioActual.rol !== 'admin'));
+
+    actualizarVistaProfesionalResponsable();
+    select.addEventListener('change', actualizarVistaProfesionalResponsable);
+
+    document.getElementById('fc-profesional-fecha-apertura').textContent = fichaClinicaActual.fecha_creacion
+        ? formatearFechaConDia(fichaClinicaActual.fecha_creacion.slice(0, 10))
+        : '—';
+}
+
+function actualizarVistaProfesionalResponsable() {
+    const select = document.getElementById('fc-profesional-doctor');
+    const doctor = doctoresParaEvolucion.find((d) => String(d.id) === select.value);
+    document.getElementById('fc-profesional-registro').textContent = doctor && doctor.registro_profesional ? doctor.registro_profesional : '—';
+}
+
+function recopilarProfesionalResponsable() {
+    const select = document.getElementById('fc-profesional-doctor');
+    if (select.disabled) return null; // no admin y ya bloqueado: no reenviar (el servidor lo rechazaria igual)
+    return {
+        doctor_id: select.value || null,
+        fecha_apertura: fichaClinicaActual.fecha_creacion || new Date().toISOString()
     };
 }
 
@@ -587,6 +695,9 @@ async function guardarFichaCompleta() {
         const examen = recopilarExamenEstomatognatico();
         const indicadores = recopilarIndicadoresSaludBucal();
         const cpo = recopilarIndicesCpo();
+        const examenesSolicitados = recopilarExamenesSolicitados();
+        const examenesInforme = recopilarExamenesInforme();
+        const profesional = recopilarProfesionalResponsable();
 
         await Promise.all([
             api.put(`/api/ficha-clinica/${pacienteId}/seccion/motivo-consulta`, motivo),
@@ -596,7 +707,10 @@ async function guardarFichaCompleta() {
             api.put(`/api/ficha-clinica/${pacienteId}/seccion/constantes-vitales`, vitales),
             api.put(`/api/ficha-clinica/${pacienteId}/seccion/examen-estomatognatico`, examen),
             api.put(`/api/ficha-clinica/${pacienteId}/seccion/indicadores-salud-bucal`, indicadores),
-            api.put(`/api/ficha-clinica/${pacienteId}/seccion/indices-cpo`, cpo)
+            api.put(`/api/ficha-clinica/${pacienteId}/seccion/indices-cpo`, cpo),
+            api.put(`/api/ficha-clinica/${pacienteId}/seccion/examenes-solicitados`, examenesSolicitados),
+            api.put(`/api/ficha-clinica/${pacienteId}/seccion/examenes-informe`, examenesInforme),
+            ...(profesional ? [api.put(`/api/ficha-clinica/${pacienteId}/seccion/profesional-responsable`, profesional)] : [])
         ]);
 
         marcarCompletitud('motivo-consulta', !!motivo.texto);
@@ -607,9 +721,15 @@ async function guardarFichaCompleta() {
         marcarCompletitud('examen-estomatognatico', Object.values(examen.items).some((i) => i.patologia) || examen.sin_patologia_aparente);
         marcarCompletitud('indicadores-salud-bucal', !!(indicadores.periodontal || indicadores.oclusion));
         marcarCompletitud('indices-cpo', true);
+        marcarCompletitud('examenes-solicitados', !!(examenesSolicitados.biometria || examenesSolicitados.quimica_sanguinea || examenesSolicitados.rayos_x || examenesSolicitados.otros || examenesSolicitados.detalle));
+        marcarCompletitud('examenes-informe', !!(examenesInforme.texto || examenesInforme.documento_ids.length));
+        if (profesional) marcarCompletitud('profesional-responsable', !!profesional.doctor_id);
 
         fichaClinicaActual.antecedentes_personales_json = personales;
         fichaClinicaActual.indices_cpo_json = cpo;
+        fichaClinicaActual.examenes_solicitados_json = examenesSolicitados;
+        fichaClinicaActual.examenes_informe_json = examenesInforme;
+        if (profesional) fichaClinicaActual.profesional_responsable_json = profesional;
         cpoModoManual = false;
         actualizarEstadoUiCpo(cpo.ajustado_manualmente, cpo.ajustado_por, cpo.ajustado_en);
         await actualizarBannerAlertaMedica();
