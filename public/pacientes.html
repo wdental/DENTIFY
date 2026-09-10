@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Pacientes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Pacientes</h1>
+                <p>Listado general de pacientes registrados</p>
+            </div>
+            <button class="btn btn-primario" id="btn-nuevo-paciente">+ Nuevo paciente</button>
+        </div>
+
+        <div class="barra-filtros">
+            <input type="text" id="campo-buscar" placeholder="Buscar por nombre, apellido, cedula o numero de historia...">
+            <select id="filtro-origen">
+                <option value="">Todos los origenes</option>
+                <option value="WhatsApp">WhatsApp</option>
+                <option value="Instagram">Instagram</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Google">Google</option>
+                <option value="Referido">Referido</option>
+                <option value="Otro">Otro</option>
+            </select>
+            <label class="check-eliminados oculto" id="check-eliminados-envoltura" style="display:flex; align-items:center; gap: 8px; font-size: 0.85rem; color: var(--texto-secundario); white-space: nowrap;">
+                <input type="checkbox" id="check-mostrar-eliminados" style="width:auto;">
+                Mostrar eliminados
+            </label>
+        </div>
+
+        <div class="tabla-envoltorio">
+            <table>
+                <thead>
+                    <tr>
+                        <th>N. Historia</th>
+                        <th>Nombres y apellidos</th>
+                        <th>Cedula</th>
+                        <th>Edad</th>
+                        <th>Telefono</th>
+                        <th>Origen</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpo-tabla-pacientes">
+                    <tr><td colspan="7" class="tabla-vacia">Cargando pacientes...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: Nuevo / Editar paciente -->
+<div class="modal-fondo" id="modal-paciente">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-paciente">&times;</button>
+        <h2 id="titulo-modal-paciente">Nuevo paciente</h2>
+        <div id="error-modal-paciente"></div>
+
+        <form id="form-paciente">
+            <input type="hidden" id="paciente-id">
+
+            <h3>Datos personales</h3>
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="p-nombres">Nombres *</label>
+                    <input type="text" id="p-nombres" required>
+                </div>
+                <div class="campo">
+                    <label for="p-apellidos">Apellidos *</label>
+                    <input type="text" id="p-apellidos" required>
+                </div>
+                <div class="campo">
+                    <label for="p-cedula">Cedula (10 digitos)</label>
+                    <input type="text" id="p-cedula" maxlength="10" pattern="\d{10}">
+                </div>
+                <div class="campo">
+                    <label for="p-fecha-nacimiento">Fecha de nacimiento</label>
+                    <input type="date" id="p-fecha-nacimiento">
+                </div>
+                <div class="campo">
+                    <label for="p-sexo">Sexo</label>
+                    <select id="p-sexo">
+                        <option value="">Seleccionar</option>
+                        <option value="F">Femenino</option>
+                        <option value="M">Masculino</option>
+                        <option value="O">Otro</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="p-origen">Origen</label>
+                    <select id="p-origen">
+                        <option value="">Seleccionar</option>
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Facebook">Facebook</option>
+                        <option value="Google">Google</option>
+                        <option value="Referido">Referido</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="p-telefono">Telefono</label>
+                    <input type="text" id="p-telefono">
+                </div>
+                <div class="campo">
+                    <label for="p-whatsapp">WhatsApp</label>
+                    <input type="text" id="p-whatsapp">
+                </div>
+                <div class="campo">
+                    <label for="p-email">Correo electronico</label>
+                    <input type="email" id="p-email">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-direccion">Direccion</label>
+                    <input type="text" id="p-direccion">
+                </div>
+            </div>
+
+            <h3 style="margin-top: 24px;">Antecedentes</h3>
+            <div class="form-grid">
+                <div class="campo campo--ancho">
+                    <label for="p-alergias">Alergias</label>
+                    <textarea id="p-alergias"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-antecedentes-medicos">Antecedentes medicos</label>
+                    <textarea id="p-antecedentes-medicos"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-antecedentes-odontologicos">Antecedentes odontologicos</label>
+                    <textarea id="p-antecedentes-odontologicos"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-medicamentos">Medicamentos actuales</label>
+                    <textarea id="p-medicamentos"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-notas">Notas</label>
+                    <textarea id="p-notas"></textarea>
+                </div>
+            </div>
+
+            <div class="flex-entre" style="margin-top: 24px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-paciente">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar paciente</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/pacientes.js"></script>
+</body>
+</html>

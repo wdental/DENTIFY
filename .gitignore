@@ -1,0 +1,32 @@
+# Dependencias
+node_modules/
+
+# Credenciales de Google Calendar (secreto, nunca a git)
+google-credentials.json
+
+# Base de datos (pacientes reales - nunca a git)
+db/dentify
+db/*.db
+db/*.db-shm
+db/*.db-wal
+db/*.db-journal
+
+# Respaldos automaticos de la base de datos
+backups/*
+!backups/.gitkeep
+
+# Documentos adjuntos de pacientes / archivos temporales de importacion
+uploads/*
+!uploads/pacientes/
+uploads/pacientes/*
+!uploads/pacientes/.gitkeep
+!uploads/temp_importaciones/
+uploads/temp_importaciones/*
+!uploads/temp_importaciones/.gitkeep
+
+# Configuracion local de Claude Code
+.claude/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

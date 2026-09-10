@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Iniciar sesion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="pagina-login">
+    <div class="login-caja">
+        <div class="sidebar__logo">Dentify<span>.</span></div>
+        <div class="sidebar__subtitulo">World Dental</div>
+
+        <div id="mensaje-error"></div>
+
+        <form class="login-form" id="form-login">
+            <div class="campo">
+                <label for="usuario">Usuario</label>
+                <input type="text" id="usuario" name="usuario" autocomplete="username" required>
+            </div>
+            <div class="campo">
+                <label for="password">Clave</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn btn-primario">Ingresar</button>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+document.getElementById('form-login').addEventListener('submit', async (evento) => {
+    evento.preventDefault();
+    const usuario = document.getElementById('usuario').value.trim();
+    const password = document.getElementById('password').value;
+    const mensajeError = document.getElementById('mensaje-error');
+    mensajeError.innerHTML = '';
+
+    try {
+        await api.post('/api/auth/login', { usuario, password });
+        window.location.href = '/index.html';
+    } catch (error) {
+        mensajeError.innerHTML = `<div class="alerta alerta--error">${error.message}</div>`;
+    }
+});
+
+// Si ya hay sesion activa, redirigir directamente
+(async () => {
+    try {
+        const respuesta = await api.get('/api/auth/yo');
+        if (respuesta.usuario) {
+            window.location.href = '/index.html';
+        }
+    } catch (e) { /* sin sesion, permanece en login */ }
+})();
+</script>
+</body>
+</html>

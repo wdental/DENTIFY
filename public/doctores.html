@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Doctores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Doctores</h1>
+                <p>Panel exclusivo de administrador &middot; controla la sincronizacion con Google Calendar</p>
+            </div>
+            <button class="btn btn-primario" id="btn-nuevo-doctor">+ Nuevo doctor</button>
+        </div>
+
+        <div id="mensaje-doctores"></div>
+
+        <div class="tabla-envoltorio">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Titulo</th>
+                        <th>Registro</th>
+                        <th>Calendario Google</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpo-tabla-doctores">
+                    <tr><td colspan="6" class="tabla-vacia">Cargando doctores...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: nuevo / editar doctor -->
+<div class="modal-fondo" id="modal-doctor">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-doctor">&times;</button>
+        <h2 id="titulo-modal-doctor">Nuevo doctor</h2>
+        <div id="error-modal-doctor"></div>
+
+        <form id="form-doctor">
+            <input type="hidden" id="d-id">
+
+            <div class="campo">
+                <label for="d-nombre">Nombre completo</label>
+                <input type="text" id="d-nombre" required>
+            </div>
+            <div class="campo">
+                <label for="d-titulo">Titulo / especialidad</label>
+                <input type="text" id="d-titulo" placeholder="Ej. Especialista en Ortodoncia">
+            </div>
+            <div class="campo">
+                <label for="d-registro">Numero de registro profesional</label>
+                <input type="text" id="d-registro">
+            </div>
+            <div class="campo">
+                <label for="d-calendario">ID del calendario de Google</label>
+                <input type="text" id="d-calendario" placeholder="ejemplo@group.calendar.google.com">
+            </div>
+
+            <div class="flex-entre" style="margin-top: 6px;">
+                <button type="button" class="btn btn-secundario btn-sm" id="btn-probar-conexion">Probar conexion</button>
+                <span id="resultado-prueba-conexion" class="texto-secundario" style="font-size: 0.8rem;"></span>
+            </div>
+
+            <div class="campo" style="margin-top: 18px;" id="campo-activo-doctor">
+                <label style="display:flex; align-items:center; gap:8px; flex-direction: row; text-transform: none; font-size: 0.85rem;">
+                    <input type="checkbox" id="d-activo" style="width:auto;" checked>
+                    Doctor activo (visible al crear citas nuevas)
+                </label>
+            </div>
+
+            <div class="flex-entre" style="margin-top: 24px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-doctor">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar doctor</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/doctores.js"></script>
+</body>
+</html>

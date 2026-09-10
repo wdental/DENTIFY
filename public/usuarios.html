@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Usuarios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Usuarios del sistema</h1>
+                <p>Panel exclusivo de administrador</p>
+            </div>
+            <button class="btn btn-primario" id="btn-nuevo-usuario">+ Nuevo usuario</button>
+        </div>
+
+        <div id="mensaje-usuarios"></div>
+
+        <div class="tabla-envoltorio">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpo-tabla-usuarios">
+                    <tr><td colspan="5" class="tabla-vacia">Cargando usuarios...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: nuevo usuario -->
+<div class="modal-fondo" id="modal-usuario">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-usuario">&times;</button>
+        <h2>Nuevo usuario</h2>
+        <div id="error-modal-usuario"></div>
+        <form id="form-usuario">
+            <div class="campo">
+                <label for="u-nombre">Nombre completo</label>
+                <input type="text" id="u-nombre" required>
+            </div>
+            <div class="campo">
+                <label for="u-usuario">Nombre de usuario</label>
+                <input type="text" id="u-usuario" required>
+            </div>
+            <div class="campo">
+                <label for="u-password">Clave (minimo 6 caracteres)</label>
+                <input type="password" id="u-password" required minlength="6">
+            </div>
+            <div class="campo">
+                <label for="u-rol">Rol</label>
+                <select id="u-rol">
+                    <option value="asistencial">Personal asistencial</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-usuario">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Crear usuario</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: cambiar clave -->
+<div class="modal-fondo" id="modal-clave">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-clave">&times;</button>
+        <h2>Cambiar clave</h2>
+        <div id="error-modal-clave"></div>
+        <form id="form-clave">
+            <input type="hidden" id="clave-usuario-id">
+            <div class="campo">
+                <label for="nueva-clave">Nueva clave (minimo 6 caracteres)</label>
+                <input type="password" id="nueva-clave" required minlength="6">
+            </div>
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-clave">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Actualizar clave</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/usuarios.js"></script>
+</body>
+</html>

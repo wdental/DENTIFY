@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Ficha del paciente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <p><a href="/pacientes.html">&larr; Volver al listado</a></p>
+                <h1 id="ficha-nombre">Cargando...</h1>
+                <p id="ficha-subtitulo"></p>
+            </div>
+            <div>
+                <button class="btn btn-secundario" id="btn-editar-paciente">Editar datos</button>
+                <button class="btn btn-peligro oculto" id="btn-eliminar-paciente">Eliminar paciente</button>
+                <button class="btn btn-primario oculto" id="btn-restaurar-paciente">Restaurar paciente</button>
+            </div>
+        </div>
+
+        <div id="mensaje-ficha"></div>
+
+        <div class="alerta alerta--error oculto" id="aviso-paciente-eliminado" style="display:flex; align-items:center; justify-content:space-between; gap: 16px;">
+            <span>Este paciente esta <strong>eliminado</strong> y no aparece en el listado ni se puede agendar para el. Puede restaurarlo en cualquier momento.</span>
+        </div>
+
+        <div class="pestanas">
+            <button class="pestana activa" data-panel="panel-datos">Datos personales</button>
+            <button class="pestana" data-panel="panel-antecedentes">Antecedentes</button>
+            <button class="pestana" data-panel="panel-documentos">Documentos</button>
+            <button class="pestana" data-panel="panel-citas">Citas</button>
+        </div>
+
+        <div class="panel-pestana activo" id="panel-datos">
+            <div class="tarjeta">
+                <div class="form-grid" id="vista-datos-personales"></div>
+            </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-antecedentes">
+            <div class="tarjeta">
+                <div class="form-grid" id="vista-antecedentes"></div>
+            </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-documentos">
+            <div class="tarjeta">
+                <h3>Documentos adjuntos</h3>
+                <p class="texto-secundario">Historias clinicas, examenes u otros archivos en PDF o imagen.</p>
+
+                <div class="zona-carga">
+                    <form id="form-subir-documento">
+                        <input type="file" id="campo-archivo" accept=".pdf,.jpg,.jpeg,.png,.webp" required>
+                        <button type="submit" class="btn btn-primario btn-sm" style="margin-left: 10px;">Subir archivo</button>
+                    </form>
+                    <div id="error-subida" style="margin-top: 10px;"></div>
+                </div>
+
+                <ul class="lista-documentos" id="lista-documentos">
+                    <li>Cargando documentos...</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-citas">
+            <div class="tarjeta">
+                <div class="flex-entre" style="margin-bottom: 16px;">
+                    <h3 class="mb-0">Historial de citas</h3>
+                    <button class="btn btn-primario btn-sm" id="btn-nueva-cita-paciente">+ Nueva cita</button>
+                </div>
+                <div id="lista-citas-paciente"><p class="texto-secundario">Cargando citas...</p></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: Editar paciente (reutiliza el mismo formulario que el listado) -->
+<div class="modal-fondo" id="modal-paciente">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-paciente">&times;</button>
+        <h2>Editar paciente</h2>
+        <div id="error-modal-paciente"></div>
+
+        <form id="form-paciente">
+            <input type="hidden" id="paciente-id">
+
+            <h3>Datos personales</h3>
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="p-nombres">Nombres *</label>
+                    <input type="text" id="p-nombres" required>
+                </div>
+                <div class="campo">
+                    <label for="p-apellidos">Apellidos *</label>
+                    <input type="text" id="p-apellidos" required>
+                </div>
+                <div class="campo">
+                    <label for="p-cedula">Cedula (10 digitos)</label>
+                    <input type="text" id="p-cedula" maxlength="10" pattern="\d{10}">
+                </div>
+                <div class="campo">
+                    <label for="p-fecha-nacimiento">Fecha de nacimiento</label>
+                    <input type="date" id="p-fecha-nacimiento">
+                </div>
+                <div class="campo">
+                    <label for="p-sexo">Sexo</label>
+                    <select id="p-sexo">
+                        <option value="">Seleccionar</option>
+                        <option value="F">Femenino</option>
+                        <option value="M">Masculino</option>
+                        <option value="O">Otro</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="p-origen">Origen</label>
+                    <select id="p-origen">
+                        <option value="">Seleccionar</option>
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Facebook">Facebook</option>
+                        <option value="Google">Google</option>
+                        <option value="Referido">Referido</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="p-telefono">Telefono</label>
+                    <input type="text" id="p-telefono">
+                </div>
+                <div class="campo">
+                    <label for="p-whatsapp">WhatsApp</label>
+                    <input type="text" id="p-whatsapp">
+                </div>
+                <div class="campo">
+                    <label for="p-email">Correo electronico</label>
+                    <input type="email" id="p-email">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-direccion">Direccion</label>
+                    <input type="text" id="p-direccion">
+                </div>
+            </div>
+
+            <h3 style="margin-top: 24px;">Antecedentes</h3>
+            <div class="form-grid">
+                <div class="campo campo--ancho">
+                    <label for="p-alergias">Alergias</label>
+                    <textarea id="p-alergias"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-antecedentes-medicos">Antecedentes medicos</label>
+                    <textarea id="p-antecedentes-medicos"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-antecedentes-odontologicos">Antecedentes odontologicos</label>
+                    <textarea id="p-antecedentes-odontologicos"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-medicamentos">Medicamentos actuales</label>
+                    <textarea id="p-medicamentos"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="p-notas">Notas</label>
+                    <textarea id="p-notas"></textarea>
+                </div>
+            </div>
+
+            <div class="flex-entre" style="margin-top: 24px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-paciente">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/fechas.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/paciente.js"></script>
+</body>
+</html>

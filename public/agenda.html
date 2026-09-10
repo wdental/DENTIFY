@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Agenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Agenda</h1>
+                <p>Sillón 1 y Sillón 2 &middot; citas por franja de 15 minutos</p>
+            </div>
+            <div style="display:flex; align-items:center; gap: 12px; flex-wrap: wrap;">
+                <div class="sync-indicador" id="sync-indicador" title="Estado de sincronizacion con Google Calendar">
+                    <span class="sync-indicador__punto"></span>
+                    <span id="sync-indicador-texto">Verificando...</span>
+                </div>
+                <button class="btn btn-secundario btn-sm oculto" id="btn-sincronizar-ahora">Sincronizar ahora</button>
+                <button class="btn btn-primario" id="btn-nueva-cita">+ Nueva cita</button>
+            </div>
+        </div>
+
+        <div id="mensaje-agenda"></div>
+
+        <div class="agenda-navegacion">
+            <div class="vista-alternador">
+                <button class="vista-alternador__boton activo" id="btn-vista-dia" type="button">Día</button>
+                <button class="vista-alternador__boton" id="btn-vista-semana" type="button">Semana</button>
+            </div>
+            <button class="btn btn-secundario btn-sm" id="btn-periodo-anterior">&larr;</button>
+            <input type="date" id="campo-fecha-agenda">
+            <button class="btn btn-secundario btn-sm" id="btn-periodo-siguiente">&rarr;</button>
+            <button class="btn-texto" id="btn-hoy">Hoy</button>
+            <span class="fecha-legible" id="fecha-seleccionada-legible"></span>
+            <select id="filtro-doctor-agenda" style="margin-left: auto; min-width: 220px;">
+                <option value="">Todos los doctores</option>
+            </select>
+        </div>
+
+        <div id="aviso-domingo" class="aviso-domingo oculto">
+            Domingo &middot; <strong>Bajo cita previa</strong>
+        </div>
+
+        <!-- VISTA DIA -->
+        <div id="vista-dia">
+            <div class="agenda-dia" id="agenda-dia-contenedor">
+                <p class="texto-secundario">Cargando citas...</p>
+            </div>
+        </div>
+
+        <!-- VISTA SEMANA -->
+        <div id="vista-semana" class="oculto">
+            <div class="tarjeta semana-resumen" id="semana-resumen">
+                <p class="texto-secundario">Cargando resumen semanal...</p>
+            </div>
+            <div class="semana-grilla" id="semana-grilla"></div>
+        </div>
+
+        <!-- Panel de sincronizacion (solo admin) -->
+        <div class="tarjeta sync-panel oculto" id="panel-sync-admin">
+            <h3>Estado de sincronizacion con Google Calendar</h3>
+            <p class="texto-secundario" id="sync-panel-resumen"></p>
+            <div id="sync-panel-errores"></div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: nueva / editar cita -->
+<div class="modal-fondo" id="modal-cita">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-cita">&times;</button>
+        <h2 id="titulo-modal-cita">Nueva cita</h2>
+        <div id="error-modal-cita"></div>
+
+        <form id="form-cita">
+            <input type="hidden" id="c-id">
+
+            <div class="campo">
+                <label for="c-buscar-paciente">Paciente</label>
+                <div class="selector-paciente">
+                    <input type="text" id="c-buscar-paciente" placeholder="Buscar por nombre, apellido o cedula..." autocomplete="off">
+                    <div class="selector-paciente__resultados oculto" id="resultados-paciente"></div>
+                </div>
+                <div class="selector-paciente__seleccionado" id="paciente-seleccionado-texto"></div>
+                <input type="hidden" id="c-paciente-id">
+            </div>
+
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="c-doctor">Doctor</label>
+                    <select id="c-doctor" required></select>
+                </div>
+                <div class="campo">
+                    <label for="c-sillon">Sillón</label>
+                    <select id="c-sillon">
+                        <option value="1">Sillón 1</option>
+                        <option value="2">Sillón 2</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="c-fecha">Fecha</label>
+                    <input type="date" id="c-fecha" required>
+                </div>
+                <div class="campo">
+                    <label for="c-hora-inicio">Hora de inicio</label>
+                    <input type="time" id="c-hora-inicio" step="900" required>
+                </div>
+                <div class="campo">
+                    <label for="c-duracion">Duración</label>
+                    <select id="c-duracion">
+                        <option value="15">15 min</option>
+                        <option value="30" selected>30 min</option>
+                        <option value="45">45 min</option>
+                        <option value="60">60 min</option>
+                        <option value="75">75 min</option>
+                        <option value="90">90 min</option>
+                        <option value="105">105 min</option>
+                        <option value="120">120 min</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="c-estado">Estado</label>
+                    <select id="c-estado">
+                        <option value="pendiente">Agendada</option>
+                        <option value="confirmada">Confirmada</option>
+                        <option value="atendida">Atendida</option>
+                        <option value="cancelada">Cancelada</option>
+                        <option value="no_asistio">No asistió</option>
+                    </select>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="c-motivo">Motivo</label>
+                    <input type="text" id="c-motivo" placeholder="Ej. Valoracion, Control, Limpieza...">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="c-notas">Notas internas</label>
+                    <textarea id="c-notas" placeholder="No se envia a Google Calendar"></textarea>
+                </div>
+            </div>
+
+            <div class="flex-entre" style="margin-top: 24px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-cita">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar cita</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/fechas.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/agenda.js"></script>
+</body>
+</html>

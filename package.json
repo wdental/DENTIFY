@@ -1,0 +1,19 @@
+{
+  "name": "dentify",
+  "version": "1.0.0",
+  "description": "Sistema de gestion para World Dental - Quito, Ecuador",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "better-sqlite3": "^13.0.0",
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "googleapis": "^178.1.1",
+    "multer": "^2.0.0",
+    "xlsx": "^0.18.5"
+  }
+}

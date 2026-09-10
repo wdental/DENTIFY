@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Panel principal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Panel principal</h1>
+                <p>Resumen general de la clinica</p>
+            </div>
+        </div>
+
+        <div class="tarjetas-fila">
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">Pacientes activos</div>
+                <div class="tarjeta-stat__valor" id="valor-total-activos">-</div>
+                <div class="tarjeta-stat__nota">Total registrados en el sistema</div>
+            </div>
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">Nuevos este mes</div>
+                <div class="tarjeta-stat__valor" id="valor-nuevos-mes">-</div>
+                <div class="tarjeta-stat__nota">Pacientes registrados en el mes actual</div>
+            </div>
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">Citas de hoy</div>
+                <div class="tarjeta-stat__valor" id="valor-citas-hoy">-</div>
+                <div class="tarjeta-stat__nota">Programadas para el dia de hoy</div>
+            </div>
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">No-shows del mes</div>
+                <div class="tarjeta-stat__valor" id="valor-noshows-mes">-</div>
+                <div class="tarjeta-stat__nota">Citas marcadas como "No asistio"</div>
+            </div>
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">Saldos pendientes</div>
+                <div class="tarjeta-stat__valor">-</div>
+                <div class="tarjeta-stat__nota">Disponible en la siguiente fase (Pagos)</div>
+            </div>
+        </div>
+
+        <div class="tarjeta" style="margin-bottom: 28px;">
+            <div class="flex-entre">
+                <h3>Citas de hoy <span class="texto-secundario" id="fecha-hoy-dashboard" style="font-family: var(--fuente-cuerpo); font-size: 0.78rem; font-weight: 500;"></span></h3>
+                <a href="/agenda.html">Ir a la agenda &rarr;</a>
+            </div>
+            <div id="mensaje-dashboard"></div>
+            <div id="lista-citas-hoy"><p class="texto-secundario mb-0">Cargando...</p></div>
+        </div>
+
+        <div class="tarjeta">
+            <h3>Distribucion de pacientes por origen</h3>
+            <div class="grafico-barras" id="grafico-origen"></div>
+        </div>
+    </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/fechas.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Importar pacientes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Importar pacientes</h1>
+                <p>Suba un archivo Excel (.xlsx) o CSV para migrar pacientes desde Doctocliq u otro sistema</p>
+            </div>
+        </div>
+
+        <div id="mensaje-importador"></div>
+
+        <!-- Paso 1: subir archivo -->
+        <div class="tarjeta" id="paso-subir">
+            <h3>Paso 1 · Seleccionar archivo</h3>
+            <div class="zona-carga">
+                <input type="file" id="campo-archivo-importar" accept=".xlsx,.xls,.csv">
+                <button class="btn btn-primario btn-sm" id="btn-subir-archivo" style="margin-left: 10px;">Analizar archivo</button>
+            </div>
+        </div>
+
+        <!-- Paso 2: vista previa y mapeo -->
+        <div class="tarjeta oculto" id="paso-mapeo" style="margin-top: 24px;">
+            <h3>Paso 2 · Vista previa y mapeo de columnas</h3>
+            <p class="texto-secundario" id="info-filas"></p>
+
+            <div class="tabla-envoltorio" style="margin-bottom: 20px;">
+                <table>
+                    <thead><tr id="fila-encabezados-previa"></tr></thead>
+                    <tbody id="cuerpo-tabla-previa"></tbody>
+                </table>
+            </div>
+
+            <h3>Asignar cada columna a un campo de Dentify</h3>
+            <div class="form-grid" id="contenedor-mapeo"></div>
+
+            <div class="flex-entre" style="margin-top: 24px;">
+                <button class="btn btn-secundario" id="btn-cancelar-importacion">Cancelar</button>
+                <button class="btn btn-primario" id="btn-confirmar-importacion">Importar pacientes</button>
+            </div>
+        </div>
+
+        <!-- Paso 3: reporte -->
+        <div class="tarjeta oculto" id="paso-reporte" style="margin-top: 24px;">
+            <h3>Resultado de la importacion</h3>
+            <div id="contenido-reporte"></div>
+        </div>
+    </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/importador.js"></script>
+</body>
+</html>
