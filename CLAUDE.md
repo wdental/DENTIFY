@@ -45,6 +45,7 @@ Sistema de gestión **interno** de la clínica dental World Dental (Quito, Ecuad
 - **Pendiente — Fase 3C**: consentimientos informados con firma digital.
 - **Pendiente — Fase 4**: presupuestos y pagos.
 - **Pendiente — Fase 5**: reportes.
+- **Pendiente — v2 — módulo de ortodoncia**: hallazgos apiñamiento, diastema, giroversión, fractura, diente en erupción; posible periodontograma completo.
 
 La base de datos (`db/schema.sql`) ya incluye tablas mínimas preparadas para las fases 3–5 (`odontogramas`, `evoluciones`, `presupuestos`, `pagos`, `firmas`) para no requerir migraciones destructivas más adelante.
 

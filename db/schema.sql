@@ -147,16 +147,63 @@ CREATE TABLE IF NOT EXISTS sync_meta (
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- ODONTOGRAMAS (Fase 3)
+-- FICHA CLINICA (Fase 3A) - Formulario 033 MSP Ecuador, secciones B-G, I, J
+-- Un solo registro mutable por paciente; cada seccion es un bloque JSON
+-- independiente con su propia auditoria (actualizado_en / actualizado_por)
+-- para poder guardarse por separado sin afectar las demas.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS fichas_clinicas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paciente_id INTEGER NOT NULL UNIQUE REFERENCES pacientes(id),
+    motivo_consulta_json TEXT,                    -- B: {texto, embarazada, actualizado_en, actualizado_por}
+    enfermedad_actual_json TEXT,                  -- C: {texto, actualizado_en, actualizado_por}
+    antecedentes_personales_json TEXT,             -- D: {marcados:[], otro_texto, observaciones, actualizado_en, actualizado_por}
+    antecedentes_familiares_json TEXT,             -- E: {marcados:[], otro_texto, observaciones, actualizado_en, actualizado_por}
+    constantes_vitales_json TEXT,                  -- F: {temperatura, pulso, frecuencia_respiratoria, presion_arterial, actualizado_en, actualizado_por}
+    examen_estomatognatico_json TEXT,              -- G: {items:{1:{patologia,descripcion}, ...}, actualizado_en, actualizado_por}
+    indicadores_salud_bucal_json TEXT,             -- I: {higiene:{...}, periodontal, oclusion, fluorosis, actualizado_en, actualizado_por}
+    indices_cpo_json TEXT,                         -- J: {permanente:{c,p,o,total}, temporal:{c,e,o,total}, actualizado_en, actualizado_por}
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_fichas_clinicas_paciente ON fichas_clinicas (paciente_id);
+
+-- ---------------------------------------------------------------------
+-- ODONTOGRAMAS (Fase 3A) - INMUTABLE una vez registrado: cada actualizacion
+-- crea una nueva version (es_version_activa=1) y desactiva la anterior.
+-- Las versiones antiguas se conservan intactas para consulta historica.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS odontogramas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
-    fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    datos_json TEXT,                              -- estado dental en JSON
+    fecha_registro TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     doctor_id INTEGER REFERENCES doctores(id),
-    creado_por INTEGER REFERENCES usuarios(id)
+    observaciones TEXT,
+    creado_por INTEGER REFERENCES usuarios(id),
+    es_version_activa INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE INDEX IF NOT EXISTS idx_odontogramas_paciente ON odontogramas (paciente_id);
+
+-- ---------------------------------------------------------------------
+-- HALLAZGOS POR PIEZA DE UN ODONTOGRAMA (Fase 3A)
+-- Una fila por hallazgo de superficie, o por marca a nivel de pieza
+-- completa (superficie='completa'), o por anotacion de movilidad/recesion
+-- (hallazgo NULL, solo movilidad y/o recesion informados).
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS odontograma_piezas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    odontograma_id INTEGER NOT NULL REFERENCES odontogramas(id),
+    pieza TEXT NOT NULL,                           -- nomenclatura FDI, ej. '11', '55'
+    superficie TEXT NOT NULL DEFAULT 'completa',   -- oclusal/mesial/distal/vestibular/lingual/completa
+    hallazgo TEXT,                                 -- codigo del catalogo de hallazgos (ver public/js/odontograma.js)
+    color_tipo TEXT CHECK (color_tipo IN ('rojo', 'azul', 'neutro')),
+    movilidad INTEGER,                             -- 0-4, nullable
+    recesion INTEGER,                              -- 0-4, nullable
+    fuera_simbologia_f033 INTEGER NOT NULL DEFAULT 0  -- 1 = hallazgo adicional (ej. implante) fuera de la seccion K del F033
+);
+
+CREATE INDEX IF NOT EXISTS idx_odopiezas_odontograma ON odontograma_piezas (odontograma_id);
 
 -- ---------------------------------------------------------------------
 -- EVOLUCIONES / NOTAS CLINICAS (Fase 3)

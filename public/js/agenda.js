@@ -402,11 +402,13 @@ function abrirModalNuevaCita(prefijo) {
         document.getElementById('c-buscar-paciente').value = '';
         document.getElementById('paciente-seleccionado-texto').textContent = `Paciente seleccionado: ${prefijo.pacienteNombre || ''}`;
         pacienteSeleccionado = { id: prefijo.pacienteId };
+        actualizarAlertaMedicaModal(prefijo.pacienteId);
     } else {
         document.getElementById('c-paciente-id').value = '';
         document.getElementById('c-buscar-paciente').value = '';
         document.getElementById('paciente-seleccionado-texto').textContent = '';
         pacienteSeleccionado = null;
+        actualizarAlertaMedicaModal(null);
     }
     document.getElementById('resultados-paciente').classList.add('oculto');
 
@@ -431,6 +433,7 @@ async function abrirModalEdicion(citaId) {
         document.getElementById('paciente-seleccionado-texto').textContent =
             `Paciente seleccionado: ${cita.paciente_apellidos} ${cita.paciente_nombres}`;
         document.getElementById('resultados-paciente').classList.add('oculto');
+        actualizarAlertaMedicaModal(cita.paciente_id);
         document.getElementById('c-doctor').value = cita.doctor_id || '';
 
         const selectSillon = document.getElementById('c-sillon');
@@ -588,6 +591,29 @@ function seleccionarPaciente(id, nombreCompleto) {
     document.getElementById('paciente-seleccionado-texto').textContent = `Paciente seleccionado: ${nombreCompleto}`;
     document.getElementById('c-buscar-paciente').value = '';
     document.getElementById('resultados-paciente').classList.add('oculto');
+    actualizarAlertaMedicaModal(id);
+}
+
+// -----------------------------------------------------------------
+// Alerta medica del paciente seleccionado (antecedentes de riesgo del F033)
+// -----------------------------------------------------------------
+async function actualizarAlertaMedicaModal(pacienteId) {
+    const banner = document.getElementById('banner-alerta-medica-modal');
+    if (!pacienteId) {
+        banner.classList.add('oculto');
+        return;
+    }
+    try {
+        const alertas = await api.get(`/api/ficha-clinica/${pacienteId}/alertas`);
+        if (alertas.tieneAlertas) {
+            document.getElementById('banner-alerta-medica-modal-texto').textContent = alertas.etiquetas.join(' · ').toUpperCase();
+            banner.classList.remove('oculto');
+        } else {
+            banner.classList.add('oculto');
+        }
+    } catch (error) {
+        banner.classList.add('oculto');
+    }
 }
 
 // -----------------------------------------------------------------

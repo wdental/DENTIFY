@@ -22,6 +22,8 @@ const rutasDashboard = require('./routes/dashboard');
 const rutasDoctores = require('./routes/doctores');
 const rutasCitas = require('./routes/citas');
 const rutasSync = require('./routes/sync');
+const rutasFichaClinica = require('./routes/ficha-clinica');
+const rutasOdontograma = require('./routes/odontograma');
 const { protegerPagina, requiereSesion } = require('./middleware/auth');
 const { iniciarProgramador } = require('./utils/sincronizacion');
 
@@ -51,6 +53,8 @@ app.use('/api/dashboard', rutasDashboard);
 app.use('/api/doctores', rutasDoctores);
 app.use('/api/citas', rutasCitas);
 app.use('/api/sync', rutasSync);
+app.use('/api/ficha-clinica', rutasFichaClinica);
+app.use('/api/odontograma', rutasOdontograma);
 
 // Manejo de errores de multer / subida de archivos
 app.use((err, req, res, next) => {

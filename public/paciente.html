@@ -28,6 +28,11 @@
 
         <div id="mensaje-ficha"></div>
 
+        <div class="banner-alerta-medica oculto" id="banner-alerta-medica">
+            <span class="banner-alerta-medica__icono">&#9888;</span>
+            <span id="banner-alerta-medica-texto"></span>
+        </div>
+
         <div class="alerta alerta--error oculto" id="aviso-paciente-eliminado" style="display:flex; align-items:center; justify-content:space-between; gap: 16px;">
             <span>Este paciente esta <strong>eliminado</strong> y no aparece en el listado ni se puede agendar para el. Puede restaurarlo en cualquier momento.</span>
         </div>
@@ -37,6 +42,7 @@
             <button class="pestana" data-panel="panel-antecedentes">Antecedentes</button>
             <button class="pestana" data-panel="panel-documentos">Documentos</button>
             <button class="pestana" data-panel="panel-citas">Citas</button>
+            <button class="pestana" data-panel="panel-ficha-clinica">Ficha clínica (F033)</button>
         </div>
 
         <div class="panel-pestana activo" id="panel-datos">
@@ -79,6 +85,222 @@
                 <div id="lista-citas-paciente"><p class="texto-secundario">Cargando citas...</p></div>
             </div>
         </div>
+
+        <div class="panel-pestana" id="panel-ficha-clinica">
+            <p class="texto-secundario">Formulario 033 del MSP Ecuador. Use "Guardar ficha clínica" para registrar todas las secciones B a J de una vez.</p>
+
+            <!-- B. Motivo de consulta -->
+            <details class="seccion-clinica" open>
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-motivo-consulta"></span>
+                    B. Motivo de consulta
+                    <span class="seccion-clinica__guardado" id="guardado-motivo-consulta"></span>
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <p class="seccion-clinica__ayuda">Anotar en palabras textuales del paciente, entre comillas.</p>
+                    <div class="campo campo--ancho">
+                        <textarea id="fc-motivo-texto" placeholder='Ej. "Me duele una muela desde hace una semana"'></textarea>
+                    </div>
+                    <div class="campo oculto" id="fc-embarazada-envoltura" style="max-width:220px;">
+                        <label for="fc-embarazada">Embarazada</label>
+                        <select id="fc-embarazada">
+                            <option value="">Sin especificar</option>
+                            <option value="si">Sí</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+
+            <!-- C. Enfermedad actual -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-enfermedad-actual"></span>
+                    C. Enfermedad actual
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="campo campo--ancho">
+                        <textarea id="fc-enfermedad-texto" placeholder="Descripcion cronologica de la enfermedad actual..."></textarea>
+                    </div>
+                </div>
+            </details>
+
+            <!-- D. Antecedentes patologicos personales -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-antecedentes-personales"></span>
+                    D. Antecedentes patológicos personales
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="grilla-checks" id="grilla-antecedentes-personales"></div>
+                    <div class="campo campo--ancho">
+                        <label for="fc-personales-observaciones">Observaciones</label>
+                        <textarea id="fc-personales-observaciones"></textarea>
+                    </div>
+                </div>
+            </details>
+
+            <!-- E. Antecedentes patologicos familiares -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-antecedentes-familiares"></span>
+                    E. Antecedentes patológicos familiares
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="grilla-checks" id="grilla-antecedentes-familiares"></div>
+                    <div class="campo campo--ancho">
+                        <label for="fc-familiares-observaciones">Observaciones</label>
+                        <textarea id="fc-familiares-observaciones"></textarea>
+                    </div>
+                </div>
+            </details>
+
+            <!-- F. Constantes vitales -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-constantes-vitales"></span>
+                    F. Constantes vitales
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="form-grid">
+                        <div class="campo">
+                            <label for="fc-temperatura">Temperatura (°C)</label>
+                            <input type="number" id="fc-temperatura" step="0.1" min="30" max="43">
+                        </div>
+                        <div class="campo">
+                            <label for="fc-pulso">Pulso (lat/min)</label>
+                            <input type="number" id="fc-pulso" min="30" max="220">
+                        </div>
+                        <div class="campo">
+                            <label for="fc-frecuencia-respiratoria">Frecuencia respiratoria (resp/min)</label>
+                            <input type="number" id="fc-frecuencia-respiratoria" min="5" max="60">
+                        </div>
+                        <div class="campo">
+                            <label for="fc-presion-arterial">Presion arterial (mmHg)</label>
+                            <input type="text" id="fc-presion-arterial" placeholder="Ej. 120/80">
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- G. Examen del sistema estomatognatico -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-examen-estomatognatico"></span>
+                    G. Examen del sistema estomatognático
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <p class="seccion-clinica__ayuda">Si un item presenta patologia, describirla indicando el numero de la region.</p>
+                    <div id="lista-examen-estomatognatico"></div>
+                </div>
+            </details>
+
+            <!-- H. Odontograma -->
+            <details class="seccion-clinica" open>
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-odontograma"></span>
+                    H. Odontograma
+                </summary>
+                <div class="seccion-clinica__cuerpo" id="seccion-odontograma">
+                    <p class="texto-secundario">Cargando odontograma...</p>
+                </div>
+            </details>
+
+            <!-- I. Indicadores de salud bucal -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-indicadores-salud-bucal"></span>
+                    I. Indicadores de salud bucal
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <h3 style="font-size:1rem;">Higiene oral simplificada</h3>
+                    <div class="tabla-envoltorio">
+                        <table class="tabla-indicadores">
+                            <thead>
+                                <tr><th>Piezas</th><th>Placa (0-3)</th><th>Cálculo (0-3)</th><th>Gingivitis (0-1)</th></tr>
+                            </thead>
+                            <tbody id="cuerpo-tabla-higiene"></tbody>
+                            <tfoot>
+                                <tr><td>Total</td><td id="total-placa">0</td><td id="total-calculo">0</td><td id="total-gingivitis">0</td></tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="form-grid" style="margin-top:18px;">
+                        <div class="campo">
+                            <label for="fc-enf-periodontal">Enfermedad periodontal</label>
+                            <select id="fc-enf-periodontal">
+                                <option value="">Sin registrar</option>
+                                <option value="leve">Leve</option>
+                                <option value="moderada">Moderada</option>
+                                <option value="severa">Severa</option>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="fc-oclusion">Tipo de oclusión (Angle)</label>
+                            <select id="fc-oclusion">
+                                <option value="">Sin registrar</option>
+                                <option value="I">Clase I</option>
+                                <option value="II">Clase II</option>
+                                <option value="III">Clase III</option>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="fc-fluorosis">Nivel de fluorosis</label>
+                            <select id="fc-fluorosis">
+                                <option value="ninguna">Ninguna</option>
+                                <option value="leve">Leve</option>
+                                <option value="moderada">Moderada</option>
+                                <option value="severa">Severa</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- J. Indices CPO-ceo -->
+            <details class="seccion-clinica">
+                <summary>
+                    <span class="seccion-clinica__punto" id="punto-indices-cpo"></span>
+                    J. Índices CPO-ceo
+                </summary>
+                <div class="seccion-clinica__cuerpo">
+                    <div class="flex-entre" style="margin-bottom: 10px;">
+                        <p class="texto-secundario mb-0">Autocalculo sugerido desde el odontograma activo, ajustable manualmente.</p>
+                        <button type="button" class="btn btn-secundario btn-sm" onclick="usarCpoSugerido()">Usar sugerido</button>
+                    </div>
+                    <div class="tabla-envoltorio">
+                        <table class="tabla-cpo">
+                            <thead>
+                                <tr><th>Índice</th><th>C / c (caries)</th><th>P / e (perdidas)</th><th>O / o (obturadas)</th><th>Total</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>D — Permanente</td>
+                                    <td><input type="number" id="cpo-perm-c" min="0" oninput="recalcularCpo()"></td>
+                                    <td><input type="number" id="cpo-perm-p" min="0" oninput="recalcularCpo()"></td>
+                                    <td><input type="number" id="cpo-perm-o" min="0" oninput="recalcularCpo()"></td>
+                                    <td id="cpo-perm-total">0</td>
+                                </tr>
+                                <tr>
+                                    <td>d — Temporal</td>
+                                    <td><input type="number" id="cpo-temp-c" min="0" oninput="recalcularCpo()"></td>
+                                    <td><input type="number" id="cpo-temp-e" min="0" oninput="recalcularCpo()"></td>
+                                    <td><input type="number" id="cpo-temp-o" min="0" oninput="recalcularCpo()"></td>
+                                    <td id="cpo-temp-total">0</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <button type="button" class="btn-guardar-flotante oculto" id="btn-guardar-ficha-flotante">
+            Guardar ficha clínica
+            <span class="btn-guardar-flotante__badge oculto" id="badge-cambios-pendientes"></span>
+        </button>
+        <div class="confirmacion-guardado-ficha oculto" id="confirmacion-guardado-ficha">Ficha guardada ✓</div>
     </main>
 </div>
 
@@ -181,9 +403,24 @@
     </div>
 </div>
 
+<!-- Modal: aviso de cambios sin guardar (ficha clinica / odontograma en edicion) -->
+<div class="modal-fondo" id="modal-salida-sin-guardar">
+    <div class="modal">
+        <h2>Cambios sin guardar</h2>
+        <p>Tienes cambios sin guardar. ¿Deseas guardarlos antes de salir?</p>
+        <div class="flex-entre" style="margin-top: 24px; gap: 10px;">
+            <button type="button" class="btn btn-secundario" id="btn-salida-cancelar">Cancelar</button>
+            <button type="button" class="btn btn-peligro" id="btn-salida-sin-guardar">Salir sin guardar</button>
+            <button type="button" class="btn btn-primario" id="btn-salida-guardar">Guardar</button>
+        </div>
+    </div>
+</div>
+
 <script src="/js/api.js"></script>
 <script src="/js/fechas.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/paciente.js"></script>
+<script src="/js/ficha-clinica.js"></script>
+<script src="/js/odontograma.js"></script>
 </body>
 </html>

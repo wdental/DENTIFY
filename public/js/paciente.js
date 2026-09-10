@@ -51,6 +51,8 @@ const CLASE_ESTADO_CITA = {
     await cargarPaciente();
     await cargarDocumentos();
     await cargarCitasPaciente();
+    await cargarFichaClinica();
+    await cargarOdontograma();
 })();
 
 function irANuevaCita() {
@@ -60,8 +62,21 @@ function irANuevaCita() {
 }
 
 function cambiarPestana(idPanel) {
+    // Si se sale de "Ficha clinica" con cambios sin guardar (secciones B-J o
+    // un odontograma en edicion), se pide confirmacion antes de cambiar.
+    const enFichaClinica = document.getElementById('panel-ficha-clinica').classList.contains('activo');
+    if (enFichaClinica && idPanel !== 'panel-ficha-clinica' && typeof hayCambiosSinGuardar === 'function' && hayCambiosSinGuardar()) {
+        mostrarDialogoSalida(() => cambiarPestanaReal(idPanel));
+        return;
+    }
+    cambiarPestanaReal(idPanel);
+}
+
+function cambiarPestanaReal(idPanel) {
     document.querySelectorAll('.pestana').forEach((b) => b.classList.toggle('activa', b.dataset.panel === idPanel));
     document.querySelectorAll('.panel-pestana').forEach((p) => p.classList.toggle('activo', p.id === idPanel));
+    const botonFlotante = document.getElementById('btn-guardar-ficha-flotante');
+    if (botonFlotante) botonFlotante.classList.toggle('oculto', idPanel !== 'panel-ficha-clinica');
 }
 
 async function cargarPaciente() {
