@@ -105,7 +105,13 @@ const MARGEN_LATERAL = 18;
 const HOLGURA = 4;
 const ALTURA_NUMERO = 14;
 const ALTURA_FILA_CAJA = 13;
-const ALTURA_BANDA_SELLANTE = 14;
+// Banda "interior" (lado oclusal, hacia la otra arcada): sellante y, si
+// coincide en la misma pieza, endodoncia (que se dibuja ahi en vez de sobre
+// la pieza para no chocar con la corona). ALTURA_BANDA_SELLANTE debe cubrir
+// el peor caso: dos simbolos apilados (ver DISTANCIA_BANDA_INFERIOR / PASO_APILADO).
+const ALTURA_BANDA_SELLANTE = 22;
+const DISTANCIA_BANDA_INFERIOR = 9; // borde de la pieza -> centro del primer simbolo (fijo y constante)
+const PASO_APILADO = 12;            // separacion entre el primer y el segundo simbolo, si ambos coinciden
 
 const ETIQUETAS_SUPERFICIE_BASE = { oclusal: 'Oclusal', mesial: 'Mesial', distal: 'Distal', vestibular: 'Vestibular', completa: 'Pieza completa' };
 
@@ -982,9 +988,10 @@ function renderizarSvgOdontograma() {
 
         contenido += `<line class="odonto-linea-media" x1="${CENTRO_X}" y1="${cy - half - 4}" x2="${CENTRO_X}" y2="${cy + half + 4}"></line>`;
 
-        // Posiciones Y de numero / MOV / REC (lado exterior) y sellante (interior)
+        // Posiciones Y de numero / MOV / REC (lado exterior) y sellante/endodoncia (interior)
         const yNumero = etiquetaArriba ? cy - half - HOLGURA - ALTURA_NUMERO + 9 : cy + half + HOLGURA + ALTURA_NUMERO - 3;
-        const ySellante = etiquetaArriba ? cy + half + HOLGURA + ALTURA_BANDA_SELLANTE / 2 : cy - half - HOLGURA - ALTURA_BANDA_SELLANTE / 2;
+        const signoInterior = etiquetaArriba ? 1 : -1;
+        const ySellante = cy + signoInterior * (half + DISTANCIA_BANDA_INFERIOR);
         const signo = etiquetaArriba ? -1 : 1;
         const yMov = yNumero + signo * (HOLGURA + ALTURA_FILA_CAJA);
         const yRec = yMov + signo * ALTURA_FILA_CAJA;
@@ -1005,7 +1012,7 @@ function renderizarSvgOdontograma() {
 
             contenido += dibujarSimboloSiHay(pieza, cx, cy, unidad, fila.tipo);
             contenido += dibujarEtiquetaPieza(pieza, cx, yNumero);
-            contenido += dibujarSellantesSiHay(pieza, cx, ySellante);
+            contenido += dibujarBandaInferiorSiHay(pieza, cx, ySellante, signoInterior);
 
             if (fila.tipo === 'permanente') {
                 contenido += dibujarCajaMovRec(pieza, cx, yMov, 'movilidad');
@@ -1095,7 +1102,10 @@ function sectorAnular(cx, cy, rInt, rExt, anguloInicioDeg, anguloFinDeg) {
 function dibujarSimboloSiHay(pieza, cx, cy, tamano, tipo) {
     // Puede haber mas de un hallazgo de pieza completa a la vez (p.ej.
     // corona y endodoncia, clinicamente compatibles: ver GRUPOS_PIEZA_DIRECTOS).
-    const filas = piezasVisibles.filter((f) => f.pieza === pieza && f.superficie === 'completa' && f.hallazgo);
+    // La endodoncia se dibuja aparte, en la banda bajo la pieza (ver
+    // dibujarBandaInferiorSiHay), para no chocar con el contorno de la corona.
+    const filas = piezasVisibles.filter((f) => f.pieza === pieza && f.superficie === 'completa' && f.hallazgo &&
+        f.hallazgo !== 'endodoncia_indicada' && f.hallazgo !== 'endodoncia_realizada');
     return filas.map((f) => dibujarSimboloPieza(f.hallazgo, cx, cy, tamano, f.color_tipo, tipo)).join('');
 }
 
@@ -1149,17 +1159,37 @@ function dobleContorno(cx, cy, tamano, colorClase, esCircular) {
             <rect class="pieza-simbolo-fino color-${colorClase}" x="${cx - inner / 2}" y="${cy - inner / 2}" width="${inner}" height="${inner}"></rect>`;
 }
 
-function dibujarSellantesSiHay(pieza, cx, ySellante) {
+// Banda "bajo la pieza" (lado oclusal/interior): asterisco(s) de sellante y,
+// si la pieza tambien tiene endodoncia, su triangulo pequeño apilado justo
+// despues (mas lejos de la pieza que el sellante). Si solo hay endodoncia
+// (sin sellante), el triangulo toma la posicion mas cercana.
+function dibujarBandaInferiorSiHay(pieza, cx, ySlot0, signoInterior) {
     const conSellante = piezasVisibles.filter((f) => f.pieza === pieza && (f.hallazgo === 'sellante_necesario' || f.hallazgo === 'sellante_realizado'));
+    const filaEndo = piezasVisibles.find((f) => f.pieza === pieza && f.superficie === 'completa' && (f.hallazgo === 'endodoncia_indicada' || f.hallazgo === 'endodoncia_realizada'));
+
+    if (conSellante.length === 0 && !filaEndo) {
+        // Zona de clic invisible minima igual, para que el borrador siempre
+        // tenga algo que alcanzar en esta banda (ver manejarBorrado).
+        return `<rect class="odonto-simbolo-hit" data-pieza="${pieza}" data-superficie="${SUPERFICIE_SELLANTE_HIT}" x="${cx - 10}" y="${ySlot0 - 7}" width="20" height="14"></rect>`;
+    }
+
     const paso = 11;
-    // Zona de clic invisible sobre la banda del asterisco (fuera del cuerpo
-    // de la pieza): sin esta zona, el borrador no puede alcanzar el
-    // asterisco porque no hay ningun elemento [data-pieza] dibujado ahi.
     const anchoHit = Math.max(20, conSellante.length * paso + 8);
-    const hit = `<rect class="odonto-simbolo-hit" data-pieza="${pieza}" data-superficie="${SUPERFICIE_SELLANTE_HIT}" x="${cx - anchoHit / 2}" y="${ySellante - 7}" width="${anchoHit}" height="14"></rect>`;
-    if (conSellante.length === 0) return hit;
-    const inicioX = cx - ((conSellante.length - 1) * paso) / 2;
-    return hit + conSellante.map((f, i) => dibujarAsterisco(inicioX + i * paso, ySellante, f.color_tipo, 5)).join('');
+    const haySegundoSlot = conSellante.length > 0 && !!filaEndo;
+    const altoHit = haySegundoSlot ? PASO_APILADO + 14 : 14;
+    const centroHit = haySegundoSlot ? ySlot0 + (signoInterior * PASO_APILADO) / 2 : ySlot0;
+
+    let svg = `<rect class="odonto-simbolo-hit" data-pieza="${pieza}" data-superficie="${SUPERFICIE_SELLANTE_HIT}" x="${cx - anchoHit / 2}" y="${centroHit - altoHit / 2}" width="${anchoHit}" height="${altoHit}"></rect>`;
+
+    if (conSellante.length > 0) {
+        const inicioX = cx - ((conSellante.length - 1) * paso) / 2;
+        svg += conSellante.map((f, i) => dibujarAsterisco(inicioX + i * paso, ySlot0, f.color_tipo, 5)).join('');
+    }
+    if (filaEndo) {
+        const yEndo = conSellante.length > 0 ? ySlot0 + signoInterior * PASO_APILADO : ySlot0;
+        svg += dibujarSimboloPieza(filaEndo.hallazgo, cx, yEndo, 13, filaEndo.color_tipo);
+    }
+    return svg;
 }
 
 function simboloImplante(cx, cy, tamano, colorClase) {
@@ -1219,15 +1249,17 @@ function dibujarTramos(piezaPosiciones) {
 }
 
 function dibujarSimboloTramo(codigo, posA, posB, colorClase) {
-    // Trazo fino que corre por ENCIMA de la fila (zona de coronas, hacia el
-    // lado "interior"/oclusal de la pieza), no atravesando su centro: asi
-    // nunca tapa los demas hallazgos de la pieza (caries, corona, etc, que
-    // se dibujan centrados en cx/cy).
+    // Trazo fino claramente SEPARADO de las piezas (fuera de su silueta, del
+    // lado "interior"/oclusal, el mismo que usa el sellante — nunca chocan
+    // porque un tramo excluye el sellante en sus piezas cubiertas). Empieza y
+    // termina exactamente en los limites del tramo: el borde exterior de la
+    // primera pieza y el de la ultima, nunca mas alla (no monta piezas vecinas).
     const half = (posA.tipo === 'permanente' ? TAMANO_PERMANENTE : RADIO_EXTERNO_TEMPORAL * 2) / 2;
     const signo = posA.arcada === 'superior' ? 1 : -1;
-    const y = posA.cy + signo * half * 0.82;
-    const xIni = Math.min(posA.cx, posB.cx);
-    const xFin = Math.max(posA.cx, posB.cx);
+    const GAP_TRAMO = 4;
+    const y = posA.cy + signo * (half + GAP_TRAMO);
+    const xIni = Math.min(posA.cx, posB.cx) - half;
+    const xFin = Math.max(posA.cx, posB.cx) + half;
     const claseLinea = `odonto-tramo-linea color-${colorClase}`;
 
     if (codigo.startsWith('protesis_fija')) {
@@ -1279,12 +1311,35 @@ function iconoPaletaPorCodigo(id) {
         return `<svg viewBox="0 0 26 26" width="24" height="24"><rect x="4" y="4" width="18" height="18" rx="2" class="pieza-zona--${meta.color}"></rect></svg>`;
     }
     if (meta.nivel === 'tramo') {
-        const posIcono = { cx: 5, cy: 16, tipo: 'permanente', arcada: 'superior' };
-        return `<svg viewBox="0 0 26 26" width="24" height="24">${dibujarSimboloTramo(id, posIcono, { ...posIcono, cx: 21 }, meta.color)}</svg>`;
+        // Miniatura propia y centrada (no reutiliza dibujarSimboloTramo: esa
+        // funcion posiciona el trazo relativo al borde real de una pieza del
+        // diagrama, coordenadas que no caben en el viewBox de 26x26 del icono).
+        return `<svg viewBox="0 0 26 26" width="24" height="24">${iconoMiniaturaTramo(id, meta.color)}</svg>`;
     }
     return `<svg viewBox="0 0 26 26" width="24" height="24">${dibujarSimboloPieza(id, cx, cy, 16, meta.color)}</svg>`;
 }
 
+function iconoMiniaturaTramo(id, colorClase) {
+    const y = 15, xIni = 4, xFin = 22;
+    const claseLinea = `odonto-tramo-linea color-${colorClase}`;
+    if (id.startsWith('protesis_fija')) {
+        const s = 6;
+        return `<line class="${claseLinea}" x1="${xIni}" y1="${y}" x2="${xFin}" y2="${y}"></line>
+                <rect class="pieza-simbolo-contorno color-${colorClase}" x="${xIni - s / 2}" y="${y - s / 2}" width="${s}" height="${s}"></rect>
+                <rect class="pieza-simbolo-contorno color-${colorClase}" x="${xFin - s / 2}" y="${y - s / 2}" width="${s}" height="${s}"></rect>`;
+    }
+    if (id.startsWith('protesis_removible')) {
+        return `<line class="${claseLinea}" x1="${xIni}" y1="${y}" x2="${xFin}" y2="${y}"></line>
+                <path class="pieza-simbolo-contorno color-${colorClase}" d="M${xIni + 4},${y - 4} Q${xIni},${y} ${xIni + 4},${y + 4}"></path>
+                <path class="pieza-simbolo-contorno color-${colorClase}" d="M${xFin - 4},${y - 4} Q${xFin},${y} ${xFin - 4},${y + 4}"></path>`;
+    }
+    if (id.startsWith('protesis_total')) {
+        return `<line class="${claseLinea}" x1="${xIni}" y1="${y - 2}" x2="${xFin}" y2="${y - 2}"></line>
+                <line class="${claseLinea}" x1="${xIni}" y1="${y + 2}" x2="${xFin}" y2="${y + 2}"></line>`;
+    }
+    return '';
+}
+
 function cajaIcono(letra) {
-    return `<svg viewBox="0 0 26 26" width="24" height="24"><rect x="5" y="5" width="16" height="16" rx="2" fill="none" stroke="var(--dorado)" stroke-width="1.5"></rect><text x="13" y="18" text-anchor="middle" font-size="11" font-weight="700" fill="var(--dorado)">${letra}</text></svg>`;
+    return `<svg viewBox="0 0 26 26" width="24" height="24"><rect x="5" y="5" width="16" height="16" rx="2" fill="none" stroke="var(--dorado)" stroke-width="1.5"></rect><text x="13" y="17" text-anchor="middle" font-size="11" font-weight="700" fill="var(--dorado)">${letra}</text></svg>`;
 }
