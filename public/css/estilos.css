@@ -1635,7 +1635,8 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 }
 
 .odontograma-svg[data-modo-lectura="1"] .pieza-zona,
-.odontograma-svg[data-modo-lectura="1"] .odonto-numero-hit {
+.odontograma-svg[data-modo-lectura="1"] .odonto-numero-hit,
+.odontograma-svg[data-modo-lectura="1"] .odonto-simbolo-hit {
     cursor: default;
 }
 
@@ -1676,6 +1677,11 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 }
 
 .odonto-numero-hit {
+    fill: transparent;
+    cursor: pointer;
+}
+
+.odonto-simbolo-hit {
     fill: transparent;
     cursor: pointer;
 }
@@ -1734,7 +1740,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 }
 
 .odonto-tramo-linea {
-    stroke-width: 3;
+    stroke-width: 2.5;
     fill: none;
     pointer-events: none;
 }

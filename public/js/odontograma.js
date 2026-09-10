@@ -59,6 +59,29 @@ const ACCESO_RAPIDO = ['caries', 'obturado', 'ausente', 'extraccion_indicada', '
 // Los 4 estados que excluyen cualquier otro hallazgo en la misma pieza.
 const ESTADOS_EXCLUSIVOS_PIEZA = ['ausente', 'perdida_caries', 'perdida_otra_causa', 'extraccion_indicada'];
 
+// Hallazgos incompatibles con cada categoria de protesis (tramo): las piezas
+// cubiertas por el tramo no admiten estos hallazgos mientras el tramo exista.
+// Fija SI admite endodoncia y corona (compatibles clinicamente); total y
+// removible no admiten ninguno de los tratamientos/patologias de superficie
+// ni corona/endodoncia/implante.
+const PROTESIS_HALLAZGOS_INCOMPATIBLES = {
+    protesis_total: ['caries', 'obturado', 'sellante_necesario', 'sellante_realizado', 'corona_indicada', 'corona_realizada', 'endodoncia_indicada', 'endodoncia_realizada', 'implante_indicado', 'implante_realizado'],
+    protesis_removible: ['caries', 'obturado', 'sellante_necesario', 'sellante_realizado', 'corona_indicada', 'corona_realizada', 'endodoncia_indicada', 'endodoncia_realizada', 'implante_indicado', 'implante_realizado'],
+    protesis_fija: ['caries', 'sellante_necesario', 'sellante_realizado']
+};
+
+function categoriaTramo(codigo) {
+    if (codigo.startsWith('protesis_fija')) return 'protesis_fija';
+    if (codigo.startsWith('protesis_removible')) return 'protesis_removible';
+    if (codigo.startsWith('protesis_total')) return 'protesis_total';
+    return null;
+}
+
+// Sentinela de superficie (no es una cara real) para la zona de clic
+// invisible sobre el asterisco de sellante, dibujado fuera del cuerpo de
+// la pieza (ver dibujarSellantesSiHay). Solo la herramienta "borrar" la usa.
+const SUPERFICIE_SELLANTE_HIT = 'sellante_hit';
+
 // -----------------------------------------------------------------
 // Denticion (nomenclatura FDI) y geometria del diagrama
 // -----------------------------------------------------------------
@@ -512,6 +535,29 @@ function filaPiezaCompleta(pieza) {
     return piezasVisibles.find((f) => f.pieza === pieza && f.superficie === 'completa' && f.hallazgo);
 }
 
+// Hallazgos de pieza completa (superficie 'completa') que SI pueden coexistir
+// entre si en la misma pieza porque son clinicamente independientes (p.ej.
+// corona y endodoncia). Cada grupo internamente sigue siendo "reemplazo
+// directo" (indicado <-> realizado). Los 4 estados exclusivos (ausente,
+// perdidas, extraccion) no entran aqui: su exclusividad total ya la maneja
+// autorizarAplicacionHallazgo()/limpiarPiezaCompleta().
+const GRUPOS_PIEZA_DIRECTOS = {
+    corona: ['corona_indicada', 'corona_realizada'],
+    endodoncia: ['endodoncia_indicada', 'endodoncia_realizada'],
+    implante: ['implante_indicado', 'implante_realizado']
+};
+
+function grupoDePiezaCodigo(codigo) {
+    for (const [grupo, codigos] of Object.entries(GRUPOS_PIEZA_DIRECTOS)) {
+        if (codigos.includes(codigo)) return grupo;
+    }
+    return codigo;
+}
+
+function filaPiezaPorGrupo(pieza, grupo) {
+    return piezasVisibles.find((f) => f.pieza === pieza && f.superficie === 'completa' && f.hallazgo && grupoDePiezaCodigo(f.hallazgo) === grupo);
+}
+
 function filaAnotacion(pieza) {
     return piezasVisibles.find((f) => f.pieza === pieza && f.superficie === 'completa' && !f.hallazgo && ((f.movilidad !== null && f.movilidad !== undefined) || (f.recesion !== null && f.recesion !== undefined)));
 }
@@ -524,6 +570,27 @@ function finDeTramo(fila) {
     return fila.superficie.slice('tramo_a_'.length);
 }
 
+function filaDeOdontogramaPorPieza(pieza) {
+    return FILAS_ODONTOGRAMA.find((f) => f.piezas.includes(pieza));
+}
+
+// Todas las piezas fisicamente cubiertas por un tramo (no solo sus dos
+// extremos): si ambas piezas viven en la misma fila del diagrama, son las
+// piezas entre ellas inclusive; si no, se asume solo las dos (caso raro).
+function piezasCubiertasPorTramo(piezaInicio, piezaFin) {
+    const filaInicio = filaDeOdontogramaPorPieza(piezaInicio);
+    const filaFin = filaDeOdontogramaPorPieza(piezaFin);
+    if (!filaInicio || filaInicio !== filaFin) return [piezaInicio, piezaFin];
+    const idxInicio = filaInicio.piezas.indexOf(piezaInicio);
+    const idxFin = filaInicio.piezas.indexOf(piezaFin);
+    const [desde, hasta] = idxInicio <= idxFin ? [idxInicio, idxFin] : [idxFin, idxInicio];
+    return filaInicio.piezas.slice(desde, hasta + 1);
+}
+
+function tramosQueCubrenPieza(pieza) {
+    return piezasVisibles.filter((f) => esFilaTramo(f) && piezasCubiertasPorTramo(f.pieza, finDeTramo(f)).includes(pieza));
+}
+
 function establecerHallazgoSuperficie(pieza, superficie, codigo) {
     piezasVisibles = piezasVisibles.filter((f) => !(f.pieza === pieza && f.superficie === superficie && f.hallazgo));
     if (codigo) {
@@ -532,8 +599,9 @@ function establecerHallazgoSuperficie(pieza, superficie, codigo) {
     }
 }
 
-function establecerHallazgoPieza(pieza, codigo) {
-    piezasVisibles = piezasVisibles.filter((f) => !(f.pieza === pieza && f.superficie === 'completa' && f.hallazgo));
+function establecerHallazgoPieza(pieza, codigo, grupo) {
+    const g = grupo || grupoDePiezaCodigo(codigo);
+    piezasVisibles = piezasVisibles.filter((f) => !(f.pieza === pieza && f.superficie === 'completa' && f.hallazgo && grupoDePiezaCodigo(f.hallazgo) === g));
     if (codigo) {
         const meta = HALLAZGOS[codigo];
         piezasVisibles.push({ pieza, superficie: 'completa', hallazgo: codigo, color_tipo: meta.color, movilidad: null, recesion: null, fuera_simbologia_f033: !!meta.fueraSimbologia });
@@ -564,12 +632,15 @@ function manejarClicOdontograma(evento) {
 
     const pieza = zona.dataset.pieza;
     const superficie = zona.dataset.superficie;
+    const caja = zona.dataset.caja;
 
     if (herramientaActiva === 'borrar') {
-        manejarBorrado(pieza, superficie);
+        manejarBorrado(pieza, superficie, caja);
         finalizarCambio();
         return;
     }
+
+    if (superficie === SUPERFICIE_SELLANTE_HIT) return; // esta zona solo sirve para borrar el asterisco
 
     if (herramientaActiva === 'movilidad' || herramientaActiva === 'recesion') {
         if (esPiezaTemporal(pieza)) return; // no aplica a piezas temporales, igual que en el F033
@@ -592,10 +663,11 @@ function manejarClicOdontograma(evento) {
         establecerHallazgoSuperficie(pieza, superficie, codigoDestino);
         finalizarCambio();
     } else if (meta.nivel === 'pieza') {
-        const actual = filaPiezaCompleta(pieza);
+        const grupo = grupoDePiezaCodigo(herramientaActiva);
+        const actual = filaPiezaPorGrupo(pieza, grupo);
         const codigoDestino = actual && actual.hallazgo === herramientaActiva ? null : herramientaActiva;
         if (codigoDestino && !autorizarAplicacionHallazgo(pieza, codigoDestino)) return;
-        establecerHallazgoPieza(pieza, codigoDestino);
+        establecerHallazgoPieza(pieza, codigoDestino, grupo);
         finalizarCambio();
     } else if (meta.nivel === 'tramo') {
         manejarClicTramo(pieza);
@@ -608,8 +680,8 @@ function manejarClicOdontograma(evento) {
 // espejo en el servidor, routes/odontograma.js -> validarExclusiones).
 // -----------------------------------------------------------------
 function tienePiezaExclusiva(pieza) {
-    const fila = filaPiezaCompleta(pieza);
-    return fila && ESTADOS_EXCLUSIVOS_PIEZA.includes(fila.hallazgo) ? fila.hallazgo : null;
+    const fila = piezasVisibles.find((f) => f.pieza === pieza && f.superficie === 'completa' && ESTADOS_EXCLUSIVOS_PIEZA.includes(f.hallazgo));
+    return fila ? fila.hallazgo : null;
 }
 
 function tieneOtrosHallazgos(pieza, ignorarExclusiva) {
@@ -629,10 +701,27 @@ function etiquetaHallazgo(codigo) {
     return meta ? meta.etiqueta : codigo;
 }
 
+// Devuelve el tramo (fila) que cubre la pieza y es incompatible con
+// codigoNuevo, o null si no hay conflicto de protesis.
+function tramoIncompatibleEnPieza(pieza, codigoNuevo) {
+    for (const tramo of tramosQueCubrenPieza(pieza)) {
+        const categoria = categoriaTramo(tramo.hallazgo);
+        const incompatibles = PROTESIS_HALLAZGOS_INCOMPATIBLES[categoria] || [];
+        if (incompatibles.includes(codigoNuevo)) return tramo;
+    }
+    return null;
+}
+
 // Devuelve true si el hallazgo puede aplicarse; false si se bloqueo o el
 // usuario cancelo la confirmacion. Si corresponde, limpia primero los
 // demas hallazgos de la pieza (con confirmacion del usuario).
 function autorizarAplicacionHallazgo(pieza, codigoNuevo) {
+    const tramoConflicto = tramoIncompatibleEnPieza(pieza, codigoNuevo);
+    if (tramoConflicto) {
+        alert(`La pieza ${pieza} está cubierta por "${etiquetaHallazgo(tramoConflicto.hallazgo)}" (${tramoConflicto.pieza}–${finDeTramo(tramoConflicto)}), que no admite este hallazgo. Quite la prótesis para registrarlo.`);
+        return false;
+    }
+
     const exclusivaActual = tienePiezaExclusiva(pieza);
     const nuevoEsExclusivo = ESTADOS_EXCLUSIVOS_PIEZA.includes(codigoNuevo);
 
@@ -676,9 +765,8 @@ function manejarClicTramo(pieza) {
         alert('Ambas piezas del tramo deben pertenecer a la misma arcada.');
         return;
     }
-    const exclusivaFin = tienePiezaExclusiva(pieza);
-    if (exclusivaFin) {
-        alert(mensajeBloqueoExclusion(pieza, exclusivaFin));
+
+    if (!autorizarNuevoTramo(tramoEnProgreso.codigo, inicio, pieza)) {
         tramoEnProgreso = null;
         actualizarHintPredeterminado();
         return;
@@ -689,10 +777,66 @@ function manejarClicTramo(pieza) {
     actualizarHintPredeterminado();
 }
 
-function manejarBorrado(pieza, superficie) {
-    if (superficie && superficie !== 'completa') {
-        piezasVisibles = piezasVisibles.filter((f) => !(f.pieza === pieza && f.superficie === superficie && f.hallazgo));
+// -----------------------------------------------------------------
+// Reglas de exclusion de protesis (ver PROTESIS_HALLAZGOS_INCOMPATIBLES):
+// las piezas cubiertas por un tramo nuevo no pueden tener hallazgos
+// incompatibles con esa categoria, y dos tramos no pueden solaparse.
+// -----------------------------------------------------------------
+function autorizarNuevoTramo(codigo, piezaInicio, piezaFin) {
+    const cubiertas = piezasCubiertasPorTramo(piezaInicio, piezaFin);
+
+    for (const p of cubiertas) {
+        const exclusiva = tienePiezaExclusiva(p);
+        if (exclusiva) { alert(mensajeBloqueoExclusion(p, exclusiva)); return false; }
+    }
+
+    const tramosSolapados = piezasVisibles.filter((f) => {
+        if (!esFilaTramo(f)) return false;
+        const cubiertasExistente = piezasCubiertasPorTramo(f.pieza, finDeTramo(f));
+        return cubiertasExistente.some((p) => cubiertas.includes(p));
+    });
+    if (tramosSolapados.length > 0) {
+        if (!confirm('Ya existe una prótesis en una o más piezas de este tramo. Esto la reemplazará. ¿Continuar?')) return false;
+        piezasVisibles = piezasVisibles.filter((f) => !tramosSolapados.includes(f));
+    }
+
+    const categoria = categoriaTramo(codigo);
+    const incompatibles = PROTESIS_HALLAZGOS_INCOMPATIBLES[categoria] || [];
+    const filasIncompatibles = piezasVisibles.filter((f) => cubiertas.includes(f.pieza) && f.hallazgo && incompatibles.includes(f.hallazgo));
+    if (filasIncompatibles.length > 0) {
+        if (!confirm('Esto eliminará los hallazgos incompatibles de las piezas del tramo. ¿Continuar?')) return false;
+        piezasVisibles = piezasVisibles.filter((f) => !filasIncompatibles.includes(f));
+    }
+
+    return true;
+}
+
+// El borrador debe poder quitar CUALQUIER hallazgo haciendo clic donde esta
+// dibujado: si el clic especifico (superficie/asterisco de sellante) no
+// tenia nada, se intenta a nivel de pieza completa (ausente, corona,
+// endodoncia, implante, perdidas...) y por ultimo el tramo que cubra la
+// pieza (con confirmacion, ya que afecta piezas vecinas).
+function manejarBorrado(pieza, superficie, caja) {
+    if (caja === 'movilidad' || caja === 'recesion') {
+        const anot = filaAnotacion(pieza);
+        if (!anot) return;
+        const movilidad = caja === 'movilidad' ? null : anot.movilidad;
+        const recesion = caja === 'recesion' ? null : anot.recesion;
+        establecerAnotacionPieza(pieza, movilidad, recesion);
         return;
+    }
+
+    if (superficie === SUPERFICIE_SELLANTE_HIT) {
+        piezasVisibles = piezasVisibles.filter((f) => !(f.pieza === pieza && (f.hallazgo === 'sellante_necesario' || f.hallazgo === 'sellante_realizado')));
+        return;
+    }
+
+    if (superficie && superficie !== 'completa') {
+        const habiaHallazgo = piezasVisibles.some((f) => f.pieza === pieza && f.superficie === superficie && f.hallazgo);
+        if (habiaHallazgo) {
+            piezasVisibles = piezasVisibles.filter((f) => !(f.pieza === pieza && f.superficie === superficie && f.hallazgo));
+            return;
+        }
     }
 
     const teniaHallazgoPieza = piezasVisibles.some((f) => f.pieza === pieza && f.superficie === 'completa' && f.hallazgo);
@@ -701,8 +845,14 @@ function manejarBorrado(pieza, superficie) {
         return;
     }
 
-    const indiceTramo = piezasVisibles.findIndex((f) => esFilaTramo(f) && (f.pieza === pieza || finDeTramo(f) === pieza));
-    if (indiceTramo >= 0) piezasVisibles.splice(indiceTramo, 1);
+    borrarTramoDePieza(pieza);
+}
+
+function borrarTramoDePieza(pieza) {
+    const fila = piezasVisibles.find((f) => esFilaTramo(f) && piezasCubiertasPorTramo(f.pieza, finDeTramo(f)).includes(pieza));
+    if (!fila) return;
+    if (!confirm(`¿Eliminar la prótesis del tramo ${fila.pieza}–${finDeTramo(fila)}?`)) return;
+    piezasVisibles = piezasVisibles.filter((f) => f !== fila);
 }
 
 function manejarDobleClicOdontograma(evento) {
@@ -714,7 +864,11 @@ function manejarDobleClicOdontograma(evento) {
 }
 
 function limpiarPiezaCompleta(pieza) {
-    piezasVisibles = piezasVisibles.filter((f) => f.pieza !== pieza && !(esFilaTramo(f) && finDeTramo(f) === pieza));
+    piezasVisibles = piezasVisibles.filter((f) => {
+        if (f.pieza === pieza) return false;
+        if (esFilaTramo(f) && piezasCubiertasPorTramo(f.pieza, finDeTramo(f)).includes(pieza)) return false;
+        return true;
+    });
 }
 
 function aplicarValorEspecial(pieza, tipo, valor) {
@@ -735,6 +889,7 @@ function manejarHoverOdontograma(evento) {
     limpiarHoverPrevio();
     const zona = evento.target.closest('[data-pieza]');
     if (!zona) return;
+    if (zona.dataset.superficie === SUPERFICIE_SELLANTE_HIT && herramientaActiva !== 'borrar') return;
     zona.classList.add(`odonto-zona-hover--${colorHoverHerramienta()}`);
     zona.setAttribute('data-hover-aplicado', '1');
 }
@@ -938,9 +1093,10 @@ function sectorAnular(cx, cy, rInt, rExt, anguloInicioDeg, anguloFinDeg) {
 }
 
 function dibujarSimboloSiHay(pieza, cx, cy, tamano, tipo) {
-    const fila = filaPiezaCompleta(pieza);
-    if (!fila) return '';
-    return dibujarSimboloPieza(fila.hallazgo, cx, cy, tamano, fila.color_tipo, tipo);
+    // Puede haber mas de un hallazgo de pieza completa a la vez (p.ej.
+    // corona y endodoncia, clinicamente compatibles: ver GRUPOS_PIEZA_DIRECTOS).
+    const filas = piezasVisibles.filter((f) => f.pieza === pieza && f.superficie === 'completa' && f.hallazgo);
+    return filas.map((f) => dibujarSimboloPieza(f.hallazgo, cx, cy, tamano, f.color_tipo, tipo)).join('');
 }
 
 function dibujarSimboloPieza(codigo, cx, cy, tamano, colorClase, tipo) {
@@ -995,10 +1151,15 @@ function dobleContorno(cx, cy, tamano, colorClase, esCircular) {
 
 function dibujarSellantesSiHay(pieza, cx, ySellante) {
     const conSellante = piezasVisibles.filter((f) => f.pieza === pieza && (f.hallazgo === 'sellante_necesario' || f.hallazgo === 'sellante_realizado'));
-    if (conSellante.length === 0) return '';
     const paso = 11;
+    // Zona de clic invisible sobre la banda del asterisco (fuera del cuerpo
+    // de la pieza): sin esta zona, el borrador no puede alcanzar el
+    // asterisco porque no hay ningun elemento [data-pieza] dibujado ahi.
+    const anchoHit = Math.max(20, conSellante.length * paso + 8);
+    const hit = `<rect class="odonto-simbolo-hit" data-pieza="${pieza}" data-superficie="${SUPERFICIE_SELLANTE_HIT}" x="${cx - anchoHit / 2}" y="${ySellante - 7}" width="${anchoHit}" height="14"></rect>`;
+    if (conSellante.length === 0) return hit;
     const inicioX = cx - ((conSellante.length - 1) * paso) / 2;
-    return conSellante.map((f, i) => dibujarAsterisco(inicioX + i * paso, ySellante, f.color_tipo, 5)).join('');
+    return hit + conSellante.map((f, i) => dibujarAsterisco(inicioX + i * paso, ySellante, f.color_tipo, 5)).join('');
 }
 
 function simboloImplante(cx, cy, tamano, colorClase) {
@@ -1058,25 +1219,31 @@ function dibujarTramos(piezaPosiciones) {
 }
 
 function dibujarSimboloTramo(codigo, posA, posB, colorClase) {
-    const y = (posA.cy + posB.cy) / 2;
+    // Trazo fino que corre por ENCIMA de la fila (zona de coronas, hacia el
+    // lado "interior"/oclusal de la pieza), no atravesando su centro: asi
+    // nunca tapa los demas hallazgos de la pieza (caries, corona, etc, que
+    // se dibujan centrados en cx/cy).
+    const half = (posA.tipo === 'permanente' ? TAMANO_PERMANENTE : RADIO_EXTERNO_TEMPORAL * 2) / 2;
+    const signo = posA.arcada === 'superior' ? 1 : -1;
+    const y = posA.cy + signo * half * 0.82;
     const xIni = Math.min(posA.cx, posB.cx);
     const xFin = Math.max(posA.cx, posB.cx);
     const claseLinea = `odonto-tramo-linea color-${colorClase}`;
 
     if (codigo.startsWith('protesis_fija')) {
-        const s = 9;
+        const s = 7;
         return `<line class="${claseLinea}" x1="${xIni}" y1="${y}" x2="${xFin}" y2="${y}"></line>
                 <rect class="pieza-simbolo-contorno color-${colorClase}" x="${xIni - s / 2}" y="${y - s / 2}" width="${s}" height="${s}"></rect>
                 <rect class="pieza-simbolo-contorno color-${colorClase}" x="${xFin - s / 2}" y="${y - s / 2}" width="${s}" height="${s}"></rect>`;
     }
     if (codigo.startsWith('protesis_removible')) {
         return `<line class="${claseLinea}" x1="${xIni}" y1="${y}" x2="${xFin}" y2="${y}"></line>
-                <path class="pieza-simbolo-contorno color-${colorClase}" d="M${xIni + 6},${y - 8} Q${xIni},${y} ${xIni + 6},${y + 8}"></path>
-                <path class="pieza-simbolo-contorno color-${colorClase}" d="M${xFin - 6},${y - 8} Q${xFin},${y} ${xFin - 6},${y + 8}"></path>`;
+                <path class="pieza-simbolo-contorno color-${colorClase}" d="M${xIni + 5},${y - 5} Q${xIni},${y} ${xIni + 5},${y + 5}"></path>
+                <path class="pieza-simbolo-contorno color-${colorClase}" d="M${xFin - 5},${y - 5} Q${xFin},${y} ${xFin - 5},${y + 5}"></path>`;
     }
     if (codigo.startsWith('protesis_total')) {
-        return `<line class="${claseLinea}" x1="${xIni}" y1="${y - 3}" x2="${xFin}" y2="${y - 3}"></line>
-                <line class="${claseLinea}" x1="${xIni}" y1="${y + 3}" x2="${xFin}" y2="${y + 3}"></line>`;
+        return `<line class="${claseLinea}" x1="${xIni}" y1="${y - 2}" x2="${xFin}" y2="${y - 2}"></line>
+                <line class="${claseLinea}" x1="${xIni}" y1="${y + 2}" x2="${xFin}" y2="${y + 2}"></line>`;
     }
     return '';
 }
@@ -1112,7 +1279,8 @@ function iconoPaletaPorCodigo(id) {
         return `<svg viewBox="0 0 26 26" width="24" height="24"><rect x="4" y="4" width="18" height="18" rx="2" class="pieza-zona--${meta.color}"></rect></svg>`;
     }
     if (meta.nivel === 'tramo') {
-        return `<svg viewBox="0 0 26 26" width="24" height="24">${dibujarSimboloTramo(id, { cx: 5, cy: 13 }, { cx: 21, cy: 13 }, meta.color)}</svg>`;
+        const posIcono = { cx: 5, cy: 16, tipo: 'permanente', arcada: 'superior' };
+        return `<svg viewBox="0 0 26 26" width="24" height="24">${dibujarSimboloTramo(id, posIcono, { ...posIcono, cx: 21 }, meta.color)}</svg>`;
     }
     return `<svg viewBox="0 0 26 26" width="24" height="24">${dibujarSimboloPieza(id, cx, cy, 16, meta.color)}</svg>`;
 }

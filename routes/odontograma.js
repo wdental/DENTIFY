@@ -19,6 +19,59 @@ const TIPOS_VALIDOS = ['inicial', 'evolucion', 'alta'];
 // esa misma pieza (superficie, movilidad/recesion u otro hallazgo de pieza).
 const ESTADOS_EXCLUSIVOS_PIEZA = ['ausente', 'perdida_caries', 'perdida_otra_causa', 'extraccion_indicada'];
 
+// Filas del diagrama (mismo orden que public/js/odontograma.js) para poder
+// calcular que piezas cubre un tramo (no solo sus dos extremos).
+const FILAS_ODONTOGRAMA_PIEZAS = [
+    ['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28'],
+    ['55', '54', '53', '52', '51', '61', '62', '63', '64', '65'],
+    ['85', '84', '83', '82', '81', '71', '72', '73', '74', '75'],
+    ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38']
+];
+
+function filaDePieza(pieza) {
+    return FILAS_ODONTOGRAMA_PIEZAS.find((fila) => fila.includes(pieza));
+}
+
+function piezasCubiertasPorTramo(piezaInicio, piezaFin) {
+    const filaInicio = filaDePieza(piezaInicio);
+    const filaFin = filaDePieza(piezaFin);
+    if (!filaInicio || filaInicio !== filaFin) return [piezaInicio, piezaFin];
+    const idxInicio = filaInicio.indexOf(piezaInicio);
+    const idxFin = filaInicio.indexOf(piezaFin);
+    const [desde, hasta] = idxInicio <= idxFin ? [idxInicio, idxFin] : [idxFin, idxInicio];
+    return filaInicio.slice(desde, hasta + 1);
+}
+
+// Hallazgos incompatibles con cada categoria de protesis (tramo): ver
+// PROTESIS_HALLAZGOS_INCOMPATIBLES en public/js/odontograma.js.
+const PROTESIS_HALLAZGOS_INCOMPATIBLES = {
+    protesis_total: ['caries', 'obturado', 'sellante_necesario', 'sellante_realizado', 'corona_indicada', 'corona_realizada', 'endodoncia_indicada', 'endodoncia_realizada', 'implante_indicado', 'implante_realizado'],
+    protesis_removible: ['caries', 'obturado', 'sellante_necesario', 'sellante_realizado', 'corona_indicada', 'corona_realizada', 'endodoncia_indicada', 'endodoncia_realizada', 'implante_indicado', 'implante_realizado'],
+    protesis_fija: ['caries', 'sellante_necesario', 'sellante_realizado']
+};
+
+function categoriaTramo(codigo) {
+    if (codigo.startsWith('protesis_fija')) return 'protesis_fija';
+    if (codigo.startsWith('protesis_removible')) return 'protesis_removible';
+    if (codigo.startsWith('protesis_total')) return 'protesis_total';
+    return null;
+}
+
+// Hallazgos de pieza completa que SI pueden coexistir (corona + endodoncia,
+// por ejemplo): ver GRUPOS_PIEZA_DIRECTOS en public/js/odontograma.js.
+const GRUPOS_PIEZA_DIRECTOS = {
+    corona: ['corona_indicada', 'corona_realizada'],
+    endodoncia: ['endodoncia_indicada', 'endodoncia_realizada'],
+    implante: ['implante_indicado', 'implante_realizado']
+};
+
+function grupoDePiezaCodigo(codigo) {
+    for (const [grupo, codigos] of Object.entries(GRUPOS_PIEZA_DIRECTOS)) {
+        if (codigos.includes(codigo)) return grupo;
+    }
+    return codigo;
+}
+
 function esPiezaTemporal(pieza) {
     return ['5', '6', '7', '8'].includes(String(pieza)[0]);
 }
@@ -76,10 +129,42 @@ function validarExclusiones(piezas) {
 
         const combosVistos = new Set();
         for (const f of filas) {
-            if (combosVistos.has(f.superficie)) {
+            const clave = f.superficie === 'completa' ? `completa:${grupoDePiezaCodigo(f.hallazgo)}` : f.superficie;
+            if (combosVistos.has(clave)) {
                 return `La pieza ${pieza} tiene mas de un hallazgo registrado en la misma superficie (${f.superficie})`;
             }
-            combosVistos.add(f.superficie);
+            combosVistos.add(clave);
+        }
+    }
+
+    // Tramos de protesis: exclusiones con hallazgos incompatibles en las
+    // piezas cubiertas, y tramos que se solapan entre si.
+    const tramos = [];
+    for (const p of piezas) {
+        if (!p.hallazgo) continue;
+        const coincide = typeof p.superficie === 'string' && PATRON_TRAMO.exec(p.superficie);
+        if (!coincide) continue;
+        tramos.push({ pieza: String(p.pieza), fin: coincide[1], hallazgo: p.hallazgo });
+    }
+
+    for (let i = 0; i < tramos.length; i++) {
+        const cubiertas = piezasCubiertasPorTramo(tramos[i].pieza, tramos[i].fin);
+
+        for (let j = i + 1; j < tramos.length; j++) {
+            const cubiertasOtro = piezasCubiertasPorTramo(tramos[j].pieza, tramos[j].fin);
+            if (cubiertas.some((p) => cubiertasOtro.includes(p))) {
+                return `Los tramos ${tramos[i].pieza}-${tramos[i].fin} y ${tramos[j].pieza}-${tramos[j].fin} se solapan`;
+            }
+        }
+
+        const categoria = categoriaTramo(tramos[i].hallazgo);
+        const incompatibles = PROTESIS_HALLAZGOS_INCOMPATIBLES[categoria] || [];
+        for (const p of piezas) {
+            if (!p.hallazgo || !cubiertas.includes(String(p.pieza))) continue;
+            if (typeof p.superficie === 'string' && PATRON_TRAMO.test(p.superficie)) continue;
+            if (incompatibles.includes(p.hallazgo)) {
+                return `La pieza ${p.pieza} tiene "${p.hallazgo}", incompatible con la prótesis del tramo ${tramos[i].pieza}-${tramos[i].fin}`;
+            }
         }
     }
 

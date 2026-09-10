@@ -58,6 +58,7 @@ const PIEZAS_HIGIENE = [
 let fichaClinicaActual = null;
 let examenSinPatologiaAparente = false;
 let cpoModoManual = false; // true mientras el usuario edita J con "Ajustar manualmente"
+let cpoBaseAutomatica = null; // ultimo valor autocalculado cargado, para detectar si el usuario realmente cambio algo
 
 // -----------------------------------------------------------------
 // Arranque: se ejecuta cuando la pestana existe (paciente.js ya cargo
@@ -185,21 +186,29 @@ function construirTablaHigiene() {
 }
 
 function opcionesNumericas(desde, hasta) {
-    let html = '';
+    let html = '<option value="">—</option>';
     for (let i = desde; i <= hasta; i++) html += `<option value="${i}">${i}</option>`;
     return html;
 }
 
+// Segun el instructivo del F033, el total de higiene oral simplificada es el
+// PROMEDIO por columna (suma / piezas efectivamente examinadas); las "—"
+// (sin registrar) no cuentan en el divisor. Se muestra con un decimal, o
+// "—" si ninguna pieza de esa columna fue examinada.
 function recalcularHigiene() {
-    let placa = 0, calculo = 0, gingivitis = 0;
-    PIEZAS_HIGIENE.forEach((_, indice) => {
-        placa += Number(document.getElementById(`higiene-placa-${indice}`).value || 0);
-        calculo += Number(document.getElementById(`higiene-calculo-${indice}`).value || 0);
-        gingivitis += Number(document.getElementById(`higiene-gingivitis-${indice}`).value || 0);
-    });
-    document.getElementById('total-placa').textContent = placa;
-    document.getElementById('total-calculo').textContent = calculo;
-    document.getElementById('total-gingivitis').textContent = gingivitis;
+    const promediarColumna = (prefijo) => {
+        let suma = 0, examinadas = 0;
+        PIEZAS_HIGIENE.forEach((_, indice) => {
+            const valor = document.getElementById(`higiene-${prefijo}-${indice}`).value;
+            if (valor === '') return;
+            suma += Number(valor);
+            examinadas++;
+        });
+        return examinadas > 0 ? (suma / examinadas).toFixed(1) : '—';
+    };
+    document.getElementById('total-placa').textContent = promediarColumna('placa');
+    document.getElementById('total-calculo').textContent = promediarColumna('calculo');
+    document.getElementById('total-gingivitis').textContent = promediarColumna('gingivitis');
 }
 
 function recalcularCpo() {
@@ -266,14 +275,14 @@ async function cargarFichaClinica() {
     const higiene = indicadores.higiene || [];
     PIEZAS_HIGIENE.forEach((_, indice) => {
         const fila = higiene[indice] || {};
-        document.getElementById(`higiene-placa-${indice}`).value = fila.placa ?? 0;
-        document.getElementById(`higiene-calculo-${indice}`).value = fila.calculo ?? 0;
-        document.getElementById(`higiene-gingivitis-${indice}`).value = fila.gingivitis ?? 0;
+        document.getElementById(`higiene-placa-${indice}`).value = fila.placa ?? '';
+        document.getElementById(`higiene-calculo-${indice}`).value = fila.calculo ?? '';
+        document.getElementById(`higiene-gingivitis-${indice}`).value = fila.gingivitis ?? '';
     });
     recalcularHigiene();
     document.getElementById('fc-enf-periodontal').value = indicadores.periodontal || '';
     document.getElementById('fc-oclusion').value = indicadores.oclusion || '';
-    document.getElementById('fc-fluorosis').value = indicadores.fluorosis || 'ninguna';
+    document.getElementById('fc-fluorosis').value = indicadores.fluorosis || '';
     marcarCompletitud('indicadores-salud-bucal', !!(indicadores.periodontal || indicadores.oclusion));
 
     await cargarIndicesCpo();
@@ -399,17 +408,22 @@ function recopilarExamenEstomatognatico() {
     return { items, sin_patologia_aparente: examenSinPatologiaAparente };
 }
 
+function valorHigieneONulo(id) {
+    const valor = document.getElementById(id).value;
+    return valor === '' ? null : Number(valor);
+}
+
 function recopilarIndicadoresSaludBucal() {
     const higiene = PIEZAS_HIGIENE.map((_, indice) => ({
-        placa: Number(document.getElementById(`higiene-placa-${indice}`).value || 0),
-        calculo: Number(document.getElementById(`higiene-calculo-${indice}`).value || 0),
-        gingivitis: Number(document.getElementById(`higiene-gingivitis-${indice}`).value || 0)
+        placa: valorHigieneONulo(`higiene-placa-${indice}`),
+        calculo: valorHigieneONulo(`higiene-calculo-${indice}`),
+        gingivitis: valorHigieneONulo(`higiene-gingivitis-${indice}`)
     }));
     return {
         higiene,
         periodontal: document.getElementById('fc-enf-periodontal').value || null,
         oclusion: document.getElementById('fc-oclusion').value || null,
-        fluorosis: document.getElementById('fc-fluorosis').value || 'ninguna'
+        fluorosis: document.getElementById('fc-fluorosis').value || null
     };
 }
 
@@ -428,7 +442,18 @@ function recopilarIndicesCpo() {
     };
     datos.permanente.total = datos.permanente.c + datos.permanente.p + datos.permanente.o;
     datos.temporal.total = datos.temporal.c + datos.temporal.e + datos.temporal.o;
-    if (cpoModoManual) {
+
+    // El modo automatico es el estado normal. Aunque el usuario haya pulsado
+    // "Ajustar manualmente", si al momento de guardar los valores son
+    // identicos al ultimo calculo automatico cargado, NO se marca como
+    // ajuste manual (evita que J quede "congelado" con el valor automatico
+    // duplicado solo porque alguien abrio el modo de edicion sin cambiar nada).
+    const coincideConAutomatico = cpoBaseAutomatica && cpoValoresIguales(
+        { permanente: datos.permanente, temporal: datos.temporal },
+        cpoBaseAutomatica
+    );
+
+    if (cpoModoManual && !coincideConAutomatico) {
         datos.ajustado_manualmente = true;
         datos.ajustado_por = usuarioActual.nombre;
         datos.ajustado_en = new Date().toISOString();
@@ -438,6 +463,11 @@ function recopilarIndicesCpo() {
         datos.ajustado_en = null;
     }
     return datos;
+}
+
+function cpoValoresIguales(a, b) {
+    return a.permanente.c === b.permanente.c && a.permanente.p === b.permanente.p && a.permanente.o === b.permanente.o &&
+        a.temporal.c === b.temporal.c && a.temporal.e === b.temporal.e && a.temporal.o === b.temporal.o;
 }
 
 // -----------------------------------------------------------------
@@ -464,8 +494,10 @@ async function cargarCpoAutomatico() {
     try {
         const sugerido = await api.get(`/api/odontograma/${pacienteId}/cpo-sugerido`);
         aplicarValoresCpo(sugerido.permanente, sugerido.temporal);
+        cpoBaseAutomatica = { permanente: { ...sugerido.permanente }, temporal: { ...sugerido.temporal } };
     } catch (error) {
         aplicarValoresCpo({}, {});
+        cpoBaseAutomatica = null;
     }
 }
 
@@ -500,6 +532,9 @@ function actualizarEstadoUiCpo(ajustadoManualmente, ajustadoPor, ajustadoEn) {
 }
 
 function iniciarAjusteManualCpo() {
+    if (!confirm('Esto le permite sobrescribir el cálculo automático de CPO-ceo. Los valores dejarán de actualizarse solos con el odontograma hasta que use "Restaurar cálculo automático". ¿Continuar?')) {
+        return;
+    }
     cpoModoManual = true;
     actualizarEstadoUiCpo(false);
     marcarCambioPendiente('secciones');
