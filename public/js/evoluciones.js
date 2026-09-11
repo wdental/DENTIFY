@@ -101,6 +101,12 @@ function filaEvolucionCompleta(ev) {
             <p><strong>Procedimientos:</strong> ${ev.procedimientos}</p>
             ${ev.prescripciones ? `<p><strong>Prescripciones:</strong> ${ev.prescripciones}</p>` : ''}
             ${ev.piezas_tratadas && ev.piezas_tratadas.length ? `<p><strong>Piezas tratadas:</strong> ${ev.piezas_tratadas.join(', ')}</p>` : ''}
+            ${ev.firma_paciente && ev.firma_doctor ? `
+                <div class="evolucion-firmas">
+                    <div><img src="${ev.firma_paciente}" alt="Firma del paciente" class="evolucion-firmas__img"><span>Paciente</span></div>
+                    <div><img src="${ev.firma_doctor}" alt="Firma del doctor" class="evolucion-firmas__img"><span>Doctor</span></div>
+                </div>
+            ` : ''}
             ${ev.anulada ? `<p class="evolucion-anulada__motivo">Anulada por ${ev.anulado_por_nombre || '—'} el ${formatearFecha((ev.anulado_en || '').slice(0, 10))} — motivo: ${ev.motivo_anulacion}</p>` : ''}
         </div>
     `;
@@ -136,6 +142,12 @@ async function abrirModalEvolucion(esAlta) {
     }
 
     await revisarCitaDelDia();
+
+    inicializarFirmaCanvas('ev-firma-paciente');
+    inicializarFirmaCanvas('ev-firma-doctor');
+    limpiarFirmaCanvas('ev-firma-paciente');
+    limpiarFirmaCanvas('ev-firma-doctor');
+
     document.getElementById('modal-evolucion').classList.add('abierto');
 }
 
@@ -170,6 +182,13 @@ async function guardarEvolucion(evento) {
     const errorDiv = document.getElementById('error-modal-evolucion');
     errorDiv.innerHTML = '';
 
+    const firmaPaciente = obtenerFirmaDataUrl('ev-firma-paciente');
+    const firmaDoctor = obtenerFirmaDataUrl('ev-firma-doctor');
+    if (!firmaPaciente || !firmaDoctor) {
+        errorDiv.innerHTML = '<div class="alerta alerta--error">Se requiere la firma del paciente y del doctor para guardar la evolución.</div>';
+        return;
+    }
+
     const piezasTexto = document.getElementById('ev-piezas').value.trim();
     const piezas = piezasTexto ? piezasTexto.split(',').map((p) => p.trim()).filter(Boolean) : [];
 
@@ -181,7 +200,9 @@ async function guardarEvolucion(evento) {
         prescripciones: document.getElementById('ev-prescripciones').value.trim(),
         piezas_tratadas: piezas,
         es_alta: document.getElementById('ev-es-alta').value === '1',
-        cita_id: document.getElementById('ev-cita-id').value || null
+        cita_id: document.getElementById('ev-cita-id').value || null,
+        firma_paciente: firmaPaciente,
+        firma_doctor: firmaDoctor
     };
 
     try {

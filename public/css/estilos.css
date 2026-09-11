@@ -1534,6 +1534,65 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 .higiene-opcion-sugerida { font-weight: 700; }
 .higiene-raya { color: var(--texto-secundario); }
 
+/* Firma digital (seccion O y cada evolucion de la seccion P) */
+.firma-envoltura {
+    margin-top: 6px;
+}
+
+.firma-canvas {
+    display: block;
+    width: 100%;
+    max-width: 360px;
+    height: 130px;
+    border: 1.5px dashed var(--gris-claro);
+    border-radius: var(--radio);
+    background-color: var(--blanco);
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.firma-canvas--bloqueado {
+    border-style: solid;
+    cursor: default;
+    background-color: var(--marfil);
+}
+
+.firma-envoltura__pie {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 360px;
+    margin-top: 4px;
+}
+
+.firma-envoltura__etiqueta {
+    font-size: 0.68rem;
+    color: var(--texto-secundario);
+    border-top: 1px solid var(--texto-secundario);
+    padding-top: 2px;
+    flex: 1;
+    text-align: center;
+}
+
+.evolucion-firmas {
+    display: flex;
+    gap: 18px;
+    margin-top: 8px;
+}
+.evolucion-firmas > div {
+    text-align: center;
+}
+.evolucion-firmas__img {
+    display: block;
+    max-width: 130px;
+    max-height: 50px;
+    border-bottom: 1px solid var(--gris-claro);
+}
+.evolucion-firmas span {
+    font-size: 0.66rem;
+    color: var(--texto-secundario);
+}
+
 /* M. Informe de examenes (seccion condicionada a L) */
 .informe-examen-bloque {
     border: 1px solid var(--gris-claro);

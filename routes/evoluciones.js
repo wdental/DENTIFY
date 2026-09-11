@@ -15,12 +15,15 @@ function cargarEvoluciones(pacienteId, limite) {
     const sql = `
         SELECT e.*, doc.nombre_completo AS doctor_nombre,
                u.nombre AS creado_por_nombre, ua.nombre AS anulado_por_nombre,
-               c.fecha AS cita_fecha, c.hora_inicio AS cita_hora_inicio
+               c.fecha AS cita_fecha, c.hora_inicio AS cita_hora_inicio,
+               fp.firma_data AS firma_paciente, fd.firma_data AS firma_doctor
         FROM evoluciones e
         LEFT JOIN doctores doc ON doc.id = e.doctor_id
         LEFT JOIN usuarios u ON u.id = e.creado_por
         LEFT JOIN usuarios ua ON ua.id = e.anulado_por
         LEFT JOIN citas c ON c.id = e.cita_id
+        LEFT JOIN firmas fp ON fp.documento_tipo = 'evolucion_paciente' AND fp.documento_id = e.id
+        LEFT JOIN firmas fd ON fd.documento_tipo = 'evolucion_doctor' AND fd.documento_id = e.id
         WHERE e.paciente_id = ?
         ORDER BY e.numero_sesion DESC
         ${limite ? 'LIMIT ?' : ''}
@@ -72,11 +75,18 @@ router.post('/:pacienteId', (req, res) => {
 
     const {
         fecha, doctor_id, diagnosticos_complicaciones, procedimientos,
-        prescripciones, piezas_tratadas, es_alta, cita_id
+        prescripciones, piezas_tratadas, es_alta, cita_id,
+        firma_paciente, firma_doctor
     } = req.body;
 
     if (!procedimientos || !procedimientos.trim()) {
         return res.status(400).json({ error: 'Los procedimientos realizados son obligatorios' });
+    }
+
+    // Registro legal e inmutable: exige ambas firmas al momento de crear la
+    // evolucion (no hay ruta de edicion posterior donde agregarlas despues).
+    if (!firma_paciente || !firma_doctor) {
+        return res.status(400).json({ error: 'Se requiere la firma del paciente y del doctor para registrar la evolución' });
     }
 
     if (doctor_id) {
@@ -112,7 +122,12 @@ router.post('/:pacienteId', (req, res) => {
             req.session.usuario.id
         );
 
-        return resultado.lastInsertRowid;
+        const evolucionId = resultado.lastInsertRowid;
+        const insertarFirma = db.prepare('INSERT INTO firmas (paciente_id, documento_tipo, documento_id, firma_data) VALUES (?, ?, ?, ?)');
+        insertarFirma.run(req.params.pacienteId, 'evolucion_paciente', evolucionId, firma_paciente);
+        insertarFirma.run(req.params.pacienteId, 'evolucion_doctor', evolucionId, firma_doctor);
+
+        return evolucionId;
     });
 
     const id = transaccion();

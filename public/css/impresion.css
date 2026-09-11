@@ -144,6 +144,20 @@
     text-align: center;
 }
 
+.f033-firma-img {
+    display: block;
+    max-width: 100%;
+    max-height: 34px;
+    margin: 0 auto 2px auto;
+}
+
+.f033-firmas-fila {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+}
+
 .f033-sesion {
     border: 1px solid #999;
     padding: 3px 6px;

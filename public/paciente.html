@@ -408,6 +408,16 @@
                         </div>
                     </div>
                     <p class="seccion-clinica__ayuda oculto" id="fc-profesional-aviso-admin">Ya hay un profesional responsable registrado — solo un administrador puede modificarlo.</p>
+                    <div class="campo" style="margin-top:10px;">
+                        <label>Firma del profesional</label>
+                        <div class="firma-envoltura">
+                            <canvas class="firma-canvas" id="fc-profesional-firma" width="360" height="130"></canvas>
+                            <div class="firma-envoltura__pie">
+                                <span class="firma-envoltura__etiqueta">Firma y sello del profesional</span>
+                                <button type="button" class="btn-texto oculto" id="btn-limpiar-firma-profesional" onclick="limpiarFirmaCanvas('fc-profesional-firma')">Limpiar</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </details>
 
@@ -594,6 +604,30 @@
             <input type="hidden" id="ev-cita-id">
             <input type="hidden" id="ev-es-alta" value="0">
 
+            <div class="form-grid" style="margin-top:14px;">
+                <div class="campo">
+                    <label>Firma del paciente *</label>
+                    <div class="firma-envoltura">
+                        <canvas class="firma-canvas" id="ev-firma-paciente" width="360" height="130"></canvas>
+                        <div class="firma-envoltura__pie">
+                            <span class="firma-envoltura__etiqueta">Firma del paciente</span>
+                            <button type="button" class="btn-texto" onclick="limpiarFirmaCanvas('ev-firma-paciente')">Limpiar</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="campo">
+                    <label>Firma del doctor *</label>
+                    <div class="firma-envoltura">
+                        <canvas class="firma-canvas" id="ev-firma-doctor" width="360" height="130"></canvas>
+                        <div class="firma-envoltura__pie">
+                            <span class="firma-envoltura__etiqueta">Firma del doctor</span>
+                            <button type="button" class="btn-texto" onclick="limpiarFirmaCanvas('ev-firma-doctor')">Limpiar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="seccion-clinica__ayuda">Se requieren ambas firmas para guardar la evolución — quedan asociadas a esta sesión de forma permanente y se muestran en la impresión del F033.</p>
+
             <div class="flex-entre" style="margin-top: 20px;">
                 <button type="button" class="btn btn-secundario" id="cancelar-modal-evolucion">Cancelar</button>
                 <button type="submit" class="btn btn-primario">Guardar evolución</button>
@@ -621,6 +655,7 @@
 
 <script src="/js/api.js"></script>
 <script src="/js/fechas.js"></script>
+<script src="/js/firma.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/paciente.js"></script>
 <script src="/js/ficha-clinica.js"></script>

@@ -718,8 +718,9 @@ async function cargarProfesionalResponsable(profesional) {
         // como valor por defecto (el usuario puede cambiarlo antes de guardar).
         select.value = usuarioActual.doctor_id;
     }
-    select.disabled = yaTieneDatos && usuarioActual.rol !== 'admin';
-    document.getElementById('fc-profesional-aviso-admin').classList.toggle('oculto', !(yaTieneDatos && usuarioActual.rol !== 'admin'));
+    const bloqueado = yaTieneDatos && usuarioActual.rol !== 'admin';
+    select.disabled = bloqueado;
+    document.getElementById('fc-profesional-aviso-admin').classList.toggle('oculto', !bloqueado);
 
     actualizarVistaProfesionalResponsable();
     select.addEventListener('change', actualizarVistaProfesionalResponsable);
@@ -727,6 +728,14 @@ async function cargarProfesionalResponsable(profesional) {
     document.getElementById('fc-profesional-fecha-apertura').textContent = fichaClinicaActual.fecha_creacion
         ? formatearFechaConDia(fichaClinicaActual.fecha_creacion.slice(0, 10))
         : '—';
+
+    if (profesional.firma) {
+        mostrarFirmaFija('fc-profesional-firma', profesional.firma);
+    } else {
+        inicializarFirmaCanvas('fc-profesional-firma');
+    }
+    document.getElementById('fc-profesional-firma').disabled = bloqueado;
+    document.getElementById('btn-limpiar-firma-profesional').classList.toggle('oculto', bloqueado);
 }
 
 function actualizarVistaProfesionalResponsable() {
@@ -740,7 +749,8 @@ function recopilarProfesionalResponsable() {
     if (select.disabled) return null; // no admin y ya bloqueado: no reenviar (el servidor lo rechazaria igual)
     return {
         doctor_id: select.value || null,
-        fecha_apertura: fichaClinicaActual.fecha_creacion || new Date().toISOString()
+        fecha_apertura: fichaClinicaActual.fecha_creacion || new Date().toISOString(),
+        firma: obtenerFirmaDataUrl('fc-profesional-firma')
     };
 }
 

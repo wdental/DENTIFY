@@ -448,7 +448,10 @@ function bloqueO(ficha, doctores) {
                     <div class="f033-campo"><strong>Registro profesional:</strong> ${doctor && doctor.registro_profesional ? doctor.registro_profesional : RAYA}</div>
                     <div class="f033-campo"><strong>Apertura de la ficha:</strong> ${o.fecha_apertura ? formatearFecha(o.fecha_apertura.slice(0, 10)) : (ficha.fecha_creacion ? formatearFecha(ficha.fecha_creacion.slice(0, 10)) : RAYA)}</div>
                 </div>
-                <div class="f033-firma-espacio">Firma y sello del profesional</div>
+                <div class="f033-firma-espacio">
+                    ${o.firma ? `<img src="${o.firma}" class="f033-firma-img" alt="Firma del profesional">` : ''}
+                    Firma y sello del profesional
+                </div>
             </div>
         </div>
     `;
@@ -468,7 +471,16 @@ function bloqueP(evoluciones) {
                 ${ev.piezas_tratadas && ev.piezas_tratadas.length ? `<p style="margin:2px 0;"><strong>Piezas:</strong> ${ev.piezas_tratadas.join(', ')}</p>` : ''}
             </div>
             ${ev.anulada ? `<p style="margin:2px 0; font-style:italic;">Anulada — motivo: ${ev.motivo_anulacion}</p>` : ''}
-            <div class="f033-firma-espacio" style="width:40%; margin-top:8px;">Firma y sello</div>
+            <div class="f033-firmas-fila">
+                <div class="f033-firma-espacio" style="width:45%;">
+                    ${ev.firma_paciente ? `<img src="${ev.firma_paciente}" class="f033-firma-img" alt="Firma del paciente">` : ''}
+                    Firma del paciente
+                </div>
+                <div class="f033-firma-espacio" style="width:45%;">
+                    ${ev.firma_doctor ? `<img src="${ev.firma_doctor}" class="f033-firma-img" alt="Firma del doctor">` : ''}
+                    Firma y sello del doctor
+                </div>
+            </div>
         </div>
     `).join('');
     return `
