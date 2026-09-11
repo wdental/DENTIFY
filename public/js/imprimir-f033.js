@@ -295,13 +295,25 @@ function bloqueG(ficha) {
 // paciente presento en su primera consulta.
 function bloqueH(odontogramaResp, odontogramaInicialResp) {
     const odontogramaActual = odontogramaResp && odontogramaResp.odontograma;
-    const metaActual = odontogramaActual
-        ? `${ETIQUETAS_TIPO_ODONTOGRAMA[odontogramaActual.tipo] || 'Evolución'} — ${formatearFecha((odontogramaActual.fecha_registro || '').slice(0, 10))}${odontogramaActual.doctor_nombre ? ' · ' + odontogramaActual.doctor_nombre : ''}`
-        : 'Sin odontograma registrado';
-
     const odontogramaInicial = odontogramaInicialResp && odontogramaInicialResp.odontograma;
+
+    // Sin un inicial separado (activo === inicial, o sin ningun odontograma),
+    // se conserva el rotulo original con el tipo incluido en la meta. Con un
+    // inicial separado, el tipo del activo ya queda claro en el titulo de la
+    // columna ("actual (Evolución)"/"actual (Alta)"), asi que la meta no lo
+    // repite - evita el "actual (evolución) — Evolución — fecha" redundante.
+    const fechaDoctorActual = odontogramaActual
+        ? `${formatearFecha((odontogramaActual.fecha_registro || '').slice(0, 10))}${odontogramaActual.doctor_nombre ? ' · ' + odontogramaActual.doctor_nombre : ''}`
+        : '';
+    const metaActual = odontogramaActual
+        ? (odontogramaInicial ? fechaDoctorActual : `${ETIQUETAS_TIPO_ODONTOGRAMA[odontogramaActual.tipo] || 'Evolución'} — ${fechaDoctorActual}`)
+        : 'Sin odontograma registrado';
+    const tituloActual = odontogramaInicial
+        ? `Odontograma actual (${ETIQUETAS_TIPO_ODONTOGRAMA[odontogramaActual.tipo] || 'Evolución'})`
+        : 'Odontograma';
+
     const columnaActual = `
-        <p class="f033-odontograma-subtitulo">${odontogramaInicial ? 'Odontograma actual (evolución)' : 'Odontograma'} — ${metaActual}</p>
+        <p class="f033-odontograma-subtitulo">${tituloActual} — ${metaActual}</p>
         <div class="f033-odontograma-svg-envoltura">
             <svg id="odontograma-svg-actual" class="odontograma-svg"></svg>
         </div>
