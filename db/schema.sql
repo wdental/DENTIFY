@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     password_hash TEXT NOT NULL,
     rol TEXT NOT NULL CHECK (rol IN ('admin', 'asistencial')),
     activo INTEGER NOT NULL DEFAULT 1,
+    doctor_id INTEGER REFERENCES doctores(id), -- vinculo opcional: si esta cuenta es la de un doctor, precarga los selectores de doctor en la ficha
     fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 

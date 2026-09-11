@@ -301,6 +301,13 @@ function construirLayoutOdontograma() {
     document.getElementById('odontograma-svg').addEventListener('mouseout', manejarHoverSalida);
     document.getElementById('odonto-paleta').addEventListener('click', manejarClicPaleta);
 
+    // Si la cuenta con sesion iniciada esta vinculada a un doctor, se
+    // precarga como valor por defecto en "Doctor que registra" (el usuario
+    // puede cambiarlo igual antes de guardar).
+    if (typeof usuarioActual !== 'undefined' && usuarioActual && usuarioActual.doctor_id && doctoresParaOdontograma.some((d) => d.id === usuarioActual.doctor_id)) {
+        document.getElementById('odo-doctor').value = usuarioActual.doctor_id;
+    }
+
     // Seccion P: panel compacto de las ultimas evoluciones (evoluciones.js)
     if (typeof cargarPanelEvolucionesLateral === 'function') cargarPanelEvolucionesLateral();
     if (typeof cargarPanelResumenPaciente === 'function') cargarPanelResumenPaciente();

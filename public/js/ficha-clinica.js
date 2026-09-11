@@ -710,7 +710,14 @@ async function cargarProfesionalResponsable(profesional) {
         doctores.map((d) => `<option value="${d.id}">${d.nombre_completo}</option>`).join('');
 
     const yaTieneDatos = !!profesional.doctor_id;
-    select.value = profesional.doctor_id || '';
+    if (yaTieneDatos) {
+        select.value = profesional.doctor_id;
+    } else if (usuarioActual && usuarioActual.doctor_id && doctores.some((d) => d.id === usuarioActual.doctor_id)) {
+        // Primera vez que se abre esta seccion (nada guardado todavia): si la
+        // cuenta con sesion iniciada esta vinculada a un doctor, se precarga
+        // como valor por defecto (el usuario puede cambiarlo antes de guardar).
+        select.value = usuarioActual.doctor_id;
+    }
     select.disabled = yaTieneDatos && usuarioActual.rol !== 'admin';
     document.getElementById('fc-profesional-aviso-admin').classList.toggle('oculto', !(yaTieneDatos && usuarioActual.rol !== 'admin'));
 

@@ -31,6 +31,11 @@ async function cargarDoctoresParaDiagnostico() {
         doctoresParaDiagnostico = await api.get('/api/doctores');
         document.getElementById('dx-doctor').innerHTML = '<option value="">Sin especificar</option>' +
             doctoresParaDiagnostico.map((d) => `<option value="${d.id}">${d.nombre_completo}</option>`).join('');
+        // Si la cuenta con sesion iniciada esta vinculada a un doctor, se
+        // precarga como valor por defecto (el usuario puede cambiarlo igual).
+        if (usuarioActual && usuarioActual.doctor_id && doctoresParaDiagnostico.some((d) => d.id === usuarioActual.doctor_id)) {
+            document.getElementById('dx-doctor').value = usuarioActual.doctor_id;
+        }
     } catch (e) {
         doctoresParaDiagnostico = [];
     }

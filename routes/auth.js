@@ -25,7 +25,8 @@ router.post('/login', (req, res) => {
         id: fila.id,
         nombre: fila.nombre,
         usuario: fila.usuario,
-        rol: fila.rol
+        rol: fila.rol,
+        doctor_id: fila.doctor_id || null
     };
 
     res.json({ ok: true, usuario: req.session.usuario });

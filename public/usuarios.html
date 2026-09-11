@@ -30,12 +30,13 @@
                         <th>Nombre</th>
                         <th>Usuario</th>
                         <th>Rol</th>
+                        <th>Doctor asociado</th>
                         <th>Estado</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody id="cuerpo-tabla-usuarios">
-                    <tr><td colspan="5" class="tabla-vacia">Cargando usuarios...</td></tr>
+                    <tr><td colspan="6" class="tabla-vacia">Cargando usuarios...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -68,9 +69,35 @@
                     <option value="admin">Administrador</option>
                 </select>
             </div>
+            <div class="campo">
+                <label for="u-doctor">Doctor asociado (opcional)</label>
+                <select id="u-doctor"><option value="">Ninguno</option></select>
+                <p class="seccion-clinica__ayuda" style="margin-top:4px;">Si esta cuenta es la de un odontólogo, los selectores de "Doctor" en la ficha clínica se precargan solos con su nombre.</p>
+            </div>
             <div class="flex-entre" style="margin-top: 20px;">
                 <button type="button" class="btn btn-secundario" id="cancelar-modal-usuario">Cancelar</button>
                 <button type="submit" class="btn btn-primario">Crear usuario</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: vincular a doctor -->
+<div class="modal-fondo" id="modal-doctor-usuario">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-doctor-usuario">&times;</button>
+        <h2>Vincular a un doctor</h2>
+        <div id="error-modal-doctor-usuario"></div>
+        <form id="form-doctor-usuario">
+            <input type="hidden" id="doctor-usuario-id">
+            <div class="campo">
+                <label for="doctor-usuario-select">Doctor asociado</label>
+                <select id="doctor-usuario-select"><option value="">Ninguno</option></select>
+                <p class="seccion-clinica__ayuda" style="margin-top:4px;">Si esta cuenta es la de un odontólogo, los selectores de "Doctor" en la ficha clínica se precargan solos con su nombre.</p>
+            </div>
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-doctor-usuario">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar</button>
             </div>
         </form>
     </div>

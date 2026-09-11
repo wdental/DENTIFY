@@ -129,6 +129,11 @@ async function abrirModalEvolucion(esAlta) {
     const doctores = await cargarDoctoresParaEvolucion();
     document.getElementById('ev-doctor').innerHTML = '<option value="">Sin especificar</option>' +
         doctores.map((d) => `<option value="${d.id}">${d.nombre_completo}</option>`).join('');
+    // Si la cuenta con sesion iniciada esta vinculada a un doctor, se
+    // precarga como valor por defecto (el usuario puede cambiarlo igual).
+    if (usuarioActual && usuarioActual.doctor_id && doctores.some((d) => d.id === usuarioActual.doctor_id)) {
+        document.getElementById('ev-doctor').value = usuarioActual.doctor_id;
+    }
 
     await revisarCitaDelDia();
     document.getElementById('modal-evolucion').classList.add('abierto');

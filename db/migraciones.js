@@ -188,6 +188,16 @@ function migrar(db) {
         reconstruirEvoluciones();
         console.log('Migracion: evoluciones.cita_id ahora usa ON DELETE SET NULL (borrar una cita ya no falla ni afecta la evolucion vinculada); evoluciones existentes conservadas');
     }
+
+    // Vincula opcionalmente una cuenta de usuario con su doctor en la tabla
+    // "doctores" (un odontologo que inicia sesion con su propia cuenta no
+    // deberia tener que elegirse a si mismo en cada selector de doctor de la
+    // ficha). Columna nueva, nula por defecto: no afecta usuarios existentes.
+    const columnasUsuarios = db.prepare("PRAGMA table_info(usuarios)").all().map((c) => c.name);
+    if (columnasUsuarios.length > 0 && !columnasUsuarios.includes('doctor_id')) {
+        db.exec('ALTER TABLE usuarios ADD COLUMN doctor_id INTEGER REFERENCES doctores(id)');
+        console.log('Migracion: columna "doctor_id" agregada a usuarios (vinculo opcional con la tabla doctores)');
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)
