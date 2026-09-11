@@ -1576,7 +1576,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 
 .odonto-layout {
     display: grid;
-    grid-template-columns: 190px 1fr 320px;
+    grid-template-columns: 220px 1fr 260px;
     gap: 12px;
     align-items: start;
 }
@@ -1727,7 +1727,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 }
 
 .odonto-grupo--acceso-rapido .odonto-grupo__botones--grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
 }
 
 .odonto-grupo--acceso-rapido {
@@ -1771,7 +1771,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 }
 
 .paleta-boton--acceso-rapido .paleta-boton__texto {
-    font-size: 0.6rem;
+    font-size: 0.66rem;
 }
 
 .paleta-boton:hover {
@@ -1838,6 +1838,9 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     display: block;
     margin: 0 auto;
     touch-action: manipulation;
+    width: 100%;
+    max-width: 780px;
+    height: auto;
 }
 
 /* Las reglas de color/forma de abajo NO se limitan a ".odontograma-svg":

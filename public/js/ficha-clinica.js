@@ -212,9 +212,13 @@ const ESTADOS_PIEZA_NO_DISPONIBLE_HIGIENE = ['ausente', 'perdida_caries', 'perdi
 // informacion para descartarla: se asume presente, titular por defecto) o
 // si el odontograma activo no la marca con un hallazgo excluyente.
 function piezaDisponibleEnOdontograma(pieza) {
-    if (typeof odontogramaActivo === 'undefined' || !odontogramaActivo || !odontogramaActivo.odontograma) return true;
-    const piezas = odontogramaActivo.piezas || [];
-    const excluida = piezas.some((f) => f.pieza === pieza && f.superficie === 'completa' && ESTADOS_PIEZA_NO_DISPONIBLE_HIGIENE.includes(f.hallazgo));
+    // Usa piezasVisibles (lo que el odontograma esta mostrando AHORA MISMO -
+    // la version activa en solo lectura, o la edicion en curso si se esta
+    // editando) en vez de solo la version guardada, para que la sugerencia
+    // reaccione de inmediato a un "Ausente"/"Extraccion indicada" recien
+    // marcado, sin esperar a guardar una nueva version.
+    if (typeof piezasVisibles === 'undefined') return true;
+    const excluida = piezasVisibles.some((f) => f.pieza === pieza && f.superficie === 'completa' && ESTADOS_PIEZA_NO_DISPONIBLE_HIGIENE.includes(f.hallazgo));
     return !excluida;
 }
 

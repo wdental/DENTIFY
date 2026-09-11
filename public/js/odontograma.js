@@ -522,6 +522,7 @@ function sincronizarUiModo() {
     actualizarContadorHallazgos();
     actualizarCpoEnVivo();
     if (typeof actualizarAvisoEstadoOdontogramaEnCpo === 'function') actualizarAvisoEstadoOdontogramaEnCpo();
+    if (typeof actualizarSugerenciasHigiene === 'function') actualizarSugerenciasHigiene();
 }
 
 // -----------------------------------------------------------------
@@ -951,6 +952,7 @@ function finalizarCambio() {
     actualizarContadorHallazgos();
     actualizarCpoEnVivo();
     if (typeof actualizarAvisoEstadoOdontogramaEnCpo === 'function') actualizarAvisoEstadoOdontogramaEnCpo();
+    if (typeof actualizarSugerenciasHigiene === 'function') actualizarSugerenciasHigiene();
 }
 
 function manejarHoverOdontograma(evento) {
