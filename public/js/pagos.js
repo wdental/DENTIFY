@@ -17,6 +17,8 @@ let ultimoPagoRegistrado = null;
 const ETIQUETAS_ESTADO_CUOTA = { pagada: 'Pagada', parcial: 'Parcial', vencida: 'Vencida', por_vencer: 'Por vencer' };
 const CLASE_ESTADO_CUOTA = { pagada: 'insignia--verde', parcial: 'insignia--dorado', vencida: 'insignia--rojo', por_vencer: '' };
 const ETIQUETAS_ESTADO_PLAN_CUOTAS = { activo: 'Activo', completado: 'Completado', cancelado: 'Cancelado' };
+// Un plan finalizado con saldo sigue siendo deuda: se etiqueta para dar contexto
+const ETIQUETAS_ESTADO_PLAN_CUENTA = { aceptado: 'aceptado', en_curso: 'en curso', finalizado: 'tratamiento finalizado' };
 
 function dineroPago(valor) {
     return '$' + Number(valor || 0).toFixed(2);
@@ -119,7 +121,7 @@ function renderResumenFinanciero(resumen) {
                                 <td>
                                     ${c.tipo === 'plan_pago'
                                         ? `Plan de cuotas: ${escaparHtmlPago(c.descripcion)}${c.plan_id && !String(c.descripcion).includes('#' + c.plan_id) ? ` <span class="texto-secundario">(plan de tratamiento #${c.plan_id})</span>` : ''}`
-                                        : `<a href="#" onclick="cambiarPestanaReal('panel-plan-tratamiento'); return false;">${escaparHtmlPago(c.descripcion)}</a> <span class="texto-secundario">(${c.estado_plan === 'en_curso' ? 'en curso' : c.estado_plan})</span>`}
+                                        : `<a href="#" onclick="cambiarPestanaReal('panel-plan-tratamiento'); return false;">${escaparHtmlPago(c.descripcion)}</a> <span class="texto-secundario">(${ETIQUETAS_ESTADO_PLAN_CUENTA[c.estado_plan] || c.estado_plan})</span>`}
                                 </td>
                                 <td>${dineroPago(c.total)}</td>
                                 <td>${dineroPago(c.pagado)}</td>
@@ -136,7 +138,7 @@ function renderResumenFinanciero(resumen) {
             <div class="resumen-financiero__bloque">
                 <div class="resumen-financiero__etiqueta">Saldo pendiente</div>
                 <div class="resumen-financiero__saldo ${saldoClase}">${dineroPago(resumen.saldo)}</div>
-                <div class="resumen-financiero__nota">${resumen.saldo > 0 ? 'Planes aceptados y cuotas por cobrar' : 'Al día'}</div>
+                <div class="resumen-financiero__nota">${resumen.saldo > 0 ? 'Planes aceptados y cuotas por cobrar' : 'Al día'}${resumen.cuentas.some((c) => c.estado_plan === 'finalizado' && c.saldo > 0) ? ' <span class="texto-secundario">(incluye tratamiento finalizado)</span>' : ''}</div>
             </div>
             <div class="resumen-financiero__bloque">
                 <div class="resumen-financiero__etiqueta">Total exigible</div>
@@ -303,7 +305,7 @@ async function abrirModalRegistrarPago(planPagoIdPreseleccionado) {
             if (c.tipo === 'plan_pago') {
                 opciones.push({ valor: `pp:${c.id}`, texto: `Plan de cuotas: ${c.descripcion} — saldo ${dineroPago(c.saldo)}` });
             } else {
-                opciones.push({ valor: `pt:${c.id}`, texto: `${c.descripcion} (${c.estado_plan === 'en_curso' ? 'en curso' : 'aceptado'}) — saldo ${dineroPago(c.saldo)}` });
+                opciones.push({ valor: `pt:${c.id}`, texto: `${c.descripcion} (${ETIQUETAS_ESTADO_PLAN_CUENTA[c.estado_plan] || c.estado_plan}) — saldo ${dineroPago(c.saldo)}` });
             }
         });
         opciones.push({ valor: '', texto: 'Sin vincular (pago al contado)' });
@@ -589,9 +591,10 @@ async function obtenerResumenPagosHtml() {
     try {
         const resumen = await api.get(`/api/pagos/paciente/${pacienteId}/resumen`);
         const clase = resumen.saldo > 0 ? 'resumen-saldo--pendiente' : 'resumen-saldo--al-dia';
+        const incluyeFinalizado = resumen.cuentas.some((c) => c.estado_plan === 'finalizado' && c.saldo > 0);
         const texto = resumen.cuentas.length === 0
             ? 'Sin saldo pendiente (sin cuentas exigibles)'
-            : `Saldo pendiente: ${dineroPago(resumen.saldo)}${resumen.saldo <= 0 ? ' · al día' : ''}`;
+            : `Saldo pendiente: ${dineroPago(resumen.saldo)}${resumen.saldo <= 0 ? ' · al día' : ''}${incluyeFinalizado ? ' (tratamiento finalizado)' : ''}`;
         return `<p class="resumen-saldo ${clase} mb-0"><a href="#" onclick="cambiarPestanaReal('panel-pagos'); return false;">${texto} →</a></p>`;
     } catch (error) {
         return '<p class="resumen-saldo mb-0 texto-secundario">Error al cargar el saldo.</p>';

@@ -126,9 +126,14 @@ con mensaje descriptivo.
   (`pagosDelPlanPago` en `utils/finanzas.js`) — el modal de creación propone justamente lo ya pagado
   como entrada. Así la cuenta y el cronograma cuadran siempre. Los pagos posteriores heredan
   automáticamente `plan_id` del acuerdo.
-- **Planes finalizados**: siguiendo la especificación al pie de la letra, solo los planes de
-  tratamiento `aceptado`/`en_curso` cuentan como cuenta exigible. Un plan marcado `finalizado` con
-  saldo deja de aparecer en "Saldos pendientes" (se puede seguir registrando pagos vinculados a él).
+- **Planes finalizados (corrección de regla de negocio, 11/sep/2026)**: los planes de tratamiento
+  `aceptado`, `en_curso` **y `finalizado`** cuentan como cuenta exigible (total del plan − pagos
+  válidos vinculados). Un plan finalizado con pagos incompletos sigue siendo deuda — es común
+  terminar el tratamiento antes de que el paciente termine de pagar (ortodoncia). Aplica en todos
+  los lugares que usan `resumenFinancieroPaciente`/`saldosGlobales`: ficha del paciente, panel
+  "Resumen del paciente", tarjeta "Saldos pendientes" y modal de registro. `rechazado`,
+  `borrador` y `presentado` siguen sin contar (no son deuda). En la vista de Pagos, junto al saldo y
+  en la tabla de cuentas se muestra la etiqueta "(tratamiento finalizado)" para dar contexto.
 - **Cuotas parciales vencidas**: una cuota con abono parcial y fecha vencida se muestra como
   `parcial` y a la vez cuenta como vencida (por su saldo restante) en el dashboard y en el listado.
 - **Instancia de pruebas**: `node server.js --puerto=3100` (o `PUERTO=3100`) levanta una segunda

@@ -109,8 +109,11 @@ function calcularCronograma(planPago, pagosValidos, hoy) {
 
 // -----------------------------------------------------------------
 // Resumen financiero de un paciente. "Cuentas" exigibles:
-//   - cada plan de tratamiento aceptado/en_curso SIN plan de cuotas activo
-//     vinculado -> exigible = total del plan;
+//   - cada plan de tratamiento aceptado/en_curso/FINALIZADO sin plan de
+//     cuotas activo vinculado -> exigible = total del plan. Un plan
+//     finalizado con pagos incompletos sigue siendo deuda (es comun terminar
+//     el tratamiento antes de terminar de pagar, ej. ortodoncia); solo
+//     rechazado y borrador/presentado quedan fuera (no son deuda);
 //   - cada plan de cuotas activo -> exigible = monto_total del plan de
 //     cuotas (si esta vinculado a un plan de tratamiento, lo REEMPLAZA para
 //     no contar dos veces).
@@ -121,7 +124,7 @@ function calcularCronograma(planPago, pagosValidos, hoy) {
 function resumenFinancieroPaciente(pacienteId) {
     const planes = db.prepare(`
         SELECT id, estado, total, fecha_aceptado, fecha_creacion
-        FROM planes_tratamiento WHERE paciente_id = ? AND estado IN ('aceptado', 'en_curso') ORDER BY id
+        FROM planes_tratamiento WHERE paciente_id = ? AND estado IN ('aceptado', 'en_curso', 'finalizado') ORDER BY id
     `).all(pacienteId);
     const planesPago = db.prepare('SELECT * FROM planes_pago WHERE paciente_id = ? ORDER BY id DESC').all(pacienteId);
     const pagosValidos = db.prepare('SELECT * FROM pagos WHERE paciente_id = ? AND anulado = 0 ORDER BY fecha_pago, id').all(pacienteId);
@@ -166,12 +169,13 @@ function resumenFinancieroPaciente(pacienteId) {
 }
 
 // Suma de saldos > 0 de todos los pacientes activos con alguna cuenta
-// exigible (dashboard "Saldos pendientes").
+// exigible (dashboard "Saldos pendientes"), incluidos los planes finalizados
+// con pagos incompletos.
 function saldosGlobales() {
     const ids = db.prepare(`
         SELECT DISTINCT p.id FROM pacientes p
         WHERE p.activo = 1 AND (
-            EXISTS (SELECT 1 FROM planes_tratamiento pt WHERE pt.paciente_id = p.id AND pt.estado IN ('aceptado', 'en_curso'))
+            EXISTS (SELECT 1 FROM planes_tratamiento pt WHERE pt.paciente_id = p.id AND pt.estado IN ('aceptado', 'en_curso', 'finalizado'))
             OR EXISTS (SELECT 1 FROM planes_pago pp WHERE pp.paciente_id = p.id AND pp.estado = 'activo')
         )
     `).all().map((f) => f.id);
