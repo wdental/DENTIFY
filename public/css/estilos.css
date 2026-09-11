@@ -2386,3 +2386,173 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     .btn-guardar-flotante { right: 16px; bottom: 16px; padding: 12px 18px; font-size: 0.8rem; }
     .confirmacion-guardado-ficha { right: 16px; bottom: 68px; }
 }
+
+/* ---------------------------------------------------------------
+   Fase 4B - Pagos, abonos y caja
+   --------------------------------------------------------------- */
+
+/* Tarjeta de indicador que ademas es un enlace (dashboard "Cuotas vencidas") */
+.tarjeta-stat--enlace { color: inherit; display: block; transition: border-color .15s ease; }
+.tarjeta-stat--enlace:hover { text-decoration: none; border-color: var(--dorado); }
+
+/* Nota de ayuda neutra bajo un campo (a diferencia de .campo-ayuda, que es
+   el estilo de error en rojo) */
+.campo-nota { font-size: 0.72rem; color: var(--texto-secundario); margin-top: 4px; display: block; }
+
+/* Cabecera financiera de la pestana Pagos */
+.resumen-financiero {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.resumen-financiero__bloque {
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    padding: 12px 14px;
+    background-color: var(--marfil);
+}
+
+.resumen-financiero__etiqueta {
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 1.2px;
+    color: var(--dorado);
+    font-weight: 700;
+}
+
+.resumen-financiero__saldo {
+    font-family: var(--fuente-titulos);
+    font-size: 2.1rem;
+    line-height: 1.1;
+    margin: 4px 0 2px 0;
+}
+
+.resumen-financiero__saldo--pendiente { color: var(--rojo-alerta); }
+.resumen-financiero__saldo--al-dia { color: var(--verde-ok); }
+
+.resumen-financiero__valor {
+    font-family: var(--fuente-titulos);
+    font-size: 1.5rem;
+    line-height: 1.2;
+    margin-top: 4px;
+    color: var(--negro);
+}
+
+.resumen-financiero__nota { font-size: 0.74rem; color: var(--texto-secundario); }
+
+/* Bloque compacto arriba del modal "Registrar pago" */
+.resumen-financiero-modal {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.resumen-financiero-modal > div {
+    flex: 1;
+    min-width: 130px;
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.resumen-financiero-modal > div span { color: var(--texto-secundario); text-transform: uppercase; font-size: 0.66rem; letter-spacing: 1px; }
+.resumen-financiero-modal > div strong { font-family: var(--fuente-titulos); font-size: 1.25rem; }
+.resumen-financiero-modal__saldo { border-color: var(--dorado) !important; background-color: rgba(156, 122, 48, 0.06); }
+.resumen-financiero-modal__saldo strong { color: var(--rojo-alerta); }
+
+/* Historial de pagos: fila anulada (tachada, atenuada) */
+.fila-pago-anulada td { text-decoration: line-through; color: var(--texto-secundario); opacity: 0.75; }
+.fila-pago-anulada td .btn-texto { text-decoration: none; }
+.pago-anulado-motivo {
+    text-decoration: none;
+    font-size: 0.74rem;
+    color: var(--rojo-alerta);
+    display: inline-block;
+    margin-top: 2px;
+}
+
+/* Planes de cuotas */
+.plan-cuotas {
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    margin-bottom: 12px;
+    background-color: var(--blanco);
+}
+
+.plan-cuotas__cabecera {
+    cursor: pointer;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    list-style: none;
+}
+
+.plan-cuotas__cabecera::-webkit-details-marker { display: none; }
+.plan-cuotas__cabecera::before { content: '\25B8'; color: var(--dorado); margin-right: 8px; }
+.plan-cuotas[open] > .plan-cuotas__cabecera::before { content: '\25BE'; }
+.plan-cuotas__cabecera > span:first-of-type { flex: 1; }
+.plan-cuotas__resumen { font-size: 0.8rem; color: var(--texto-secundario); }
+.plan-cuotas__detalle { padding: 0 16px 16px 16px; }
+.tabla-cronograma td, .tabla-cronograma th { padding: 8px 12px; font-size: 0.8rem; }
+.fila-cuota-vencida td { background-color: rgba(161, 58, 43, 0.05); }
+
+/* Linea de saldo en el panel "Resumen del paciente" */
+.resumen-saldo {
+    margin: 10px 0 0 0;
+    padding-top: 10px;
+    border-top: 1px dashed var(--gris-claro);
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+.resumen-saldo a { color: var(--dorado); }
+.resumen-saldo--pendiente a { color: var(--rojo-alerta); }
+.resumen-saldo--al-dia a { color: var(--verde-ok); }
+
+/* Caja: grupos por metodo */
+.caja-totales {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.caja-totales__bloque {
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    padding: 12px 14px;
+    background-color: var(--blanco);
+}
+
+.caja-totales__bloque--general { border-color: var(--dorado); background-color: rgba(156, 122, 48, 0.06); }
+.caja-totales__etiqueta { text-transform: uppercase; font-size: 0.66rem; letter-spacing: 1.2px; color: var(--dorado); font-weight: 700; }
+.caja-totales__valor { font-family: var(--fuente-titulos); font-size: 1.7rem; line-height: 1.2; margin-top: 4px; color: var(--negro); }
+.caja-totales__nota { font-size: 0.72rem; color: var(--texto-secundario); }
+
+.caja-grupo-metodo { margin-bottom: 22px; }
+.caja-grupo-metodo__titulo {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+    font-family: var(--fuente-titulos);
+    font-size: 1.1rem;
+}
+.caja-grupo-metodo__titulo span { font-family: var(--fuente-cuerpo); font-size: 0.85rem; font-weight: 600; color: var(--dorado); }
+
+.caja-controles { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px; }
+.caja-controles .campo { margin-bottom: 0; min-width: 200px; }
+
+/* Cuotas vencidas: contacto para gestion de cobro */
+.contacto-cobro a { font-weight: 600; }
+.dias-atraso--alto { color: var(--rojo-alerta); font-weight: 700; }

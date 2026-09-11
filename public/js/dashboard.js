@@ -42,6 +42,7 @@ async function cargarResumenDashboard() {
         document.getElementById('valor-citas-hoy').textContent = resumen.citasHoy.length;
         document.getElementById('valor-noshows-mes').textContent = resumen.noShowsMes;
         document.getElementById('fecha-hoy-dashboard').textContent = formatearFechaConDia(new Date().toISOString().slice(0, 10));
+        dibujarIndicadoresFinancieros(resumen.finanzas);
 
         dibujarGraficoOrigen(resumen.distribucionOrigen);
         dibujarCitasHoy(resumen.citasHoy);
@@ -174,6 +175,32 @@ async function cambiarEstadoCitaHoy(citaId, nuevoEstado) {
     } catch (error) {
         mensajeDiv.innerHTML = `<div class="alerta alerta--error">${error.message}</div>`;
     }
+}
+
+// -----------------------------------------------------------------
+// Tarjetas financieras (Fase 4B): saldos pendientes, ingresos del mes
+// y cuotas vencidas. Solo cuentan pagos validos (no anulados).
+// -----------------------------------------------------------------
+function dibujarIndicadoresFinancieros(finanzas) {
+    if (!finanzas) return;
+    const dinero = (v) => '$' + Number(v || 0).toFixed(2);
+    const plural = (n, singular, pluralTxt) => `${n} ${n === 1 ? singular : pluralTxt}`;
+
+    document.getElementById('valor-saldos-pendientes').textContent = dinero(finanzas.saldos_pendientes.total);
+    document.getElementById('nota-saldos-pendientes').textContent =
+        finanzas.saldos_pendientes.pacientes === 0
+            ? 'Ningún paciente con saldo pendiente'
+            : `${plural(finanzas.saldos_pendientes.pacientes, 'paciente', 'pacientes')} con saldo pendiente`;
+
+    document.getElementById('valor-ingresos-mes').textContent = dinero(finanzas.ingresos_mes.total);
+    document.getElementById('nota-ingresos-mes').textContent =
+        `${plural(finanzas.ingresos_mes.cantidad, 'pago válido', 'pagos válidos')} en el mes en curso`;
+
+    document.getElementById('valor-cuotas-vencidas').textContent = dinero(finanzas.cuotas_vencidas.monto);
+    document.getElementById('nota-cuotas-vencidas').innerHTML =
+        finanzas.cuotas_vencidas.cuotas === 0
+            ? 'Sin cuotas vencidas'
+            : `${plural(finanzas.cuotas_vencidas.cuotas, 'cuota vencida', 'cuotas vencidas')} · ${plural(finanzas.cuotas_vencidas.pacientes, 'paciente', 'pacientes')} &rarr;`;
 }
 
 function dibujarGraficoOrigen(datos) {

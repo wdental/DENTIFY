@@ -43,9 +43,19 @@
             </div>
             <div class="tarjeta tarjeta-stat">
                 <div class="tarjeta-stat__etiqueta">Saldos pendientes</div>
-                <div class="tarjeta-stat__valor">-</div>
-                <div class="tarjeta-stat__nota">Disponible en la siguiente fase (Pagos)</div>
+                <div class="tarjeta-stat__valor" id="valor-saldos-pendientes">-</div>
+                <div class="tarjeta-stat__nota" id="nota-saldos-pendientes">Planes aceptados y cuotas por cobrar</div>
             </div>
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">Ingresos del mes</div>
+                <div class="tarjeta-stat__valor" id="valor-ingresos-mes">-</div>
+                <div class="tarjeta-stat__nota" id="nota-ingresos-mes">Pagos válidos del mes en curso</div>
+            </div>
+            <a class="tarjeta tarjeta-stat tarjeta-stat--enlace" href="/cuotas-vencidas.html">
+                <div class="tarjeta-stat__etiqueta">Cuotas vencidas</div>
+                <div class="tarjeta-stat__valor" id="valor-cuotas-vencidas">-</div>
+                <div class="tarjeta-stat__nota" id="nota-cuotas-vencidas">Ver listado para gestión de cobro &rarr;</div>
+            </a>
         </div>
 
         <div class="tarjeta" style="margin-bottom: 28px;">

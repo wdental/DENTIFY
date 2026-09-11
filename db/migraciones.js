@@ -210,6 +210,100 @@ function migrar(db) {
         db.exec('ALTER TABLE usuarios ADD COLUMN doctor_id INTEGER REFERENCES doctores(id)');
         console.log('Migracion: columna "doctor_id" agregada a usuarios (vinculo opcional con la tabla doctores)');
     }
+
+    // Fase 4B (pagos, abonos y caja): la tabla "pagos" era un stub de la
+    // Fase 1 (presupuesto_id, fecha, monto, metodo, notas) sin interfaz. Se
+    // reconstruye con el esquema completo (numero de recibo, concepto,
+    // vinculo a plan de tratamiento / plan de cuotas, anulacion logica)
+    // COPIANDO cualquier fila que pudiera existir: fecha -> fecha_pago,
+    // notas -> concepto, metodo normalizado a los cuatro valores admitidos,
+    // y un numero de recibo asignado con el contador del anio del pago.
+    // presupuesto_id se descarta (la tabla presupuestos nunca tuvo datos ni
+    // pantalla y se conserva intacta como stub).
+    const columnasPagos = db.prepare("PRAGMA table_info(pagos)").all().map((c) => c.name);
+    if (columnasPagos.length > 0 && !columnasPagos.includes('concepto')) {
+        const reconstruirPagos = db.transaction(() => {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS contador_recibos (
+                    anio INTEGER PRIMARY KEY,
+                    ultimo_numero INTEGER NOT NULL DEFAULT 0
+                )
+            `);
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS planes_pago (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                    plan_id INTEGER REFERENCES planes_tratamiento(id),
+                    descripcion TEXT NOT NULL,
+                    monto_total REAL NOT NULL CHECK (monto_total > 0),
+                    entrada REAL NOT NULL DEFAULT 0 CHECK (entrada >= 0),
+                    numero_cuotas INTEGER NOT NULL CHECK (numero_cuotas >= 1),
+                    monto_cuota REAL NOT NULL CHECK (monto_cuota > 0),
+                    dia_pago_mes INTEGER NOT NULL CHECK (dia_pago_mes BETWEEN 1 AND 28),
+                    fecha_inicio TEXT NOT NULL,
+                    estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'completado', 'cancelado')),
+                    notas TEXT,
+                    motivo_cancelacion TEXT,
+                    creado_por INTEGER REFERENCES usuarios(id),
+                    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            `);
+            db.exec(`
+                CREATE TABLE pagos_nueva (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    numero_recibo TEXT NOT NULL UNIQUE,
+                    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                    plan_id INTEGER REFERENCES planes_tratamiento(id),
+                    plan_item_id INTEGER REFERENCES plan_items(id),
+                    plan_pago_id INTEGER REFERENCES planes_pago(id),
+                    concepto TEXT NOT NULL,
+                    monto REAL NOT NULL CHECK (monto > 0),
+                    metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia', 'tarjeta', 'otro')),
+                    referencia TEXT,
+                    fecha_pago TEXT NOT NULL,
+                    registrado_por INTEGER REFERENCES usuarios(id),
+                    doctor_id INTEGER REFERENCES doctores(id),
+                    anulado INTEGER NOT NULL DEFAULT 0,
+                    motivo_anulacion TEXT,
+                    anulado_por INTEGER REFERENCES usuarios(id),
+                    anulado_en TEXT,
+                    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            `);
+
+            const filasAntiguas = db.prepare('SELECT * FROM pagos ORDER BY id').all();
+            const insertar = db.prepare(`
+                INSERT INTO pagos_nueva (id, numero_recibo, paciente_id, concepto, monto, metodo, fecha_pago, registrado_por, fecha_creacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            const leerContador = db.prepare('SELECT ultimo_numero FROM contador_recibos WHERE anio = ?');
+            const guardarContador = db.prepare('INSERT INTO contador_recibos (anio, ultimo_numero) VALUES (?, ?) ON CONFLICT(anio) DO UPDATE SET ultimo_numero = excluded.ultimo_numero');
+            const METODOS = ['efectivo', 'transferencia', 'tarjeta', 'otro'];
+
+            filasAntiguas.forEach((fila) => {
+                const fecha = String(fila.fecha || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+                const anio = Number(fecha.slice(0, 4));
+                const actual = leerContador.get(anio);
+                const siguiente = (actual ? actual.ultimo_numero : 0) + 1;
+                guardarContador.run(anio, siguiente);
+                const metodo = METODOS.includes(String(fila.metodo || '').toLowerCase()) ? String(fila.metodo).toLowerCase() : 'otro';
+                const monto = Number(fila.monto) > 0 ? Number(fila.monto) : 0.01;
+                insertar.run(
+                    fila.id, `REC-${anio}-${String(siguiente).padStart(4, '0')}`, fila.paciente_id,
+                    fila.notas || 'Pago migrado (Fase 1)', monto, metodo, fecha, fila.registrado_por || null,
+                    fila.fecha || new Date().toISOString()
+                );
+            });
+
+            db.exec('DROP TABLE pagos');
+            db.exec('ALTER TABLE pagos_nueva RENAME TO pagos');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_pagos_paciente ON pagos (paciente_id)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_pagos_fecha ON pagos (fecha_pago)');
+            return filasAntiguas.length;
+        });
+        const migrados = reconstruirPagos();
+        console.log(`Migracion: tabla "pagos" reconstruida con el esquema de la Fase 4B (${migrados} fila(s) previa(s) conservada(s))`);
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)

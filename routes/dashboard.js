@@ -4,6 +4,7 @@
 const express = require('express');
 const db = require('../db/conexion');
 const { requiereSesion } = require('../middleware/auth');
+const { calcularIndicadores } = require('./pagos');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -43,12 +44,16 @@ router.get('/resumen', (req, res) => {
         WHERE estado = 'no_asistio' AND date(fecha) >= date(?)
     `).get(inicioMes).total;
 
+    // Fase 4B: saldos pendientes, ingresos del mes y cuotas vencidas
+    const finanzas = calcularIndicadores();
+
     res.json({
         totalActivos,
         nuevosMes,
         distribucionOrigen,
         citasHoy,
-        noShowsMes
+        noShowsMes,
+        finanzas
     });
 });
 

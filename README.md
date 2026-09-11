@@ -272,6 +272,36 @@ Tras usar la Fase 4A en la clínica, se detectó una fuente real de confusión: 
 - **Historial sin ambigüedad**: cada evolución en esta pestaña muestra explícitamente **"✓ Odontograma actualizado"** (con enlace directo a esa versión) o **"— Sin cambios en el odontograma"**, en vez de dejarlo implícito.
 - No se modificó el versionado inmutable del odontograma, las reglas de exclusión clínica, ni la sección P (Tratamiento) del Formulario 033 — sigue mostrando las mismas evoluciones, ahora con el vínculo opcional visible.
 
+## Contenido de la Fase 4B
+
+Pagos, abonos y caja. Especificación completa y decisiones de implementación en `docs/fase-4b.md`.
+
+### Registro de pagos (pestaña "Pagos" de la ficha del paciente)
+
+- **Cabecera financiera**: saldo pendiente del paciente (planes de tratamiento aceptados/en curso + planes de cuotas activos − pagos válidos vinculados), total exigible, pagado vinculado y pagos al contado, con una tabla de "cuentas" (una por plan de tratamiento o plan de cuotas). El mismo saldo aparece en el panel **"Resumen del paciente"** del odontograma, enlazado a la pestaña Pagos.
+- **"+ Registrar pago"**: modal con el resumen financiero arriba (si hay cuentas exigibles), selector "Vincular a" (plan de cuotas / plan de tratamiento / sin vincular = pago al contado; por defecto la primera cuenta exigible), concepto autocompletable desde los ítems del plan aceptado o las cuotas pendientes del cronograma (precarga el monto), monto, método (**Efectivo, Transferencia (Banco Pichincha), Tarjeta, Otro**; el campo de referencia/comprobante solo aparece para transferencia y tarjeta), fecha (hoy por defecto, nunca futura) y doctor opcional.
+- **Un pago registrado es inmutable**: no existe edición ni borrado. Solo un `admin` puede **anularlo con motivo**: queda visible tachado, conserva su número de recibo y deja de sumar en saldos, caja y dashboard. Una corrección es anular + registrar de nuevo.
+- **Recibo imprimible** (`imprimir-recibo.html`): media hoja **A5** con el membrete World Dental de los consentimientos, número secuencial **`REC-AAAA-####`** (tabla `contador_recibos`, asignado en la misma transacción que inserta el pago, nunca reutilizado), paciente, historia clínica, concepto y vínculo, método y referencia, **monto en cifras y en letras** (`utils/montoEnLetras.js`, ej. "CIENTO VEINTICINCO DÓLARES CON 50/100"), quien registró y línea de firma. Se ofrece al registrar y queda accesible desde el historial y desde Caja; un pago anulado imprime con la marca "RECIBO ANULADO".
+
+### Planes de cuotas (ortodoncia u otros acuerdos)
+
+- **"Crear plan de cuotas"**: descripción, vínculo opcional a un plan de tratamiento aceptado/en curso (sugiere el total del plan y propone lo ya pagado como entrada), monto total, entrada, número de cuotas, monto de cuota (autocalculado `(total − entrada) ÷ cuotas`, editable), día de pago del mes (1-28) y fecha de inicio. Tabla `planes_pago`, `routes/planes-pago.js`.
+- El **cronograma no se persiste**: se calcula en `utils/finanzas.js`. La entrada vence el día de inicio; la cuota 1 el día de pago del mes **siguiente** al de inicio, y cada cuota un mes después; la última cuota absorbe la diferencia si se editó el monto de cuota. Los pagos válidos vinculados se imputan en orden cronológico primero a la entrada y luego a las cuotas, y cada ítem queda **pagada / parcial / vencida / por vencer** (con días de atraso). Cuando un plan de cuotas está ligado a un plan de tratamiento, los pagos hechos directamente a ese plan antes del acuerdo también lo abonan, y el monto del acuerdo **reemplaza** al total del plan en el saldo (nunca se cuenta dos veces).
+- Un acuerdo no se edita (para no reescribir un cronograma contra el que ya hay pagos): un `admin` puede **cancelarlo con motivo** y se crea otro; los pagos ya registrados permanecen intactos. Se marca `completado` automáticamente al registrar el pago que lo cubre (y vuelve a `activo` si ese pago se anula). Un paciente puede tener varios planes de cuotas históricos; solo uno activo por plan de tratamiento.
+
+### Caja (`/caja.html`, admin y asistencial)
+
+- **Vista Día**: todos los pagos de la fecha agrupados por método, con subtotal por método, totales por método y total general; los anulados se muestran tachados sin sumar. **"Cerrar caja del día"** abre `imprimir-cierre-caja.html`: resumen A4 con membrete, totales por método, cantidad de transacciones, detalle de pagos y espacio para la firma de quien cierra — es **informativo** (deja constancia impresa) y no bloquea registrar pagos posteriores con esa fecha.
+- **Vista Mes**: tabla de totales por día (con desglose por método y enlace al día), total del mes y desglose por método.
+
+### Dashboard y vencimientos
+
+- Tarjetas **"Saldos pendientes"** (suma de saldos > 0 y número de pacientes), **"Ingresos del mes"** (pagos válidos del mes en curso) y **"Cuotas vencidas"** (monto, cuotas y pacientes con cuotas impagas ya vencidas), esta última enlazada a `/cuotas-vencidas.html`: listado filtrable por paciente/teléfono y por días de atraso, con teléfono y WhatsApp a la vista (enlace directo `wa.me`) para la gestión de cobro.
+
+### Migración de base de datos (Fase 4B)
+
+La tabla `pagos` era un stub de la Fase 1 sin interfaz (0 filas en producción). La migración de `db/migraciones.js` la **reconstruye copiando** cualquier fila que pudiera existir (`fecha` → `fecha_pago`, `notas` → `concepto`, método normalizado, número de recibo asignado con el contador del año) y crea `planes_pago` y `contador_recibos`. `presupuestos` se conserva intacta como stub (el "presupuesto" real de Dentify es el plan de tratamiento aceptado de la Fase 4A). Ninguna tabla existente pierde datos. El servidor admite además `--puerto=NNNN` (o la variable `PUERTO`) para levantar una segunda instancia de pruebas sin tocar la de la clínica.
+
 ## Requisitos
 
 - **Node.js** versión LTS (18 o superior). Descargar de [https://nodejs.org](https://nodejs.org)
@@ -380,9 +410,10 @@ Dentify/
 ├── routes/                     Rutas de la API (auth, pacientes, usuarios, importador, dashboard,
 │                                doctores, citas, sync, ficha-clinica, odontograma, cie10,
 │                                diagnosticos, evoluciones, plantillas, consentimientos,
-│                                tratamientos, planes-tratamiento)
+│                                tratamientos, planes-tratamiento, pagos, planes-pago)
 ├── middleware/                 Middlewares de autenticacion y roles
-├── utils/                      Utilidades (respaldo, numero de historia, googleCalendar, sincronizacion)
+├── utils/                      Utilidades (respaldo, numero de historia, numero de recibo, monto en letras,
+│                                finanzas, googleCalendar, sincronizacion)
 ├── public/                     Frontend (HTML, CSS, JS, sin frameworks)
 ├── uploads/pacientes/          Documentos adjuntos de cada paciente
 ├── backups/                    Respaldos automaticos de la base de datos
@@ -395,6 +426,6 @@ Dentify/
 - Todo el sistema está en español.
 - El servidor escucha en `0.0.0.0:3000` para ser accesible desde la red local.
 - La sesión de usuario dura 12 horas de inactividad.
-- Solo el rol `admin` puede eliminar pacientes, gestionar usuarios, importar pacientes desde archivo, gestionar doctores y eliminar citas.
+- Solo el rol `admin` puede eliminar pacientes, gestionar usuarios, importar pacientes desde archivo, gestionar doctores, eliminar citas, anular pagos y cancelar planes de cuotas.
 - Los doctores viven en la tabla `doctores` de la base de datos (ya no en `public/assets/doctores.js`, que fue eliminado en la Fase 2.5).
 - `google-credentials.json` nunca debe compartirse ni subirse a un repositorio: está en `.gitignore` y fuera del alcance de los respaldos automáticos (que solo copian `dentify.db`).

@@ -1,0 +1,150 @@
+/* =====================================================================
+   Dentify - Estilos de impresion de la Fase 4B: recibo de pago (media
+   hoja A5) y cierre de caja del dia (A4). Reutilizan el membrete y la
+   hoja de impresion-consentimiento.css (clases wd-*).
+   ===================================================================== */
+
+/* --------------------------- Recibo A5 --------------------------- */
+.hoja-wd--a5 {
+    width: 148mm;
+    min-height: 210mm;
+    padding: 1.2cm 1.3cm;
+    font-size: 10px;
+}
+
+.hoja-wd--a5 .wd-membrete__marca { white-space: nowrap; font-size: 1.45rem; }
+.hoja-wd--a5 .wd-membrete__direccion { max-width: 58%; font-size: 7px; }
+
+.recibo-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+}
+
+.recibo-titulo { margin: 0; text-align: left; }
+
+.recibo-numero {
+    font-family: var(--fuente-titulos);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--dorado);
+    letter-spacing: 0.5px;
+}
+
+.recibo-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    margin-bottom: 14px;
+}
+
+.recibo-tabla th,
+.recibo-tabla td {
+    border-bottom: 1px solid var(--gris-claro);
+    padding: 6px 4px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.recibo-tabla th {
+    width: 32%;
+    text-transform: uppercase;
+    font-size: 7.5px;
+    letter-spacing: 0.6px;
+    color: var(--texto-secundario);
+    font-weight: 600;
+}
+
+.recibo-vinculo { font-size: 8px; color: var(--texto-secundario); margin-top: 2px; }
+
+.recibo-monto {
+    border: 1.5px solid var(--dorado);
+    border-radius: 4px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    background-color: rgba(156, 122, 48, 0.05);
+}
+
+.recibo-monto__cifra {
+    font-family: var(--fuente-titulos);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--negro);
+    white-space: nowrap;
+}
+
+.recibo-monto__letras {
+    font-size: 8.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    text-align: right;
+    color: var(--texto-principal);
+}
+
+.recibo-firmas { margin-top: 34px; justify-content: center; }
+.recibo-firmas .wd-firma-bloque { max-width: 60%; }
+
+/* --------------------------- Cierre de caja A4 --------------------------- */
+.cierre-resumen {
+    display: flex;
+    gap: 12px;
+    margin: 14px 0;
+}
+
+.cierre-resumen__bloque {
+    flex: 1;
+    border: 1px solid var(--gris-claro);
+    border-radius: 4px;
+    padding: 8px 10px;
+}
+
+.cierre-resumen__bloque--total { border-color: var(--dorado); background-color: rgba(156, 122, 48, 0.06); }
+.cierre-resumen__etiqueta { text-transform: uppercase; font-size: 7px; letter-spacing: 0.6px; color: var(--texto-secundario); font-weight: 600; }
+.cierre-resumen__valor { font-family: var(--fuente-titulos); font-size: 1.2rem; font-weight: 700; color: var(--negro); }
+.cierre-resumen__nota { font-size: 7.5px; color: var(--texto-secundario); }
+
+.tabla-cierre {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 14px 0;
+    font-size: 9px;
+}
+
+.tabla-cierre th,
+.tabla-cierre td {
+    border: 1px solid var(--gris-claro);
+    padding: 4px 6px;
+    text-align: left;
+}
+
+.tabla-cierre th {
+    background-color: rgba(156, 122, 48, 0.08);
+    color: var(--negro);
+    text-transform: uppercase;
+    font-size: 7.5px;
+    letter-spacing: 0.3px;
+}
+
+.tabla-cierre td.num, .tabla-cierre th.num { text-align: right; white-space: nowrap; }
+.tabla-cierre tr.anulado td { text-decoration: line-through; color: var(--texto-secundario); }
+.tabla-cierre tfoot td { font-weight: 700; background-color: rgba(156, 122, 48, 0.05); }
+
+.cierre-subtitulo {
+    font-family: var(--fuente-titulos);
+    font-size: 11px;
+    color: var(--dorado);
+    margin: 12px 0 2px 0;
+}
+
+.cierre-firmas { margin-top: 40px; }
+
+/* El tamano de pagina A5 del recibo se declara en imprimir-recibo.html
+   (regla @page propia, despues de esta hoja) para no afectar al cierre de
+   caja, que comparte esta hoja y se imprime en A4. */
+@media print {
+    .hoja-wd--a5 { width: auto; min-height: 0; padding: 0; }
+}

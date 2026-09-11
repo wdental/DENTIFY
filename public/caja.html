@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Caja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Caja</h1>
+                <p>Pagos recibidos por día y por mes &middot; solo cuentan los pagos válidos (los anulados se muestran tachados, sin sumar)</p>
+            </div>
+            <a class="btn btn-secundario" href="/cuotas-vencidas.html">Cuotas vencidas &rarr;</a>
+        </div>
+
+        <div id="mensaje-caja"></div>
+
+        <div class="pestanas">
+            <button class="pestana activa" data-panel="panel-caja-dia">Día</button>
+            <button class="pestana" data-panel="panel-caja-mes">Mes</button>
+        </div>
+
+        <div class="panel-pestana activo" id="panel-caja-dia">
+            <div class="caja-controles">
+                <div class="campo">
+                    <label for="caja-fecha">Fecha</label>
+                    <input type="date" id="caja-fecha">
+                    <span class="fecha-legible" id="caja-fecha-legible"></span>
+                </div>
+                <button type="button" class="btn btn-secundario btn-sm" id="btn-caja-hoy">Hoy</button>
+                <div style="flex:1;"></div>
+                <button type="button" class="btn btn-primario" id="btn-cerrar-caja">Cerrar caja del día</button>
+            </div>
+            <p class="texto-secundario" style="font-size:0.8rem;">"Cerrar caja del día" imprime el resumen del día (A4, con membrete, totales por método y espacio para la firma de quien cierra). Es informativo: no bloquea registrar pagos posteriores con esa fecha.</p>
+            <div id="caja-dia-contenido"><p class="texto-secundario">Cargando...</p></div>
+        </div>
+
+        <div class="panel-pestana" id="panel-caja-mes">
+            <div class="caja-controles">
+                <div class="campo">
+                    <label for="caja-mes">Mes</label>
+                    <input type="month" id="caja-mes">
+                </div>
+                <button type="button" class="btn btn-secundario btn-sm" id="btn-caja-mes-actual">Mes actual</button>
+            </div>
+            <div id="caja-mes-contenido"><p class="texto-secundario">Cargando...</p></div>
+        </div>
+    </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/fechas.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/caja.js"></script>
+</body>
+</html>

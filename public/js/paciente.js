@@ -50,6 +50,9 @@ const CLASE_ESTADO_CITA = {
     document.getElementById('btn-imprimir-f033').addEventListener('click', irAImprimirF033);
     vincularFechaLegible('p-fecha-nacimiento', 'p-fecha-nacimiento-legible');
 
+    // Enlace directo a una pestana (ej. "#pagos" desde Cuotas vencidas / Caja)
+    if (window.location.hash === '#pagos') cambiarPestanaReal('panel-pagos');
+
     await cargarPaciente();
     await cargarDocumentos();
     await cargarCitasPaciente();

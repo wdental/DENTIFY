@@ -31,11 +31,17 @@ const rutasPlantillas = require('./routes/plantillas');
 const rutasConsentimientos = require('./routes/consentimientos');
 const rutasTratamientos = require('./routes/tratamientos');
 const rutasPlanesTratamiento = require('./routes/planes-tratamiento');
+const rutasPagos = require('./routes/pagos');
+const rutasPlanesPago = require('./routes/planes-pago');
 const { protegerPagina, requiereSesion } = require('./middleware/auth');
 const { iniciarProgramador } = require('./utils/sincronizacion');
 
 const app = express();
-const PUERTO = 3000;
+// Puerto 3000 por defecto; se puede cambiar con la variable de entorno
+// PUERTO o el argumento --puerto=NNNN (util para levantar una segunda
+// instancia de pruebas sin tocar la de la clinica).
+const argPuerto = process.argv.find((a) => a.startsWith('--puerto='));
+const PUERTO = Number(argPuerto ? argPuerto.split('=')[1] : process.env.PUERTO) || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -69,6 +75,8 @@ app.use('/api/plantillas', rutasPlantillas);
 app.use('/api/consentimientos', rutasConsentimientos);
 app.use('/api/tratamientos', rutasTratamientos);
 app.use('/api/planes-tratamiento', rutasPlanesTratamiento);
+app.use('/api/pagos', rutasPagos);
+app.use('/api/planes-pago', rutasPlanesPago);
 
 // Manejo de errores de multer / subida de archivos
 app.use((err, req, res, next) => {
@@ -87,7 +95,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 const paginasProtegidas = [
     'index.html', 'pacientes.html', 'paciente.html', 'importador.html', 'usuarios.html',
     'agenda.html', 'doctores.html', 'imprimir-f033.html', 'plantillas.html', 'imprimir-consentimiento.html',
-    'tratamientos.html', 'imprimir-plan.html'
+    'tratamientos.html', 'imprimir-plan.html',
+    'caja.html', 'cuotas-vencidas.html', 'imprimir-recibo.html', 'imprimir-cierre-caja.html'
 ];
 paginasProtegidas.forEach((pagina) => {
     app.get(`/${pagina}`, protegerPagina, (req, res) => {

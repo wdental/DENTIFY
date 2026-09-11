@@ -47,6 +47,7 @@
             <button class="pestana" data-panel="panel-consentimientos">Consentimientos</button>
             <button class="pestana" data-panel="panel-plan-tratamiento">Plan de tratamiento</button>
             <button class="pestana" data-panel="panel-evolucion-tratamiento">Evolución de tratamiento</button>
+            <button class="pestana" data-panel="panel-pagos">Pagos</button>
         </div>
 
         <div class="panel-pestana activo" id="panel-datos">
@@ -479,6 +480,32 @@
                 </div>
                 <p class="texto-secundario">Este flujo guiado abre el odontograma para registrar lo atendido hoy (cualquier pieza, incluida una no registrada antes — por ejemplo un accidente) y luego pide la nota de evolución ya vinculada a esa versión. Cada sesión muestra si el odontograma quedó o no actualizado, sin ambigüedad.</p>
                 <div id="lista-seguimiento-evoluciones"><p class="texto-secundario">Cargando evoluciones...</p></div>
+            </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-pagos">
+            <div class="tarjeta">
+                <div class="flex-entre" style="margin-bottom:16px; gap:12px; flex-wrap:wrap;">
+                    <h3 class="mb-0">Pagos</h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-secundario btn-sm" id="btn-crear-plan-cuotas">Crear plan de cuotas</button>
+                        <button class="btn btn-primario btn-sm" id="btn-registrar-pago">+ Registrar pago</button>
+                    </div>
+                </div>
+                <p class="texto-secundario">Un pago registrado es inmutable: no se edita ni se elimina. Solo un administrador puede anularlo con motivo (queda visible tachado y fuera de los totales); una corrección es anular y registrar de nuevo.</p>
+                <div id="mensaje-pagos"></div>
+                <div id="resumen-financiero-paciente"><p class="texto-secundario mb-0">Cargando resumen financiero...</p></div>
+            </div>
+
+            <div class="tarjeta" style="margin-top:20px;">
+                <h3>Planes de cuotas</h3>
+                <p class="texto-secundario">Acuerdo de entrada + cuotas mensuales (ortodoncia u otros). El estado de cada cuota se calcula en vivo comparando los pagos vinculados con el cronograma.</p>
+                <div id="lista-planes-cuotas"><p class="texto-secundario mb-0">Cargando...</p></div>
+            </div>
+
+            <div class="tarjeta" style="margin-top:20px;">
+                <h3>Historial de pagos</h3>
+                <div id="lista-pagos"><p class="texto-secundario mb-0">Cargando pagos...</p></div>
             </div>
         </div>
 
@@ -961,6 +988,170 @@
     </div>
 </div>
 
+<!-- ============================ Fase 4B: Pagos ============================ -->
+
+<!-- Modal: Registrar pago -->
+<div class="modal-fondo" id="modal-registrar-pago">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-registrar-pago">&times;</button>
+        <h2>Registrar pago</h2>
+        <p class="seccion-clinica__ayuda">Revise los datos antes de guardar: un pago registrado no se puede editar ni eliminar, solo anular (administrador).</p>
+        <div id="error-modal-registrar-pago"></div>
+        <div id="resumen-financiero-modal" class="resumen-financiero-modal oculto"></div>
+
+        <form id="form-registrar-pago">
+            <div class="form-grid">
+                <div class="campo campo--ancho">
+                    <label for="pg-vinculo">Vincular a</label>
+                    <select id="pg-vinculo"></select>
+                    <span class="campo-nota">Un pago vinculado descuenta el saldo de esa cuenta. "Sin vincular" es un pago al contado por un tratamiento puntual.</span>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="pg-concepto">Concepto *</label>
+                    <input type="text" id="pg-concepto" list="pg-conceptos-sugeridos" required autocomplete="off" placeholder="Ej. Profilaxis, Cuota 3 de ortodoncia...">
+                    <datalist id="pg-conceptos-sugeridos"></datalist>
+                    <span class="campo-nota" id="pg-concepto-ayuda"></span>
+                </div>
+                <div class="campo">
+                    <label for="pg-monto">Monto (USD) *</label>
+                    <input type="number" id="pg-monto" min="0.01" step="0.01" required>
+                </div>
+                <div class="campo">
+                    <label for="pg-metodo">Método de pago *</label>
+                    <select id="pg-metodo" required>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="transferencia">Transferencia (Banco Pichincha)</option>
+                        <option value="tarjeta">Tarjeta</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div class="campo oculto" id="campo-pg-referencia">
+                    <label for="pg-referencia">Nro. de comprobante / referencia</label>
+                    <input type="text" id="pg-referencia" maxlength="60">
+                </div>
+                <div class="campo">
+                    <label for="pg-fecha">Fecha de pago *</label>
+                    <input type="date" id="pg-fecha" required>
+                    <span class="fecha-legible" id="pg-fecha-legible"></span>
+                </div>
+                <div class="campo">
+                    <label for="pg-doctor">Doctor que atendió (opcional)</label>
+                    <select id="pg-doctor"><option value="">Sin especificar</option></select>
+                </div>
+            </div>
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-registrar-pago">Cancelar</button>
+                <button type="submit" class="btn btn-primario" id="btn-guardar-pago">Registrar pago</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Pago registrado (ofrece imprimir el recibo) -->
+<div class="modal-fondo" id="modal-pago-registrado">
+    <div class="modal">
+        <h2>Pago registrado</h2>
+        <div id="detalle-pago-registrado"></div>
+        <div class="flex-entre" style="margin-top: 20px;">
+            <button type="button" class="btn btn-secundario" id="cerrar-modal-pago-registrado">Cerrar</button>
+            <button type="button" class="btn btn-primario" id="btn-imprimir-recibo-registrado">Imprimir recibo</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Anular pago (solo admin) -->
+<div class="modal-fondo" id="modal-anular-pago">
+    <div class="modal">
+        <h2>Anular pago</h2>
+        <p class="seccion-clinica__ayuda">El pago no se borra: queda visible tachado con el motivo, conserva su número de recibo y deja de sumar en saldos y caja. Para corregirlo, registre un pago nuevo después de anular este.</p>
+        <div id="error-modal-anular-pago"></div>
+        <p id="detalle-anular-pago" class="mb-0"></p>
+        <div class="campo campo--ancho" style="margin-top:12px;">
+            <label for="anular-pago-motivo">Motivo de la anulación *</label>
+            <textarea id="anular-pago-motivo"></textarea>
+        </div>
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-anular-pago">Cancelar</button>
+            <button type="button" class="btn btn-peligro" id="confirmar-modal-anular-pago">Anular pago</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Crear plan de cuotas -->
+<div class="modal-fondo" id="modal-plan-cuotas">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-plan-cuotas">&times;</button>
+        <h2>Crear plan de cuotas</h2>
+        <p class="seccion-clinica__ayuda">Entrada inicial + cuotas mensuales. La primera cuota vence el día de pago del mes siguiente al inicio; la entrada, el día de inicio. Un acuerdo creado no se edita: si cambia, un administrador lo cancela y se crea uno nuevo.</p>
+        <div id="error-modal-plan-cuotas"></div>
+
+        <form id="form-plan-cuotas">
+            <div class="form-grid">
+                <div class="campo campo--ancho">
+                    <label for="pc-plan">Vincular a plan de tratamiento (opcional)</label>
+                    <select id="pc-plan"><option value="">Sin vincular</option></select>
+                    <span class="campo-nota">Si se vincula, el monto del acuerdo reemplaza al total del plan en el cálculo del saldo (no se cuenta dos veces).</span>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="pc-descripcion">Descripción *</label>
+                    <input type="text" id="pc-descripcion" required placeholder="Ej. Ortodoncia - brackets metálicos">
+                </div>
+                <div class="campo">
+                    <label for="pc-monto-total">Monto total (USD) *</label>
+                    <input type="number" id="pc-monto-total" min="0.01" step="0.01" required>
+                </div>
+                <div class="campo">
+                    <label for="pc-entrada">Entrada inicial (USD)</label>
+                    <input type="number" id="pc-entrada" min="0" step="0.01" value="0">
+                </div>
+                <div class="campo">
+                    <label for="pc-cuotas">Número de cuotas *</label>
+                    <input type="number" id="pc-cuotas" min="1" max="120" step="1" required value="12">
+                </div>
+                <div class="campo">
+                    <label for="pc-monto-cuota">Monto de cada cuota (USD) *</label>
+                    <input type="number" id="pc-monto-cuota" min="0.01" step="0.01" required>
+                    <span class="campo-nota" id="pc-monto-cuota-ayuda">Se calcula como (total − entrada) ÷ cuotas; puede ajustarlo.</span>
+                </div>
+                <div class="campo">
+                    <label for="pc-dia-pago">Día de pago del mes *</label>
+                    <input type="number" id="pc-dia-pago" min="1" max="28" step="1" required value="15">
+                </div>
+                <div class="campo">
+                    <label for="pc-fecha-inicio">Fecha de inicio *</label>
+                    <input type="date" id="pc-fecha-inicio" required>
+                    <span class="fecha-legible" id="pc-fecha-inicio-legible"></span>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="pc-notas">Notas</label>
+                    <textarea id="pc-notas" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-plan-cuotas">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Crear plan de cuotas</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Cancelar plan de cuotas (solo admin) -->
+<div class="modal-fondo" id="modal-cancelar-plan-cuotas">
+    <div class="modal">
+        <h2>Cancelar plan de cuotas</h2>
+        <p class="seccion-clinica__ayuda">El acuerdo queda como cancelado y deja de exigirse. Los pagos ya registrados contra él permanecen intactos.</p>
+        <div id="error-modal-cancelar-plan-cuotas"></div>
+        <div class="campo campo--ancho">
+            <label for="cancelar-plan-cuotas-motivo">Motivo *</label>
+            <textarea id="cancelar-plan-cuotas-motivo"></textarea>
+        </div>
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-cancelar-plan-cuotas">Volver</button>
+            <button type="button" class="btn btn-peligro" id="confirmar-modal-cancelar-plan-cuotas">Cancelar plan de cuotas</button>
+        </div>
+    </div>
+</div>
+
 <script src="/js/api.js"></script>
 <script src="/js/fechas.js"></script>
 <script src="/js/firma.js"></script>
@@ -973,5 +1164,6 @@
 <script src="/js/consentimientos.js"></script>
 <script src="/js/planes-tratamiento.js"></script>
 <script src="/js/seguimiento.js"></script>
+<script src="/js/pagos.js"></script>
 </body>
 </html>

@@ -270,7 +270,9 @@ CREATE TABLE IF NOT EXISTS cie10_odontologia (
 );
 
 -- ---------------------------------------------------------------------
--- PRESUPUESTOS (Fase 4)
+-- PRESUPUESTOS (stub de la Fase 1, sin interfaz). Se conserva tal cual:
+-- el "presupuesto" real de Dentify es el plan de tratamiento aceptado
+-- (Fase 4A) y los cobros viven en la tabla pagos (Fase 4B, al final).
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS presupuestos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -281,20 +283,6 @@ CREATE TABLE IF NOT EXISTS presupuestos (
     estado TEXT DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aprobado', 'rechazado')),
     detalle_json TEXT,
     creado_por INTEGER REFERENCES usuarios(id)
-);
-
--- ---------------------------------------------------------------------
--- PAGOS (Fase 4)
--- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS pagos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
-    presupuesto_id INTEGER REFERENCES presupuestos(id),
-    fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    monto REAL NOT NULL,
-    metodo TEXT,
-    notas TEXT,
-    registrado_por INTEGER REFERENCES usuarios(id)
 );
 
 -- ---------------------------------------------------------------------
@@ -446,3 +434,65 @@ CREATE TABLE IF NOT EXISTS plan_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_planitems_plan ON plan_items (plan_id);
+
+-- ---------------------------------------------------------------------
+-- PAGOS, ABONOS Y CAJA (Fase 4B). Ver docs/fase-4b.md.
+-- ---------------------------------------------------------------------
+
+-- Numeracion secuencial de recibos por anio (REC-AAAA-####), mismo patron
+-- que contador_historias. El numero se asigna en la misma transaccion que
+-- inserta el pago y nunca se reutiliza (un pago anulado conserva el suyo).
+CREATE TABLE IF NOT EXISTS contador_recibos (
+    anio INTEGER PRIMARY KEY,
+    ultimo_numero INTEGER NOT NULL DEFAULT 0
+);
+
+-- Acuerdo de cuotas (ortodoncia u otros): entrada inicial + N cuotas
+-- mensuales el dia dia_pago_mes. El cronograma NO se persiste: se calcula
+-- en utils/finanzas.js a partir de estos campos y de los pagos vinculados.
+CREATE TABLE IF NOT EXISTS planes_pago (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+    plan_id INTEGER REFERENCES planes_tratamiento(id),
+    descripcion TEXT NOT NULL,
+    monto_total REAL NOT NULL CHECK (monto_total > 0),
+    entrada REAL NOT NULL DEFAULT 0 CHECK (entrada >= 0),
+    numero_cuotas INTEGER NOT NULL CHECK (numero_cuotas >= 1),
+    monto_cuota REAL NOT NULL CHECK (monto_cuota > 0),
+    dia_pago_mes INTEGER NOT NULL CHECK (dia_pago_mes BETWEEN 1 AND 28),
+    fecha_inicio TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'completado', 'cancelado')),
+    notas TEXT,
+    motivo_cancelacion TEXT,
+    creado_por INTEGER REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_planes_pago_paciente ON planes_pago (paciente_id);
+
+-- Un pago registrado es INMUTABLE: nunca se edita ni se elimina. Solo un
+-- admin puede anularlo con motivo (queda visible tachado y excluido de
+-- todos los totales). Una correccion = anular + registrar de nuevo.
+CREATE TABLE IF NOT EXISTS pagos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_recibo TEXT NOT NULL UNIQUE,
+    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+    plan_id INTEGER REFERENCES planes_tratamiento(id),
+    plan_item_id INTEGER REFERENCES plan_items(id),
+    plan_pago_id INTEGER REFERENCES planes_pago(id),
+    concepto TEXT NOT NULL,
+    monto REAL NOT NULL CHECK (monto > 0),
+    metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia', 'tarjeta', 'otro')),
+    referencia TEXT,
+    fecha_pago TEXT NOT NULL,
+    registrado_por INTEGER REFERENCES usuarios(id),
+    doctor_id INTEGER REFERENCES doctores(id),
+    anulado INTEGER NOT NULL DEFAULT 0,
+    motivo_anulacion TEXT,
+    anulado_por INTEGER REFERENCES usuarios(id),
+    anulado_en TEXT,
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pagos_paciente ON pagos (paciente_id);
+CREATE INDEX IF NOT EXISTS idx_pagos_fecha ON pagos (fecha_pago);

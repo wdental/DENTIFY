@@ -367,12 +367,21 @@ async function cargarPanelResumenPaciente() {
         planHtml = '<p class="resumen-plan-placeholder">Error al cargar el plan de tratamiento.</p>';
     }
 
+    // Fase 4B: saldo pendiente (pagos.js), enlaza a la pestana Pagos
+    let saldoHtml = '';
+    try {
+        if (typeof obtenerResumenPagosHtml === 'function') saldoHtml = await obtenerResumenPagosHtml();
+    } catch (error) {
+        saldoHtml = '';
+    }
+
     panel.innerHTML = `
         <h4>Resumen del paciente</h4>
         ${alertaHtml}
         <div class="resumen-diagnosticos-lista">${diagnosticosHtml}</div>
         ${consentimientosHtml}
         ${planHtml}
+        ${saldoHtml}
     `;
 }
 

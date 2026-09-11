@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Cuotas vencidas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Cuotas vencidas</h1>
+                <p>Planes de cuotas activos con cuotas impagas ya vencidas &middot; teléfono y WhatsApp a la vista para la gestión de cobro</p>
+            </div>
+            <a class="btn btn-secundario" href="/caja.html">&larr; Caja</a>
+        </div>
+
+        <div id="mensaje-vencidas"></div>
+
+        <div class="caja-totales" id="resumen-vencidas"></div>
+
+        <div class="form-grid" style="margin-bottom:16px;">
+            <div class="campo">
+                <label for="filtro-vencidas">Buscar paciente</label>
+                <input type="text" id="filtro-vencidas" placeholder="Apellido, nombre o teléfono...">
+            </div>
+            <div class="campo">
+                <label for="filtro-atraso">Días de atraso</label>
+                <select id="filtro-atraso">
+                    <option value="0">Todas</option>
+                    <option value="8">Más de 7 días</option>
+                    <option value="31">Más de 30 días</option>
+                    <option value="61">Más de 60 días</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="tabla-envoltorio">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Paciente</th>
+                        <th>Contacto</th>
+                        <th>Plan de cuotas</th>
+                        <th>Cuota</th>
+                        <th>Venció</th>
+                        <th>Días de atraso</th>
+                        <th>Pendiente</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpo-tabla-vencidas">
+                    <tr><td colspan="8" class="tabla-vacia">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/fechas.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/cuotas-vencidas.js"></script>
+</body>
+</html>
