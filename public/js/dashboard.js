@@ -69,7 +69,7 @@ function dibujarCitasHoy(citas) {
                     ${citasHoyActuales.map((c) => `
                         <tr>
                             <td>${c.hora_inicio}${c.hora_fin ? ' - ' + c.hora_fin : ''}</td>
-                            <td>${c.paciente_apellidos} ${c.paciente_nombres}</td>
+                            <td><a href="/paciente.html?id=${c.paciente_id}">${c.paciente_apellidos} ${c.paciente_nombres}</a></td>
                             <td>${c.doctor_nombre || 'Sin doctor'}</td>
                             <td>${c.sillon ? 'Sillón ' + c.sillon : '-'}</td>
                             <td>

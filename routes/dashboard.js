@@ -31,7 +31,7 @@ router.get('/resumen', (req, res) => {
     const hoy = new Date().toISOString().slice(0, 10);
     const citasHoy = db.prepare(`
         SELECT c.id, c.hora_inicio, c.hora_fin, c.estado, c.doctor_nombre, c.sillon,
-               p.nombres AS paciente_nombres, p.apellidos AS paciente_apellidos
+               p.id AS paciente_id, p.nombres AS paciente_nombres, p.apellidos AS paciente_apellidos
         FROM citas c
         JOIN pacientes p ON p.id = c.paciente_id
         WHERE c.fecha = ?
