@@ -177,6 +177,14 @@ p { margin: 0 0 .8em 0; }
     max-width: 1200px;
 }
 
+/* La ficha del paciente (odontograma + columna de evoluciones/resumen)
+   aprovecha mas ancho que el resto de paginas (listados, formularios) para
+   que el panel derecho no quede apretado junto al odontograma en pantallas
+   anchas. */
+.contenido--paciente {
+    max-width: 1600px;
+}
+
 .contenido__encabezado {
     display: flex;
     justify-content: space-between;
