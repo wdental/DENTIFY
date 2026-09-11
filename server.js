@@ -27,6 +27,8 @@ const rutasOdontograma = require('./routes/odontograma');
 const rutasCie10 = require('./routes/cie10');
 const rutasDiagnosticos = require('./routes/diagnosticos');
 const rutasEvoluciones = require('./routes/evoluciones');
+const rutasPlantillas = require('./routes/plantillas');
+const rutasConsentimientos = require('./routes/consentimientos');
 const { protegerPagina, requiereSesion } = require('./middleware/auth');
 const { iniciarProgramador } = require('./utils/sincronizacion');
 
@@ -61,6 +63,8 @@ app.use('/api/odontograma', rutasOdontograma);
 app.use('/api/cie10', rutasCie10);
 app.use('/api/diagnosticos', rutasDiagnosticos);
 app.use('/api/evoluciones', rutasEvoluciones);
+app.use('/api/plantillas', rutasPlantillas);
+app.use('/api/consentimientos', rutasConsentimientos);
 
 // Manejo de errores de multer / subida de archivos
 app.use((err, req, res, next) => {
@@ -78,7 +82,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Paginas protegidas (requieren sesion iniciada)
 const paginasProtegidas = [
     'index.html', 'pacientes.html', 'paciente.html', 'importador.html', 'usuarios.html',
-    'agenda.html', 'doctores.html', 'imprimir-f033.html'
+    'agenda.html', 'doctores.html', 'imprimir-f033.html', 'plantillas.html', 'imprimir-consentimiento.html'
 ];
 paginasProtegidas.forEach((pagina) => {
     app.get(`/${pagina}`, protegerPagina, (req, res) => {

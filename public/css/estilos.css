@@ -1593,6 +1593,128 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     color: var(--texto-secundario);
 }
 
+/* Consentimientos informados (Fase 3C) - pantalla de firma a pantalla completa */
+.kiosko-firma {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background-color: var(--marfil);
+    display: flex;
+    flex-direction: column;
+}
+
+.kiosko-firma__cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 28px;
+    background-color: var(--blanco);
+    border-bottom: 1px solid var(--gris-claro);
+    flex-shrink: 0;
+}
+
+.kiosko-firma__documento {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px;
+    max-width: 780px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.kiosko-firma__documento h4 {
+    font-family: var(--fuente-titulos);
+    color: var(--dorado);
+    margin: 20px 0 8px 0;
+}
+
+.kiosko-firma__documento ul { padding-left: 22px; }
+
+.kiosko-bloque-decision {
+    margin-top: 24px;
+    padding: 14px 18px;
+    border: 1.5px solid var(--dorado);
+    border-radius: var(--radio);
+    background-color: rgba(156, 122, 48, 0.06);
+}
+
+.kiosko-firma__decision {
+    flex-shrink: 0;
+    padding: 18px 28px 24px 28px;
+    background-color: var(--blanco);
+    border-top: 1px solid var(--gris-claro);
+    max-width: 780px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.kiosko-decision-botones {
+    display: flex;
+    gap: 12px;
+}
+
+.kiosko-decision-boton {
+    flex: 1;
+    padding: 14px;
+    border: 1.5px solid var(--gris-claro);
+    border-radius: var(--radio);
+    background-color: var(--blanco);
+    font-family: var(--fuente-cuerpo);
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: border-color .12s ease, background-color .12s ease;
+}
+
+.kiosko-decision-boton--activa {
+    border-color: var(--verde-ok);
+    background-color: rgba(76, 107, 79, 0.1);
+    color: var(--verde-ok);
+}
+
+.kiosko-decision-boton--rechazo.kiosko-decision-boton--activa {
+    border-color: var(--rojo-alerta);
+    background-color: rgba(161, 58, 43, 0.1);
+    color: var(--rojo-alerta);
+}
+
+/* Editor de texto simple para plantillas de documento (negritas/listas/parrafos) */
+.editor-simple-barra {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.editor-simple-barra button {
+    padding: 5px 10px;
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    background-color: var(--blanco);
+    font-family: var(--fuente-cuerpo);
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.editor-simple-barra button:hover { border-color: var(--dorado); }
+
+.editor-simple-cuerpo {
+    min-height: 320px;
+    max-height: 480px;
+    overflow-y: auto;
+    padding: 14px 16px;
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    background-color: var(--blanco);
+    font-size: 0.85rem;
+    line-height: 1.55;
+}
+.editor-simple-cuerpo h4 { font-family: var(--fuente-titulos); color: var(--dorado); margin: 10px 0 4px 0; }
+.editor-simple-cuerpo p { margin: 6px 0; }
+.editor-simple-cuerpo ul { padding-left: 20px; }
+.editor-simple-cuerpo code { background-color: rgba(156,122,48,0.1); padding: 1px 4px; border-radius: 3px; }
+
 /* M. Informe de examenes (seccion condicionada a L) */
 .informe-examen-bloque {
     border: 1px solid var(--gris-claro);
@@ -1697,6 +1819,14 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     font-size: 0.72rem;
     font-style: italic;
 }
+
+.resumen-consentimientos {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--gris-claro);
+    font-size: 0.76rem;
+}
+.resumen-consentimientos a { color: var(--dorado); font-weight: 600; }
 
 .odonto-panel-lateral h4 {
     font-family: var(--fuente-titulos);

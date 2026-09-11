@@ -351,10 +351,20 @@ async function cargarPanelResumenPaciente() {
         // silencioso: la alerta principal ya se muestra en el banner de la ficha
     }
 
+    let consentimientosHtml = '<p class="resumen-consentimientos mb-0 texto-secundario">Sin consentimientos vigentes.</p>';
+    try {
+        const consentimientos = await api.get(`/api/consentimientos/${pacienteId}`);
+        const vigentes = consentimientos.filter((c) => c.estado === 'aceptado').length;
+        consentimientosHtml = `<p class="resumen-consentimientos mb-0"><a href="#" onclick="cambiarPestanaReal('panel-consentimientos'); return false;">${vigentes} consentimiento${vigentes === 1 ? '' : 's'} aceptado${vigentes === 1 ? '' : 's'} vigente${vigentes === 1 ? '' : 's'} →</a></p>`;
+    } catch (error) {
+        // silencioso
+    }
+
     panel.innerHTML = `
         <h4>Resumen del paciente</h4>
         ${alertaHtml}
         <div class="resumen-diagnosticos-lista">${diagnosticosHtml}</div>
+        ${consentimientosHtml}
         <p class="resumen-plan-placeholder">Plan de tratamiento — disponible en próxima fase</p>
     `;
 }

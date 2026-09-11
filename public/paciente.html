@@ -44,6 +44,7 @@
             <button class="pestana" data-panel="panel-documentos">Documentos</button>
             <button class="pestana" data-panel="panel-citas">Citas</button>
             <button class="pestana" data-panel="panel-ficha-clinica">Ficha clínica (F033)</button>
+            <button class="pestana" data-panel="panel-consentimientos">Consentimientos</button>
         </div>
 
         <div class="panel-pestana activo" id="panel-datos">
@@ -440,6 +441,17 @@
             </details>
         </div>
 
+        <div class="panel-pestana" id="panel-consentimientos">
+            <div class="tarjeta">
+                <div class="flex-entre" style="margin-bottom:16px;">
+                    <h3 class="mb-0">Consentimientos informados</h3>
+                    <button class="btn btn-primario btn-sm" id="btn-nuevo-consentimiento">+ Nuevo consentimiento</button>
+                </div>
+                <p class="texto-secundario">Cada consentimiento firmado es inmutable. Una revocación se registra como un documento nuevo, vinculado al original, que permanece intacto.</p>
+                <div id="lista-consentimientos"><p class="texto-secundario">Cargando consentimientos...</p></div>
+            </div>
+        </div>
+
         <button type="button" class="btn-guardar-flotante oculto" id="btn-guardar-ficha-flotante">
             Guardar ficha clínica
             <span class="btn-guardar-flotante__badge oculto" id="badge-cambios-pendientes"></span>
@@ -653,6 +665,159 @@
     </div>
 </div>
 
+<!-- Modal: Nuevo consentimiento - paso 1 (personal de la clinica) -->
+<div class="modal-fondo" id="modal-nuevo-consentimiento">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-consentimiento">&times;</button>
+        <h2>Nuevo consentimiento informado</h2>
+        <div id="error-modal-consentimiento"></div>
+
+        <div class="campo campo--ancho">
+            <label for="cons-plantilla">Plantilla</label>
+            <select id="cons-plantilla"><option value="">Seleccione...</option></select>
+        </div>
+
+        <div id="cons-fecha-nacimiento-block" class="alerta alerta--error oculto" style="margin-bottom:14px;">
+            <div>
+                <p style="margin:0 0 8px 0;">Este paciente no tiene fecha de nacimiento registrada. Se requiere para calcular la edad y activar el flujo de representante legal si aplica.</p>
+                <div class="form-grid">
+                    <div class="campo">
+                        <label for="cons-fecha-nacimiento">Fecha de nacimiento</label>
+                        <input type="date" id="cons-fecha-nacimiento">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secundario btn-sm" id="btn-guardar-fecha-nacimiento" style="margin-top:6px;">Guardar y continuar</button>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="campo">
+                <label>Paciente</label>
+                <p class="mt-0 mb-0" id="cons-paciente-resumen">—</p>
+            </div>
+            <div class="campo">
+                <label for="cons-doctor">Doctor</label>
+                <select id="cons-doctor"><option value="">Sin especificar</option></select>
+            </div>
+            <div class="campo">
+                <label for="cons-piezas">Piezas involucradas (FDI, opcional)</label>
+                <input type="text" id="cons-piezas" placeholder="Ej. 16, 25">
+            </div>
+        </div>
+        <div class="campo campo--ancho">
+            <label for="cons-procedimiento-detalle">Detalle del procedimiento para este paciente</label>
+            <textarea id="cons-procedimiento-detalle" placeholder="Ej. duración estimada, técnica, observaciones específicas del caso..."></textarea>
+        </div>
+
+        <div id="cons-representante-block" class="alerta oculto" style="margin-bottom:14px; background-color: rgba(156,122,48,0.08); border-color: var(--dorado);">
+            <div style="width:100%;">
+                <p style="margin:0 0 8px 0;"><strong>Paciente menor de edad</strong> — se requieren los datos del representante legal, quien firmará el consentimiento.</p>
+                <div class="form-grid">
+                    <div class="campo">
+                        <label for="cons-representante-nombre">Nombre completo del representante *</label>
+                        <input type="text" id="cons-representante-nombre">
+                    </div>
+                    <div class="campo">
+                        <label for="cons-representante-cedula">Cédula del representante (10 dígitos) *</label>
+                        <input type="text" id="cons-representante-cedula" maxlength="10" inputmode="numeric">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-consentimiento">Cancelar</button>
+            <button type="button" class="btn btn-primario" id="btn-continuar-firma">Continuar a firma →</button>
+        </div>
+    </div>
+</div>
+
+<!-- Pantalla de firma a pantalla completa (modo quiosco: se entrega la tablet al paciente) -->
+<div class="kiosko-firma oculto" id="kiosko-firma">
+    <div class="kiosko-firma__cabecera">
+        <div>
+            <h2 class="mb-0" id="kiosko-titulo">Consentimiento informado</h2>
+            <p class="texto-secundario mb-0" id="kiosko-subtitulo"></p>
+        </div>
+        <button type="button" class="btn btn-secundario btn-sm" id="btn-cancelar-kiosko">Cancelar</button>
+    </div>
+    <div class="kiosko-firma__documento" id="kiosko-documento"></div>
+    <div class="kiosko-firma__decision">
+        <p class="seccion-clinica__ayuda">Lea el documento completo y elija su decisión:</p>
+        <div class="kiosko-decision-botones">
+            <button type="button" class="kiosko-decision-boton" id="kiosko-btn-acepto" data-decision="aceptado">✓ Acepto el procedimiento</button>
+            <button type="button" class="kiosko-decision-boton kiosko-decision-boton--rechazo" id="kiosko-btn-rechazo" data-decision="rechazado">✗ Rechazo el procedimiento</button>
+        </div>
+        <div id="error-kiosko" style="margin-top:10px;"></div>
+        <div class="form-grid" style="margin-top:14px;">
+            <div class="campo">
+                <label id="kiosko-etiqueta-firmante">Firma del paciente *</label>
+                <div class="firma-envoltura">
+                    <canvas class="firma-canvas" id="cons-firma-paciente" width="360" height="150"></canvas>
+                    <div class="firma-envoltura__pie">
+                        <span class="firma-envoltura__etiqueta" id="kiosko-etiqueta-firma-linea">Firma del paciente</span>
+                        <button type="button" class="btn-texto" onclick="limpiarFirmaCanvas('cons-firma-paciente')">Limpiar</button>
+                    </div>
+                </div>
+            </div>
+            <div class="campo">
+                <label>Firma del doctor (opcional en este momento)</label>
+                <div class="firma-envoltura">
+                    <canvas class="firma-canvas" id="cons-firma-doctor" width="360" height="150"></canvas>
+                    <div class="firma-envoltura__pie">
+                        <span class="firma-envoltura__etiqueta">Firma del doctor</span>
+                        <button type="button" class="btn-texto" onclick="limpiarFirmaCanvas('cons-firma-doctor')">Limpiar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primario" style="margin-top:16px; width:100%;" id="btn-confirmar-firma-consentimiento">Confirmar firma</button>
+    </div>
+</div>
+
+<!-- Pantalla de firma para revocacion (solo firma del paciente) -->
+<div class="kiosko-firma oculto" id="kiosko-revocacion">
+    <div class="kiosko-firma__cabecera">
+        <div>
+            <h2 class="mb-0">Revocación del consentimiento</h2>
+            <p class="texto-secundario mb-0" id="kiosko-revocacion-subtitulo"></p>
+        </div>
+        <button type="button" class="btn btn-secundario btn-sm" id="btn-cancelar-kiosko-revocacion">Cancelar</button>
+    </div>
+    <div class="kiosko-firma__documento" id="kiosko-revocacion-documento"></div>
+    <div class="kiosko-firma__decision">
+        <div id="error-kiosko-revocacion"></div>
+        <div class="campo">
+            <label>Firma de quien revoca *</label>
+            <div class="firma-envoltura">
+                <canvas class="firma-canvas" id="cons-firma-revocacion" width="360" height="150"></canvas>
+                <div class="firma-envoltura__pie">
+                    <span class="firma-envoltura__etiqueta">Firma</span>
+                    <button type="button" class="btn-texto" onclick="limpiarFirmaCanvas('cons-firma-revocacion')">Limpiar</button>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-peligro" style="margin-top:16px; width:100%;" id="btn-confirmar-revocacion">Confirmar revocación</button>
+    </div>
+</div>
+
+<!-- Modal: Anular consentimiento (solo admin) -->
+<div class="modal-fondo" id="modal-anular-consentimiento">
+    <div class="modal">
+        <h2>Anular consentimiento</h2>
+        <p class="seccion-clinica__ayuda">El documento no se borra: queda visible tachado con el motivo indicado.</p>
+        <div id="error-modal-anular-consentimiento"></div>
+        <div class="campo campo--ancho">
+            <label for="anular-consentimiento-motivo">Motivo de la anulación *</label>
+            <textarea id="anular-consentimiento-motivo"></textarea>
+        </div>
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-anular-consentimiento">Cancelar</button>
+            <button type="button" class="btn btn-peligro" id="confirmar-modal-anular-consentimiento">Anular consentimiento</button>
+        </div>
+    </div>
+</div>
+
 <script src="/js/api.js"></script>
 <script src="/js/fechas.js"></script>
 <script src="/js/firma.js"></script>
@@ -662,5 +827,6 @@
 <script src="/js/odontograma.js"></script>
 <script src="/js/evoluciones.js"></script>
 <script src="/js/diagnosticos.js"></script>
+<script src="/js/consentimientos.js"></script>
 </body>
 </html>

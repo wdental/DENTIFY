@@ -307,3 +307,53 @@ CREATE TABLE IF NOT EXISTS firmas (
     firma_data TEXT,                               -- imagen de firma en base64
     fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+
+-- ---------------------------------------------------------------------
+-- CONSENTIMIENTOS INFORMADOS (Fase 3C)
+-- ---------------------------------------------------------------------
+
+-- Plantillas de texto legal con marcadores {paciente_nombre}, {paciente_cedula},
+-- etc. (ver public/js/consentimientos.js, PLANTILLA_MARCADORES). Editar una
+-- plantilla nunca altera los consentimientos ya firmados: estos guardan su
+-- propio contenido_final, ya resuelto, de forma permanente.
+CREATE TABLE IF NOT EXISTS plantillas_documento (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('consentimiento', 'certificado', 'otro')),
+    procedimiento_asociado TEXT,
+    contenido TEXT NOT NULL,               -- HTML simple (negritas/listas/parrafos) con marcadores {marcador}
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    creado_por INTEGER REFERENCES usuarios(id)
+);
+
+-- Un consentimiento FIRMADO es inmutable (contenido_final, firmas, hash,
+-- decision y firmante nunca cambian). Las unicas columnas que se actualizan
+-- despues de creado son estado (al revocar/anular) y motivo/anulado_* (solo
+-- al anular) - igual que el patron ya usado en evoluciones.anulada.
+-- Revocacion: se inserta una fila NUEVA con decision='revocacion' y
+-- consentimiento_origen_id apuntando al aceptado original, que a su vez
+-- pasa su propio estado a 'revocado' (sin tocar su contenido_final/firma).
+CREATE TABLE IF NOT EXISTS consentimientos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+    plantilla_id INTEGER REFERENCES plantillas_documento(id),
+    contenido_final TEXT NOT NULL,          -- texto exacto firmado (marcadores ya resueltos + bloque de decision)
+    decision TEXT NOT NULL CHECK (decision IN ('aceptado', 'rechazado', 'revocacion')),
+    estado TEXT NOT NULL CHECK (estado IN ('aceptado', 'rechazado', 'revocado', 'anulado')),
+    firma_paciente_path TEXT NOT NULL,
+    firma_doctor_path TEXT,
+    firmante_nombre TEXT NOT NULL,
+    firmante_cedula TEXT,                   -- puede faltar (paciente extranjero sin cedula registrada)
+    es_representante INTEGER NOT NULL DEFAULT 0,
+    doctor_id INTEGER REFERENCES doctores(id),
+    fecha_firma TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    hash_documento TEXT NOT NULL,           -- SHA-256 de contenido_final
+    consentimiento_origen_id INTEGER REFERENCES consentimientos(id),
+    motivo_anulacion TEXT,
+    anulado_por INTEGER REFERENCES usuarios(id),
+    anulado_en TEXT,
+    creado_por INTEGER REFERENCES usuarios(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_consentimientos_paciente ON consentimientos (paciente_id);

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Plantillas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Plantillas de documento</h1>
+                <p>Panel exclusivo de administrador &middot; consentimientos informados y otros documentos generables</p>
+            </div>
+            <button class="btn btn-primario" id="btn-nueva-plantilla">+ Nueva plantilla</button>
+        </div>
+
+        <p class="seccion-clinica__ayuda">Editar una plantilla nunca altera los consentimientos ya firmados — cada uno guarda su propio texto final, resuelto e inmutable.</p>
+
+        <div id="mensaje-plantillas"></div>
+
+        <div class="tabla-envoltorio">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Tipo</th>
+                        <th>Procedimiento asociado</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpo-tabla-plantillas">
+                    <tr><td colspan="5" class="tabla-vacia">Cargando plantillas...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: nueva / editar plantilla -->
+<div class="modal-fondo" id="modal-plantilla">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-plantilla">&times;</button>
+        <h2 id="titulo-modal-plantilla">Nueva plantilla</h2>
+        <div id="error-modal-plantilla"></div>
+
+        <form id="form-plantilla">
+            <input type="hidden" id="p-id">
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="p-nombre">Nombre</label>
+                    <input type="text" id="p-nombre" required>
+                </div>
+                <div class="campo">
+                    <label for="p-tipo">Tipo</label>
+                    <select id="p-tipo">
+                        <option value="consentimiento">Consentimiento</option>
+                        <option value="certificado">Certificado</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="p-procedimiento">Procedimiento asociado (opcional)</label>
+                    <input type="text" id="p-procedimiento" placeholder="Ej. exodoncia">
+                </div>
+            </div>
+
+            <div class="campo campo--ancho">
+                <label>Contenido</label>
+                <p class="seccion-clinica__ayuda" style="margin-top:0;">Marcadores disponibles: <code>{paciente_nombre}</code> <code>{paciente_cedula}</code> <code>{paciente_edad}</code> <code>{representante_nombre}</code> <code>{representante_cedula}</code> <code>{representante_clausula}</code> <code>{doctor_nombre}</code> <code>{doctor_registro}</code> <code>{fecha}</code> <code>{piezas}</code> <code>{procedimiento_detalle}</code></p>
+                <div class="editor-simple-barra">
+                    <button type="button" onclick="document.execCommand('bold')"><strong>N</strong></button>
+                    <button type="button" onclick="document.execCommand('insertUnorderedList')">• Lista</button>
+                    <button type="button" onclick="document.execCommand('formatBlock', false, 'p')">Párrafo</button>
+                    <button type="button" onclick="document.execCommand('formatBlock', false, 'h4')">Título de sección</button>
+                </div>
+                <div class="editor-simple-cuerpo" id="p-contenido" contenteditable="true"></div>
+            </div>
+
+            <div class="campo" id="campo-activo-plantilla">
+                <label style="display:flex; align-items:center; gap:8px; flex-direction: row; text-transform: none; font-size: 0.85rem;">
+                    <input type="checkbox" id="p-activo" style="width:auto;" checked>
+                    Plantilla activa (disponible para generar documentos nuevos)
+                </label>
+            </div>
+
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-plantilla">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar plantilla</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/plantillas.js"></script>
+</body>
+</html>

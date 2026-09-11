@@ -175,6 +175,51 @@ Botón **"Imprimir F033"** en la ficha del paciente, abre `imprimir-f033.html?id
 - La tabla `evoluciones` (stub sin interfaz de usuario de fases anteriores, **sin datos reales**) se recrea con el esquema completo de la sección P.
 - **Incidente encontrado y corregido durante las pruebas**: la columna `evoluciones.cita_id` referenciaba `citas(id)` sin `ON DELETE SET NULL`. Borrar una cita vinculada a una evolución hacía fallar la sentencia `DELETE` con una excepción no controlada en `routes/citas.js`, **tumbando el servidor completo** (reproducido y confirmado en esta misma sesión). Corregido en dos frentes: (1) migración que reconstruye `evoluciones` con `ON DELETE SET NULL` en `cita_id` — borrar la cita ahora solo desvincula la referencia, nunca afecta ni borra la evolución (el registro legal se preserva siempre), conservando las evoluciones ya existentes; (2) `routes/citas.js` ahora envuelve el `DELETE` en un `try/catch` y responde con un error 400 claro ante cualquier restricción de base de datos, en vez de dejar caer una excepción no controlada que tumbe el proceso — protección general, no solo para este caso.
 
+## Contenido de la Fase 3C
+
+Consentimientos informados con firma capturada en pantalla, conforme al Acuerdo Ministerial 5316 (Modelo de Gestión de Aplicación del Consentimiento Informado en la Práctica Asistencial). Antes de construir esta fase se analizó un proyecto existente de la clínica (`WD_DOCS`, una herramienta estática sin backend que genera consentimientos/certificados imprimibles) para reutilizar sus textos legales ya validados en vez de redactar plantillas genéricas nuevas.
+
+### Plantillas migradas de WD_DOCS
+
+`plantillas_documento` (`id`, `nombre`, `tipo` — `'consentimiento' | 'certificado' | 'otro'`, `procedimiento_asociado`, `contenido` HTML con marcadores, `activo`) sembrada con las **7 plantillas de consentimiento de WD_DOCS, con su texto legal fiel** (solo se adaptó el mecanismo de sustitución: WD_DOCS usaba spans `id="out-x"` rellenados por JS imperativo; Dentify usa marcadores `{marcador}` resueltos por el servidor):
+
+- Ortodoncia · Exodoncia/Cirugía Oral · Implante Dental · Rehabilitación Oral · Apicectomía · Escaneo Intraoral Digital · Preservación Alveolar
+
+Marcadores: `{paciente_nombre}` `{paciente_cedula}` `{paciente_edad}` `{representante_nombre}` `{representante_cedula}` `{doctor_nombre}` `{doctor_registro}` `{fecha}` `{piezas}` `{procedimiento_detalle}`, más el ayudante calculado `{representante_clausula}` (la frase ", representado(a) legalmente por X (C.I. Y)" que se arma sola solo para menores — vacía para un adulto, para no romper la gramática de la frase de apertura). Los 6 documentos no-consentimiento de WD_DOCS (certificados, orden de Rx, cuidados postoperatorios, declaración de antecedentes) **no se migraron** — el campo `tipo` ya los deja listos para una fase futura con el mismo motor.
+
+**Panel admin** (`/plantillas.html`, solo admin): crear/editar/desactivar con un editor simple (negritas, listas, párrafos vía `contentEditable` + `execCommand`, sin librerías). Editar una plantilla **nunca** altera un consentimiento ya firmado — cada uno guarda su propio `contenido_final` ya resuelto en el momento de la firma, para siempre.
+
+### Generación y firma (subsección "Consentimientos" de la ficha del paciente)
+
+1. **"Nuevo consentimiento"**: elegir plantilla → los datos del paciente (cédula, nombre, edad) y el doctor (preseleccionado desde la cuenta en sesión, vínculo usuario↔doctor de la ronda anterior) se autocompletan **desde la base de datos, nunca se digitan de nuevo** — el personal solo edita `{piezas}` y `{procedimiento_detalle}`, específicos del caso.
+2. **Menores de edad**: si la edad (calculada desde `fecha_nacimiento`) es menor a 18, el bloque de representante legal (nombre + cédula, validada a 10 dígitos) se activa **automáticamente** — no hay toggle manual. Si el paciente no tiene fecha de nacimiento registrada, se pide y se guarda en su ficha (`PUT /api/pacientes/:id`) antes de continuar.
+3. **Pantalla de firma a pantalla completa** (modo quiosco, para entregar la tablet al paciente): el documento completo, scrolleable, con la decisión y la firma al final. Comparte el mismo pad de `public/js/firma.js` (canvas, mouse/touch/lápiz) usado en las evoluciones.
+
+**Patrón tripartito Acepto/Rechazo/Revoco de WD_DOCS, adaptado a un flujo digital de un solo acto por firma** (en papel, las tres opciones convivían como casillas en el mismo documento en blanco):
+
+- El paciente **elige** Acepto o Rechazo y firma **una sola vez** esa decisión — el texto final incluye el bloque de declaración correspondiente (migrado también de WD_DOCS).
+- **Revocación**: solo disponible sobre un consentimiento en estado `aceptado`. El botón "Registrar revocación" abre una pantalla de firma con el texto de revocación (referenciando la plantilla y fecha original) → nueva firma → se guarda como un **consentimiento NUEVO** (`decision = 'revocacion'`, vinculado por `consentimiento_origen_id`). El original **nunca se toca** en su contenido/firma/hash — solo su columna `estado` pasa a `'revocado'` (mismo patrón ya usado en `evoluciones.anulada`). La impresión de cualquiera de los dos documentos muestra **ambos**, en orden cronológico.
+- Estados: `aceptado` · `rechazado` · `revocado` · `anulado` (borrado lógico, solo admin, con motivo obligatorio — el documento sigue visible, tachado).
+- Firma opcional del doctor en el mismo flujo (checkbox de facto: se envía si se dibujó, se omite si no).
+
+### Inmutabilidad, integridad y almacenamiento
+
+Tabla `consentimientos`: `contenido_final` (el texto exacto firmado — ya resuelto por el servidor, nunca confiado al cliente), `decision`, `estado`, `firma_paciente_path`/`firma_doctor_path` (rutas a PNG en `uploads/pacientes/{id}/firmas/`), `firmante_nombre`/`firmante_cedula`/`es_representante`, `doctor_id`, `fecha_firma`, `hash_documento` (SHA-256 de `contenido_final`, calculado con el módulo `crypto` nativo de Node — sin dependencias nuevas), `consentimiento_origen_id`, `motivo_anulacion`. Reutiliza la tabla `firmas` que ya existía como *stub* desde la Fase 1 (`documento_tipo`/`documento_id` genéricos) para las firmas de cada evolución (Fase 3B, ronda anterior); los consentimientos usan su propio esquema por la necesidad de `contenido_final`/`hash`/estados/revocación.
+
+Un consentimiento **firmado es inmutable**: no existe ruta para editarlo ni borrarlo. Las únicas columnas que cambian después de creado son `estado` (al revocar/anular) y `motivo_anulacion`/`anulado_por`/`anulado_en` (solo al anular) — mismo patrón que `evoluciones.anulada` de la Fase 3B.
+
+### Impresión
+
+Botón **"Ver / Imprimir"** por consentimiento (también accesible desde la pestaña Documentos), abre `imprimir-consentimiento.html?pacienteId=X&id=Y`. **Membrete replicado fielmente de WD_DOCS** (propio, en `public/css/impresion-consentimiento.css` — no se reutilizó `impresion.css` de F033 porque ambas vistas de impresión necesitan `@page` con márgenes distintos, y `@page` no admite scope por selector): wordmark tipográfico "World" serif + "Dental" dorado, dirección de Conocoto, línea dorada degradada, `@page { size: A4; margin: 1.6cm 1.8cm }` (igual que WD_DOCS). Muestra el texto completo firmado, las imágenes de ambas firmas con nombre/cédula debajo de cada una, fecha/hora, y el pie **"Documento generado por Dentify — verificación: {hash corto}"**. Si el documento tiene una revocación vinculada (o es una revocación), imprime ambos documentos en páginas separadas, en orden cronológico.
+
+### Resumen del paciente
+
+El panel "Resumen del paciente" (columna derecha del odontograma) suma una línea con el conteo de consentimientos **aceptados vigentes**, con acceso directo a la pestaña Consentimientos.
+
+### Migración de base de datos (Fase 3C)
+
+Dos tablas nuevas (`plantillas_documento`, `consentimientos`, `CREATE TABLE IF NOT EXISTS` en `db/schema.sql`) — no afectan ninguna tabla existente. `plantillas_documento` se siembra una sola vez (`db/semillaPlantillas.js`, mismo patrón que `sembrarDoctores`/`sembrarCie10`) con las 7 plantillas migradas de WD_DOCS. Probado explícitamente contra un *backup* consistente (vía `Database.backup()`, necesario porque el servidor corre en modo WAL) de la base de datos real de producción antes de aplicarlo.
+
 ## Ronda de correcciones — ficha clínica y odontograma (tras revisión de usuario)
 
 Ronda de correcciones dedicada sobre seis puntos reportados tras revisión de la ficha clínica y el odontograma en uso real. No tocó la lógica de versionado inmutable, las exclusiones clínicas ni la sincronización con Google Calendar.

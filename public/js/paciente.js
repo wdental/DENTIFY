@@ -55,6 +55,7 @@ const CLASE_ESTADO_CITA = {
     await cargarCitasPaciente();
     await cargarFichaClinica();
     await cargarOdontograma();
+    if (typeof cargarConsentimientos === 'function') await cargarConsentimientos();
 })();
 
 function irAImprimirF033() {

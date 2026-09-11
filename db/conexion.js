@@ -7,6 +7,7 @@ const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 
 const { migrar, sembrarDoctores, sembrarCie10 } = require('./migraciones');
+const { sembrarPlantillas } = require('./semillaPlantillas');
 
 const RUTA_DB = path.join(__dirname, 'dentify.db');
 const RUTA_SCHEMA = path.join(__dirname, 'schema.sql');
@@ -37,5 +38,8 @@ sembrarDoctores(db);
 
 // Poblar el catalogo CIE-10 odontologico si la tabla esta vacia (Fase 3B)
 sembrarCie10(db);
+
+// Poblar las plantillas de consentimiento informado si la tabla esta vacia (Fase 3C)
+sembrarPlantillas(db);
 
 module.exports = db;
