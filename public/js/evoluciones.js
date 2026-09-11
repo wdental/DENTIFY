@@ -206,10 +206,11 @@ async function guardarEvolucion(evento) {
     };
 
     try {
-        await api.post(`/api/evoluciones/${pacienteId}`, datos);
+        const resultado = await api.post(`/api/evoluciones/${pacienteId}`, datos);
         cerrarModalEvolucion();
         await cargarEvolucionesCompletas();
         if (typeof cargarPanelEvolucionesLateral === 'function') await cargarPanelEvolucionesLateral();
+        if (typeof manejarCierrePlanTrasEvolucion === 'function') await manejarCierrePlanTrasEvolucion(resultado.id, piezas);
 
         if (datos.es_alta) {
             const tieneAlta = versionesOdontograma && versionesOdontograma.some((v) => v.tipo === 'alta');

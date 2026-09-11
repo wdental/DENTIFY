@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Plan de tratamiento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+<link rel="stylesheet" href="/css/impresion.css">
+<link rel="stylesheet" href="/css/impresion-consentimiento.css">
+<link rel="stylesheet" href="/css/impresion-plan.css">
+</head>
+<body class="cuerpo-impresion">
+
+<div class="barra-impresion no-imprimir">
+    <span>Vista de impresión — Plan de tratamiento</span>
+    <div>
+        <button type="button" class="btn btn-secundario btn-sm" onclick="window.close()">Cerrar</button>
+        <button type="button" class="btn btn-primario btn-sm" onclick="window.print()">Imprimir / Guardar como PDF</button>
+    </div>
+</div>
+
+<div id="contenido-impresion">
+    <p class="no-imprimir" style="padding: 40px; text-align:center;">Cargando documento...</p>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/fechas.js"></script>
+<script src="/js/imprimir-plan.js"></script>
+</body>
+</html>

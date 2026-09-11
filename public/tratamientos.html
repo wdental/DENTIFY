@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Tratamientos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Tratamientos</h1>
+                <p>Panel exclusivo de administrador &middot; catálogo de precios y mapeo hallazgo → tratamiento</p>
+            </div>
+            <button class="btn btn-primario" id="btn-nuevo-tratamiento">+ Nuevo tratamiento</button>
+        </div>
+
+        <div id="mensaje-tratamientos"></div>
+
+        <div class="pestanas">
+            <button class="pestana activa" data-panel="panel-catalogo">Catálogo</button>
+            <button class="pestana" data-panel="panel-mapeo">Mapeo de hallazgos</button>
+            <button class="pestana" data-panel="panel-importar">Importar desde Excel</button>
+        </div>
+
+        <div class="panel-pestana activo" id="panel-catalogo">
+            <div class="form-grid" style="margin-bottom:16px;">
+                <div class="campo">
+                    <label for="filtro-busqueda-tratamiento">Buscar</label>
+                    <input type="text" id="filtro-busqueda-tratamiento" placeholder="Nombre o código...">
+                </div>
+                <div class="campo">
+                    <label for="filtro-categoria-tratamiento">Categoría</label>
+                    <select id="filtro-categoria-tratamiento">
+                        <option value="">Todas</option>
+                        <option value="Prevencion">Prevención</option>
+                        <option value="Operatoria">Operatoria</option>
+                        <option value="Endodoncia">Endodoncia</option>
+                        <option value="Cirugia">Cirugía</option>
+                        <option value="Rehabilitacion">Rehabilitación</option>
+                        <option value="Ortodoncia">Ortodoncia</option>
+                        <option value="Estetica">Estética</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+            </div>
+            <div class="tabla-envoltorio">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre</th>
+                            <th>Categoría</th>
+                            <th>Precio</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cuerpo-tabla-tratamientos">
+                        <tr><td colspan="6" class="tabla-vacia">Cargando tratamientos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-mapeo">
+            <p class="seccion-clinica__ayuda">Asigna el tratamiento del catálogo que se sugerirá automáticamente al generar un plan de tratamiento para cada hallazgo rojo del odontograma. Si un hallazgo no tiene tratamiento asignado, la línea del plan se genera sin precio.</p>
+            <div id="contenedor-mapeo-hallazgos"><p class="texto-secundario">Cargando mapeo...</p></div>
+        </div>
+
+        <div class="panel-pestana" id="panel-importar">
+            <div class="tarjeta" id="paso-subir-tratamiento">
+                <h3>Paso 1 · Seleccionar archivo</h3>
+                <div class="zona-carga">
+                    <input type="file" id="campo-archivo-tratamiento" accept=".xlsx,.xls,.csv">
+                    <button class="btn btn-primario btn-sm" id="btn-subir-archivo-tratamiento" style="margin-left: 10px;">Analizar archivo</button>
+                </div>
+            </div>
+
+            <div class="tarjeta oculto" id="paso-mapeo-tratamiento" style="margin-top: 24px;">
+                <h3>Paso 2 · Vista previa y mapeo de columnas</h3>
+                <p class="texto-secundario" id="info-filas-tratamiento"></p>
+                <div class="tabla-envoltorio" style="margin-bottom: 20px;">
+                    <table>
+                        <thead><tr id="fila-encabezados-previa-tratamiento"></tr></thead>
+                        <tbody id="cuerpo-tabla-previa-tratamiento"></tbody>
+                    </table>
+                </div>
+                <h3>Asignar cada columna a un campo de Dentify</h3>
+                <div class="form-grid" id="contenedor-mapeo-tratamiento"></div>
+                <div class="flex-entre" style="margin-top: 24px;">
+                    <button class="btn btn-secundario" id="btn-cancelar-importacion-tratamiento">Cancelar</button>
+                    <button class="btn btn-primario" id="btn-confirmar-importacion-tratamiento">Importar tratamientos</button>
+                </div>
+            </div>
+
+            <div class="tarjeta oculto" id="paso-reporte-tratamiento" style="margin-top: 24px;">
+                <h3>Resultado de la importación</h3>
+                <div id="contenido-reporte-tratamiento"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: nuevo / editar tratamiento -->
+<div class="modal-fondo" id="modal-tratamiento">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-tratamiento">&times;</button>
+        <h2 id="titulo-modal-tratamiento">Nuevo tratamiento</h2>
+        <div id="error-modal-tratamiento"></div>
+
+        <form id="form-tratamiento">
+            <input type="hidden" id="t-id">
+            <div class="form-grid">
+                <div class="campo campo--ancho">
+                    <label for="t-nombre">Nombre *</label>
+                    <input type="text" id="t-nombre" required>
+                </div>
+                <div class="campo">
+                    <label for="t-codigo">Código (opcional)</label>
+                    <input type="text" id="t-codigo">
+                </div>
+                <div class="campo">
+                    <label for="t-categoria">Categoría</label>
+                    <select id="t-categoria">
+                        <option value="Prevencion">Prevención</option>
+                        <option value="Operatoria">Operatoria</option>
+                        <option value="Endodoncia">Endodoncia</option>
+                        <option value="Cirugia">Cirugía</option>
+                        <option value="Rehabilitacion">Rehabilitación</option>
+                        <option value="Ortodoncia">Ortodoncia</option>
+                        <option value="Estetica">Estética</option>
+                        <option value="Otro" selected>Otro</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="t-precio">Precio (USD) *</label>
+                    <input type="text" id="t-precio" required placeholder="Ej. 45.00">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="t-notas">Notas</label>
+                    <textarea id="t-notas"></textarea>
+                </div>
+            </div>
+
+            <div class="campo" id="campo-activo-tratamiento">
+                <label style="display:flex; align-items:center; gap:8px; flex-direction: row; text-transform: none; font-size: 0.85rem;">
+                    <input type="checkbox" id="t-activo" style="width:auto;" checked>
+                    Tratamiento activo (disponible para planes nuevos)
+                </label>
+            </div>
+
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-tratamiento">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar tratamiento</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/tratamientos.js"></script>
+</body>
+</html>

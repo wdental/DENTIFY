@@ -231,6 +231,37 @@ Ronda de correcciones dedicada sobre seis puntos reportados tras revisión de la
 - **Columna derecha del odontograma a ancho completo**: el panel de Evoluciones (antes una tercera columna angosta de 172px) ahora ocupa el ancho completo de una columna derecha de 320px (`.odonto-columna-derecha`, que envuelve ambos paneles con `position: sticky`). Debajo se agregó un nuevo panel **"Resumen del paciente"** (`cargarPanelResumenPaciente()` en `public/js/odontograma.js`): diagnósticos CIE-10 activos (código + descripción + PRE/DEF), alerta médica si existe (mismo estilo visual que el banner de la ficha) y un placeholder discreto "Plan de tratamiento — disponible en próxima fase". Por debajo de 1280px, la columna completa pasa a una sola columna estática debajo del odontograma (mismo breakpoint que ya existía para la paleta).
 - **Banda de símbolos en la arcada inferior**: `ALTURA_BANDA_SELLANTE` (22px) se quedaba corta para el peor caso real — sellante + endodoncia apilados en la misma pieza alcanzaban 27.5px desde el borde de la pieza, pero solo había 26px reservados, causando una invasión de ~1.5px sobre la fila vecina en la arcada inferior. Ampliado a 24px (28px reservados totales) — verificado midiendo en el DOM que los símbolos apilados quedan dentro de la banda reservada, sin chocar con la fila de temporales, tanto en una pieza superior como inferior con endodoncia y sellante coincidiendo.
 
+## Contenido de la Fase 4A
+
+Catálogo de tratamientos con precios y plan de tratamiento derivado del odontograma. Especificación completa en `docs/fase-4a.md`.
+
+### Catálogo de tratamientos
+
+Panel admin `/tratamientos.html` (`routes/tratamientos.js`, tabla `tratamientos`): código opcional, nombre, categoría (Prevención, Operatoria, Endodoncia, Cirugía, Rehabilitación, Ortodoncia, Estética, Otro), precio en USD y estado activo/inactivo, con búsqueda en vivo y filtro por categoría. Una restauración puede tener hasta **3 variantes de precio** según el número de superficies con caries en la misma pieza (`variante_superficies`: 1 = simple, 2 = compuesta, 3+ = compleja) — se modelan como tres tratamientos distintos del catálogo, no como columnas adicionales.
+
+**Importador desde Excel/CSV**: misma mecánica que el importador de pacientes de la Fase 1 (subir → vista previa + mapeo de columnas → confirmar → reporte de importados/omitidos). Los precios pueden venir con símbolo `$` o comas de miles; se normalizan a decimal antes de guardar.
+
+### Mapeo hallazgo → tratamiento sugerido
+
+Tabla `mapeo_hallazgo_tratamiento`, editable solo por admin desde la pestaña "Mapeo de hallazgos" de `/tratamientos.html`: asocia cada hallazgo rojo del odontograma (caries, extracción indicada, endodoncia por realizar, corona indicada, sellante necesario, las tres prótesis y el implante) con su tratamiento por defecto del catálogo — caries admite las tres variantes por superficies. Si un hallazgo no tiene tratamiento mapeado, la línea del plan se genera sin precio, con la etiqueta "— asignar tratamiento".
+
+### Plan de tratamiento derivado
+
+Botón **"Generar plan de tratamiento"** en el panel derecho del odontograma (reemplaza el placeholder de fases anteriores), también sugerido automáticamente al guardar una versión de odontograma con hallazgos rojos si el paciente no tiene ya un plan en borrador. Genera un plan **provisional** (`planes_tratamiento` + `plan_items`, `routes/planes-tratamiento.js`) con una línea por hallazgo rojo (pieza(s), tratamiento sugerido, precio, subtotal) y el total general.
+
+- **Edición en borrador/presentado**: precios y descripciones editables en línea, quitar líneas, agregar líneas manuales desde el catálogo (con buscador), agrupar por fases con etiqueta libre. El total se recalcula en vivo.
+- Solo puede existir **un plan en borrador o presentado a la vez** por paciente; el historial completo de planes anteriores queda disponible en la subsección "Plan de tratamiento" de la ficha.
+- **Presentación y aceptación con firma**, reutilizando exactamente el patrón de los consentimientos informados de la Fase 3C: vista con el membrete World Dental y la tabla de tratamientos por fase → "Presentar al paciente" (estado `presentado`) → "Aceptar y firmar" abre el mismo kiosko de firma a pantalla completa (representante legal automático si el paciente es menor de edad) → estado `aceptado`, con el contenido congelado (`contenido_final`), un hash SHA-256 y la firma guardada como PNG en `uploads/pacientes/{id}/firmas/`. Impresión en `imprimir-plan.html`, A4, con el mismo membrete y pie de verificación que los consentimientos.
+- Un plan **aceptado es inmutable**: cualquier cambio posterior ("Crear nueva versión") genera un nuevo plan en borrador vinculado por `version_anterior_id`; el aceptado permanece intacto y accesible en el historial. Un plan también puede **rechazarse**, con motivo opcional.
+
+### Cierre del ciclo con evoluciones
+
+Al registrar una evolución con piezas tratadas, si el paciente tiene un plan aceptado o en curso con ítems pendientes en esas piezas, se **sugiere** (con confirmación explícita, nunca automático) marcarlos como realizados y vincularlos a la evolución. Al aceptar, se ofrece además **precargar una nueva versión de odontograma tipo "evolución"** con la conversión de esos hallazgos a su estado realizado (caries → obturado, endodoncia por realizar → realizada, extracción indicada → pérdida por caries, corona indicada → realizada, sellante necesario → realizado, implante indicado → realizado, prótesis indicada → realizada), para que el doctor la revise y guarde como cualquier otra versión (pasa por las mismas validaciones de exclusión clínica). El primer ítem marcado realizado cambia el plan a `en_curso`; cuando todos los ítems quedan resueltos, se sugiere marcarlo `finalizado`.
+
+### Migración de base de datos (Fase 4A)
+
+Cuatro tablas nuevas (`tratamientos`, `mapeo_hallazgo_tratamiento`, `planes_tratamiento`, `plan_items`, `CREATE TABLE IF NOT EXISTS` en `db/schema.sql`) — no afectan ninguna tabla existente. Las tablas `presupuestos`/`pagos` (stubs desde la Fase 1, sin interfaz) quedan reservadas para la Fase 4B (pagos y caja), sin relación directa con `planes_tratamiento`.
+
 ## Requisitos
 
 - **Node.js** versión LTS (18 o superior). Descargar de [https://nodejs.org](https://nodejs.org)
@@ -338,7 +369,8 @@ Dentify/
 │   └── dentify.db              Base de datos (se crea automaticamente)
 ├── routes/                     Rutas de la API (auth, pacientes, usuarios, importador, dashboard,
 │                                doctores, citas, sync, ficha-clinica, odontograma, cie10,
-│                                diagnosticos, evoluciones)
+│                                diagnosticos, evoluciones, plantillas, consentimientos,
+│                                tratamientos, planes-tratamiento)
 ├── middleware/                 Middlewares de autenticacion y roles
 ├── utils/                      Utilidades (respaldo, numero de historia, googleCalendar, sincronizacion)
 ├── public/                     Frontend (HTML, CSS, JS, sin frameworks)

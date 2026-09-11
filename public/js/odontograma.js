@@ -360,12 +360,19 @@ async function cargarPanelResumenPaciente() {
         // silencioso
     }
 
+    let planHtml = '<p class="resumen-plan-placeholder">Cargando plan de tratamiento...</p>';
+    try {
+        if (typeof obtenerResumenPlanHtml === 'function') planHtml = await obtenerResumenPlanHtml();
+    } catch (error) {
+        planHtml = '<p class="resumen-plan-placeholder">Error al cargar el plan de tratamiento.</p>';
+    }
+
     panel.innerHTML = `
         <h4>Resumen del paciente</h4>
         ${alertaHtml}
         <div class="resumen-diagnosticos-lista">${diagnosticosHtml}</div>
         ${consentimientosHtml}
-        <p class="resumen-plan-placeholder">Plan de tratamiento — disponible en próxima fase</p>
+        ${planHtml}
     `;
 }
 
@@ -511,7 +518,7 @@ async function guardarNuevaVersionOdontograma() {
     };
 
     try {
-        await api.post(`/api/odontograma/${pacienteId}`, datos);
+        const resultado = await api.post(`/api/odontograma/${pacienteId}`, datos);
         modoEdicion = false;
         if (typeof limpiarCambioPendiente === 'function') limpiarCambioPendiente('odontograma');
         await recargarDatosOdontograma();
@@ -519,6 +526,7 @@ async function guardarNuevaVersionOdontograma() {
         mostrarVersionActiva();
         if (typeof refrescarCpoTrasNuevaVersionOdontograma === 'function') await refrescarCpoTrasNuevaVersionOdontograma();
         if (typeof actualizarSugerenciasHigiene === 'function') actualizarSugerenciasHigiene();
+        if (typeof sugerirPlanTrasGuardarOdontograma === 'function') await sugerirPlanTrasGuardarOdontograma(resultado.id, datos.piezas);
     } catch (error) {
         alert('No se pudo guardar el odontograma: ' + error.message);
     }

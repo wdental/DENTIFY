@@ -1820,6 +1820,35 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     font-style: italic;
 }
 
+/* Tabla del plan de tratamiento, reutilizada en la vista previa del kiosko
+   de firma (dentro de la app) y, con estilos adicionales de impresion, en
+   imprimir-plan.html (ver css/impresion-plan.css). */
+.tabla-plan-impreso {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 0.82rem;
+}
+
+.tabla-plan-impreso th,
+.tabla-plan-impreso td {
+    border: 1px solid var(--gris-claro);
+    padding: 6px 8px;
+    text-align: left;
+}
+
+.tabla-plan-impreso th {
+    background-color: rgba(156, 122, 48, 0.08);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.3px;
+}
+
+.tabla-plan-impreso__total {
+    text-align: right;
+    margin: 6px 0 12px 0;
+}
+
 .resumen-consentimientos {
     margin-top: 10px;
     padding-top: 10px;

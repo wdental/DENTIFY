@@ -1,0 +1,33 @@
+/* =====================================================================
+   Dentify - Estilos adicionales para la impresion del plan de tratamiento
+   aceptado (Fase 4A). Reutiliza el membrete/hoja de
+   impresion-consentimiento.css (clases wd-*); esta hoja solo agrega la
+   tabla de tratamientos por fase.
+   ===================================================================== */
+
+.tabla-plan-impreso {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 9.5px;
+}
+
+.tabla-plan-impreso th,
+.tabla-plan-impreso td {
+    border: 1px solid var(--gris-claro);
+    padding: 4px 6px;
+    text-align: left;
+}
+
+.tabla-plan-impreso th {
+    background-color: rgba(156, 122, 48, 0.08);
+    color: var(--negro);
+    text-transform: uppercase;
+    font-size: 8px;
+    letter-spacing: 0.3px;
+}
+
+.tabla-plan-impreso__total {
+    text-align: right;
+    margin: 6px 0 12px 0;
+}

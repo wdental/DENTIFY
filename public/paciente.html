@@ -45,6 +45,7 @@
             <button class="pestana" data-panel="panel-citas">Citas</button>
             <button class="pestana" data-panel="panel-ficha-clinica">Ficha clínica (F033)</button>
             <button class="pestana" data-panel="panel-consentimientos">Consentimientos</button>
+            <button class="pestana" data-panel="panel-plan-tratamiento">Plan de tratamiento</button>
         </div>
 
         <div class="panel-pestana activo" id="panel-datos">
@@ -452,6 +453,23 @@
             </div>
         </div>
 
+        <div class="panel-pestana" id="panel-plan-tratamiento">
+            <div class="tarjeta">
+                <div class="flex-entre" style="margin-bottom:16px;">
+                    <h3 class="mb-0">Plan de tratamiento</h3>
+                    <button class="btn btn-primario btn-sm" id="btn-generar-plan">Generar plan de tratamiento</button>
+                </div>
+                <p class="texto-secundario">Un plan aceptado y firmado es inmutable. Cualquier cambio posterior genera una nueva versión en borrador; el aceptado permanece intacto.</p>
+                <div id="mensaje-plan-tratamiento"></div>
+                <div id="plan-tratamiento-vigente"><p class="texto-secundario">Cargando plan de tratamiento...</p></div>
+            </div>
+
+            <div class="tarjeta" style="margin-top:20px;">
+                <h3>Historial de planes</h3>
+                <div id="historial-planes-tratamiento"><p class="texto-secundario">Cargando historial...</p></div>
+            </div>
+        </div>
+
         <button type="button" class="btn-guardar-flotante oculto" id="btn-guardar-ficha-flotante">
             Guardar ficha clínica
             <span class="btn-guardar-flotante__badge oculto" id="badge-cambios-pendientes"></span>
@@ -801,6 +819,119 @@
     </div>
 </div>
 
+<!-- Modal: agregar linea manual al plan de tratamiento desde el catalogo -->
+<div class="modal-fondo" id="modal-item-plan">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-item-plan">&times;</button>
+        <h2>Agregar tratamiento al plan</h2>
+        <div id="error-modal-item-plan"></div>
+        <div class="form-grid">
+            <div class="campo campo--ancho">
+                <label for="item-plan-buscar">Buscar en el catálogo</label>
+                <input type="text" id="item-plan-buscar" placeholder="Nombre del tratamiento...">
+                <select id="item-plan-tratamiento" size="6" style="margin-top:6px;"></select>
+            </div>
+            <div class="campo">
+                <label for="item-plan-piezas">Pieza(s) (opcional)</label>
+                <input type="text" id="item-plan-piezas" placeholder="Ej. 16 o 16-18">
+            </div>
+            <div class="campo">
+                <label for="item-plan-precio">Precio</label>
+                <input type="text" id="item-plan-precio" placeholder="0.00">
+            </div>
+            <div class="campo campo--ancho">
+                <label for="item-plan-descripcion">Descripción</label>
+                <input type="text" id="item-plan-descripcion">
+            </div>
+            <div class="campo">
+                <label for="item-plan-fase">Fase</label>
+                <input type="number" id="item-plan-fase" min="1" value="1">
+            </div>
+            <div class="campo">
+                <label for="item-plan-fase-etiqueta">Etiqueta de fase (opcional)</label>
+                <input type="text" id="item-plan-fase-etiqueta" placeholder="Ej. Fase 1 — Urgencias">
+            </div>
+        </div>
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-item-plan">Cancelar</button>
+            <button type="button" class="btn btn-primario" id="btn-agregar-item-plan">Agregar al plan</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: presentar plan (condiciones) y rechazar plan -->
+<div class="modal-fondo" id="modal-presentar-plan">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-presentar-plan">&times;</button>
+        <h2>Presentar plan al paciente</h2>
+        <div id="error-modal-presentar-plan"></div>
+        <div class="campo campo--ancho">
+            <label for="presentar-plan-condiciones">Condiciones (opcional)</label>
+            <textarea id="presentar-plan-condiciones" placeholder="Ej. forma de pago, vigencia de precios..."></textarea>
+        </div>
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-presentar-plan">Cancelar</button>
+            <button type="button" class="btn btn-primario" id="btn-confirmar-presentar-plan">Presentar</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-fondo" id="modal-rechazar-plan">
+    <div class="modal">
+        <h2>Rechazar plan de tratamiento</h2>
+        <div id="error-modal-rechazar-plan"></div>
+        <div class="campo campo--ancho">
+            <label for="rechazar-plan-motivo">Motivo (opcional)</label>
+            <textarea id="rechazar-plan-motivo"></textarea>
+        </div>
+        <div class="flex-entre" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-rechazar-plan">Cancelar</button>
+            <button type="button" class="btn btn-peligro" id="btn-confirmar-rechazar-plan">Rechazar plan</button>
+        </div>
+    </div>
+</div>
+
+<!-- Pantalla de firma a pantalla completa para aceptar el plan de tratamiento -->
+<div class="kiosko-firma oculto" id="kiosko-firma-plan">
+    <div class="kiosko-firma__cabecera">
+        <div>
+            <h2 class="mb-0">Aceptación del plan de tratamiento</h2>
+            <p class="texto-secundario mb-0" id="kiosko-plan-subtitulo"></p>
+        </div>
+        <button type="button" class="btn btn-secundario btn-sm" id="btn-cancelar-kiosko-plan">Cancelar</button>
+    </div>
+    <div class="kiosko-firma__documento" id="kiosko-plan-documento"></div>
+    <div class="kiosko-firma__decision">
+        <div id="error-kiosko-plan"></div>
+        <div id="kiosko-plan-representante-block" class="alerta oculto" style="margin-bottom:14px; background-color: rgba(156,122,48,0.08); border-color: var(--dorado);">
+            <div style="width:100%;">
+                <p style="margin:0 0 8px 0;"><strong>Paciente menor de edad</strong> — se requieren los datos del representante legal, quien firmará el plan.</p>
+                <div class="form-grid">
+                    <div class="campo">
+                        <label for="kiosko-plan-representante-nombre">Nombre completo del representante *</label>
+                        <input type="text" id="kiosko-plan-representante-nombre">
+                    </div>
+                    <div class="campo">
+                        <label for="kiosko-plan-representante-cedula">Cédula del representante (10 dígitos) *</label>
+                        <input type="text" id="kiosko-plan-representante-cedula" maxlength="10" inputmode="numeric">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="campo">
+            <label id="kiosko-plan-etiqueta-firmante">Firma del paciente *</label>
+            <div class="firma-envoltura">
+                <canvas class="firma-canvas" id="plan-firma-paciente" width="360" height="150"></canvas>
+                <div class="firma-envoltura__pie">
+                    <span class="firma-envoltura__etiqueta">Firma</span>
+                    <button type="button" class="btn-texto" onclick="limpiarFirmaCanvas('plan-firma-paciente')">Limpiar</button>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primario" style="margin-top:16px; width:100%;" id="btn-confirmar-firma-plan">Confirmar firma y aceptar plan</button>
+    </div>
+</div>
+
 <!-- Modal: Anular consentimiento (solo admin) -->
 <div class="modal-fondo" id="modal-anular-consentimiento">
     <div class="modal">
@@ -828,5 +959,6 @@
 <script src="/js/evoluciones.js"></script>
 <script src="/js/diagnosticos.js"></script>
 <script src="/js/consentimientos.js"></script>
+<script src="/js/planes-tratamiento.js"></script>
 </body>
 </html>

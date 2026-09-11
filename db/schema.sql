@@ -357,3 +357,91 @@ CREATE TABLE IF NOT EXISTS consentimientos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_consentimientos_paciente ON consentimientos (paciente_id);
+
+-- ---------------------------------------------------------------------
+-- CATALOGO DE TRATAMIENTOS CON PRECIOS (Fase 4A)
+-- Una restauracion puede tener hasta 3 filas con el mismo hallazgo_asociado
+-- ('caries') y distinta variante_superficies (1/2/3) para simple/compuesta/
+-- compleja; el resto de hallazgos usan variante_superficies NULL.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tratamientos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT,
+    nombre TEXT NOT NULL,
+    categoria TEXT NOT NULL DEFAULT 'Otro' CHECK (categoria IN
+        ('Prevencion', 'Operatoria', 'Endodoncia', 'Cirugia', 'Rehabilitacion',
+         'Ortodoncia', 'Estetica', 'Otro')),
+    precio REAL NOT NULL DEFAULT 0,
+    hallazgo_asociado TEXT,
+    variante_superficies INTEGER,           -- solo para hallazgo_asociado='caries': 1, 2 o 3+
+    activo INTEGER NOT NULL DEFAULT 1,
+    notas TEXT,
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    creado_por INTEGER REFERENCES usuarios(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tratamientos_hallazgo ON tratamientos (hallazgo_asociado);
+
+-- ---------------------------------------------------------------------
+-- MAPEO HALLAZGO -> TRATAMIENTO SUGERIDO (Fase 4A) - una fila por codigo de
+-- hallazgo rojo del odontograma. Editable solo por admin. Si el tratamiento
+-- referenciado se desactiva/borra, la columna queda en NULL (ON DELETE SET
+-- NULL) y el plan generado marca la linea como "asignar tratamiento".
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mapeo_hallazgo_tratamiento (
+    hallazgo_codigo TEXT PRIMARY KEY,
+    tratamiento_id INTEGER REFERENCES tratamientos(id) ON DELETE SET NULL,
+    tratamiento_id_2_superficies INTEGER REFERENCES tratamientos(id) ON DELETE SET NULL,
+    tratamiento_id_3_superficies INTEGER REFERENCES tratamientos(id) ON DELETE SET NULL
+);
+
+-- ---------------------------------------------------------------------
+-- PLANES DE TRATAMIENTO (Fase 4A) - un plan aceptado es inmutable salvo
+-- estado; cualquier cambio posterior genera una nueva version en borrador
+-- ligada por version_anterior_id, igual que el patron de revocacion de
+-- consentimientos. La firma reutiliza exactamente el patron de
+-- consentimientos: contenido_final congelado + hash SHA-256 + PNG en disco.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS planes_tratamiento (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+    odontograma_id INTEGER REFERENCES odontogramas(id),
+    estado TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN
+        ('borrador', 'presentado', 'aceptado', 'rechazado', 'en_curso', 'finalizado')),
+    total REAL NOT NULL DEFAULT 0,
+    condiciones TEXT,
+    doctor_id INTEGER REFERENCES doctores(id),
+    version_anterior_id INTEGER REFERENCES planes_tratamiento(id),
+    motivo_rechazo TEXT,
+    contenido_final TEXT,                   -- snapshot HTML congelado al presentar/firmar
+    hash_documento TEXT,                    -- SHA-256 de contenido_final, solo si aceptado
+    firma_paciente_path TEXT,
+    firma_representante_path TEXT,
+    firmante_nombre TEXT,
+    firmante_cedula TEXT,
+    es_representante INTEGER NOT NULL DEFAULT 0,
+    fecha_presentado TEXT,
+    fecha_aceptado TEXT,
+    creado_por INTEGER REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_planes_paciente ON planes_tratamiento (paciente_id);
+
+CREATE TABLE IF NOT EXISTS plan_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES planes_tratamiento(id),
+    piezas TEXT,                            -- FDI separadas por coma, o tramo
+    hallazgo_origen TEXT,
+    tratamiento_id INTEGER REFERENCES tratamientos(id),
+    descripcion TEXT NOT NULL,
+    precio REAL NOT NULL DEFAULT 0,
+    fase INTEGER NOT NULL DEFAULT 1,
+    fase_etiqueta TEXT,
+    estado_item TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado_item IN
+        ('pendiente', 'realizado', 'descartado')),
+    evolucion_id INTEGER REFERENCES evoluciones(id),
+    orden INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_planitems_plan ON plan_items (plan_id);
