@@ -232,7 +232,7 @@ router.get('/:pacienteId/cpo-sugerido', (req, res) => {
         'SELECT id FROM odontogramas WHERE paciente_id = ? AND es_version_activa = 1'
     ).get(req.params.pacienteId);
 
-    const sugerido = { permanente: { c: 0, p: 0, o: 0 }, temporal: { c: 0, e: 0, o: 0 } };
+    const sugerido = { permanente: { c: 0, p: 0, o: 0 }, temporal: { c: 0, e: 0, o: 0 }, existeOdontograma: !!odontograma };
     if (!odontograma) return res.json(sugerido);
 
     const piezas = cargarPiezas(odontograma.id);

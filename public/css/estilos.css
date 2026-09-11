@@ -1400,6 +1400,17 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     margin: 0 0 8px 0;
 }
 
+.cpo-aviso-estado-odontograma {
+    font-size: 0.74rem;
+    font-style: italic;
+    margin: 0 0 8px 0;
+    color: var(--texto-secundario);
+}
+
+.cpo-aviso-estado-odontograma--pendiente {
+    color: var(--dorado);
+}
+
 /* --------------------------- Diagnostico CIE-10 (seccion N) --------------------------- */
 .dx-buscador-envoltura { position: relative; }
 
@@ -1496,6 +1507,30 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 .tabla-cpo td, .tabla-cpo th { text-align: center; }
 .tabla-cpo td:first-child, .tabla-cpo th:first-child { text-align: left; }
 
+/* Higiene oral simplificada (seccion I) - pieza examinada por trio */
+.higiene-celda-pieza { text-align: left; }
+.higiene-select-sugerida {
+    font-weight: 700;
+    color: var(--dorado);
+    border-color: var(--dorado);
+}
+.higiene-opcion-sugerida { font-weight: 700; }
+.higiene-raya { color: var(--texto-secundario); }
+
+/* M. Informe de examenes (seccion condicionada a L) */
+.informe-examen-bloque {
+    border: 1px solid var(--gris-claro);
+    border-radius: var(--radio);
+    padding: 12px;
+    margin-bottom: 14px;
+    background-color: var(--blanco);
+}
+.informe-examen-bloque__titulo {
+    margin: 0 0 10px 0;
+    font-size: 0.95rem;
+    color: var(--dorado);
+}
+
 /* ---------------------------------------------------------------
    Odontograma (seccion H) - layout de tres zonas: paleta / centro / CPO
    --------------------------------------------------------------- */
@@ -1524,19 +1559,67 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 
 .odonto-layout {
     display: grid;
-    grid-template-columns: 190px 1fr 172px;
+    grid-template-columns: 190px 1fr 320px;
     gap: 12px;
     align-items: start;
 }
 
-/* --------------------------- Panel lateral (derecha): evoluciones --------------------------- */
+/* --------------------------- Columna derecha: evoluciones + resumen --------------------------- */
+.odonto-columna-derecha {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: sticky;
+    top: 14px;
+    min-width: 0;
+}
+
 .odonto-panel-lateral {
     background-color: var(--blanco);
     border: 1px solid var(--gris-claro);
     border-radius: var(--radio);
     padding: 12px;
-    position: sticky;
-    top: 14px;
+}
+
+.resumen-diagnostico {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--gris-claro);
+    font-size: 0.78rem;
+}
+.resumen-diagnostico:last-child { border-bottom: none; }
+.resumen-diagnostico__codigo { font-weight: 700; color: var(--dorado); flex-shrink: 0; }
+.resumen-diagnostico__descripcion { flex: 1; }
+.resumen-diagnostico__tipo {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background-color: var(--gris-claro);
+}
+.resumen-diagnostico__tipo--def { background-color: var(--dorado); color: var(--blanco); }
+
+.resumen-alerta-medica {
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    border-radius: var(--radio);
+    background: repeating-linear-gradient(135deg, rgba(161, 58, 43, 0.12) 0px, rgba(161, 58, 43, 0.12) 14px, rgba(156, 122, 48, 0.12) 14px, rgba(156, 122, 48, 0.12) 28px);
+    border: 1.5px solid var(--rojo-alerta);
+    color: var(--negro);
+    font-weight: 700;
+    font-size: 0.74rem;
+}
+
+.resumen-plan-placeholder {
+    margin: 10px 0 0 0;
+    padding-top: 10px;
+    border-top: 1px dashed var(--gris-claro);
+    color: var(--texto-secundario);
+    font-size: 0.72rem;
+    font-style: italic;
 }
 
 .odonto-panel-lateral h4 {
@@ -1640,10 +1723,13 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     align-items: center;
     gap: 6px;
     min-height: 40px;
+    min-width: 0;
+    max-width: 100%;
     padding: 4px 6px;
     background-color: var(--blanco);
     border: 1.5px solid var(--gris-claro);
     border-radius: var(--radio);
+    box-sizing: border-box;
     cursor: pointer;
     font-family: var(--fuente-cuerpo);
     font-size: 0.68rem;
@@ -1651,6 +1737,12 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     color: var(--texto-principal);
     text-align: left;
     transition: border-color .12s ease, background-color .12s ease;
+}
+
+.paleta-boton__texto {
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .paleta-boton--acceso-rapido {
@@ -1988,7 +2080,7 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 
     .odonto-centro { order: -1; }
 
-    .odonto-panel-lateral {
+    .odonto-columna-derecha {
         position: static;
         order: 1;
     }

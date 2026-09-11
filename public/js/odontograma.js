@@ -109,7 +109,7 @@ const ALTURA_FILA_CAJA = 13;
 // coincide en la misma pieza, endodoncia (que se dibuja ahi en vez de sobre
 // la pieza para no chocar con la corona). ALTURA_BANDA_SELLANTE debe cubrir
 // el peor caso: dos simbolos apilados (ver DISTANCIA_BANDA_INFERIOR / PASO_APILADO).
-const ALTURA_BANDA_SELLANTE = 22;
+const ALTURA_BANDA_SELLANTE = 24;
 const DISTANCIA_BANDA_INFERIOR = 9; // borde de la pieza -> centro del primer simbolo (fijo y constante)
 const PASO_APILADO = 12;            // separacion entre el primer y el segundo simbolo, si ambos coinciden
 
@@ -186,6 +186,7 @@ async function cargarOdontograma() {
 
     await recargarDatosOdontograma();
     construirLayoutOdontograma();
+    if (typeof actualizarSugerenciasHigiene === 'function') actualizarSugerenciasHigiene();
 
     if (!odontogramaActivo.odontograma) {
         // Paciente sin ningun odontograma: entra directo en edicion de un
@@ -283,9 +284,14 @@ function construirLayoutOdontograma() {
                 </div>
             </div>
 
-            <aside class="odonto-panel-lateral" id="odonto-panel-evoluciones">
-                <p class="texto-secundario">Cargando evoluciones...</p>
-            </aside>
+            <div class="odonto-columna-derecha">
+                <aside class="odonto-panel-lateral" id="odonto-panel-evoluciones">
+                    <p class="texto-secundario">Cargando evoluciones...</p>
+                </aside>
+                <aside class="odonto-panel-lateral odonto-panel-resumen" id="odonto-panel-resumen">
+                    <p class="texto-secundario">Cargando resumen...</p>
+                </aside>
+            </div>
         </div>
     `;
 
@@ -297,6 +303,53 @@ function construirLayoutOdontograma() {
 
     // Seccion P: panel compacto de las ultimas evoluciones (evoluciones.js)
     if (typeof cargarPanelEvolucionesLateral === 'function') cargarPanelEvolucionesLateral();
+    if (typeof cargarPanelResumenPaciente === 'function') cargarPanelResumenPaciente();
+}
+
+// -----------------------------------------------------------------
+// Panel "Resumen del paciente" (columna derecha, bajo Evoluciones):
+// diagnosticos CIE-10 activos, alerta medica si existe, y un placeholder
+// para el plan de tratamiento (Fase 4). Consulta directamente la API en
+// vez de depender de variables globales de otros archivos (diagnosticos.js/
+// ficha-clinica.js), para no depender del orden en que cada uno termine
+// de cargar.
+// -----------------------------------------------------------------
+async function cargarPanelResumenPaciente() {
+    const panel = document.getElementById('odonto-panel-resumen');
+    if (!panel) return;
+
+    let diagnosticosHtml = '<p class="texto-secundario mb-0">Sin diagnósticos registrados.</p>';
+    try {
+        const diagnosticos = await api.get(`/api/diagnosticos/${pacienteId}`);
+        if (diagnosticos.length > 0) {
+            diagnosticosHtml = diagnosticos.map((d) => `
+                <div class="resumen-diagnostico">
+                    <span class="resumen-diagnostico__codigo">${d.codigo_cie10}</span>
+                    <span class="resumen-diagnostico__descripcion">${d.descripcion}</span>
+                    <span class="resumen-diagnostico__tipo resumen-diagnostico__tipo--${d.tipo.toLowerCase()}">${d.tipo}</span>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        diagnosticosHtml = '<p class="texto-secundario mb-0">Error al cargar diagnósticos.</p>';
+    }
+
+    let alertaHtml = '';
+    try {
+        const alertas = await api.get(`/api/ficha-clinica/${pacienteId}/alertas`);
+        if (alertas.tieneAlertas) {
+            alertaHtml = `<div class="resumen-alerta-medica">${alertas.etiquetas.join(' · ').toUpperCase()}</div>`;
+        }
+    } catch (error) {
+        // silencioso: la alerta principal ya se muestra en el banner de la ficha
+    }
+
+    panel.innerHTML = `
+        <h4>Resumen del paciente</h4>
+        ${alertaHtml}
+        <div class="resumen-diagnosticos-lista">${diagnosticosHtml}</div>
+        <p class="resumen-plan-placeholder">Plan de tratamiento — disponible en próxima fase</p>
+    `;
 }
 
 function construirPaleta() {
@@ -448,6 +501,7 @@ async function guardarNuevaVersionOdontograma() {
         construirLayoutOdontograma();
         mostrarVersionActiva();
         if (typeof refrescarCpoTrasNuevaVersionOdontograma === 'function') await refrescarCpoTrasNuevaVersionOdontograma();
+        if (typeof actualizarSugerenciasHigiene === 'function') actualizarSugerenciasHigiene();
     } catch (error) {
         alert('No se pudo guardar el odontograma: ' + error.message);
     }

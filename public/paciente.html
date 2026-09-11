@@ -285,6 +285,7 @@
                         </div>
                     </div>
                     <p class="cpo-aviso-manual oculto" id="cpo-aviso-manual"></p>
+                    <p class="cpo-aviso-estado-odontograma oculto" id="cpo-aviso-estado-odontograma"></p>
                     <div class="tabla-envoltorio">
                         <table class="tabla-cpo">
                             <thead>
@@ -319,11 +320,11 @@
                 </summary>
                 <div class="seccion-clinica__cuerpo">
                     <div class="grilla-checks">
-                        <label class="check-item"><input type="checkbox" id="fc-examen-biometria"> Biometría</label>
-                        <label class="check-item"><input type="checkbox" id="fc-examen-quimica"> Química sanguínea</label>
-                        <label class="check-item"><input type="checkbox" id="fc-examen-rx"> Rayos X</label>
+                        <label class="check-item"><input type="checkbox" id="fc-examen-biometria" data-examen-tipo="biometria"> Biometría</label>
+                        <label class="check-item"><input type="checkbox" id="fc-examen-quimica" data-examen-tipo="quimica_sanguinea"> Química sanguínea</label>
+                        <label class="check-item"><input type="checkbox" id="fc-examen-rx" data-examen-tipo="rayos_x"> Rayos X</label>
                         <div>
-                            <label class="check-item"><input type="checkbox" id="fc-examen-otros"> Otros</label>
+                            <label class="check-item"><input type="checkbox" id="fc-examen-otros" data-examen-tipo="otros"> Otros</label>
                             <div class="check-item__extra"><input type="text" id="fc-examen-otros-texto" placeholder="Especificar..."></div>
                         </div>
                     </div>
@@ -334,28 +335,17 @@
                 </div>
             </details>
 
-            <!-- M. Informe de examenes -->
-            <details class="seccion-clinica">
+            <!-- M. Informe de examenes: oculta mientras L no tenga ningun
+                 examen pedido; muestra un bloque de informe solo por cada
+                 examen marcado en L (ver toggleSeccionInformeExamenes()). -->
+            <details class="seccion-clinica oculto" id="seccion-examenes-informe">
                 <summary>
                     <span class="seccion-clinica__punto" id="punto-examenes-informe"></span>
                     M. Informe de exámenes
                 </summary>
                 <div class="seccion-clinica__cuerpo">
-                    <div class="form-grid">
-                        <div class="campo">
-                            <label for="fc-informe-fecha">Fecha del informe</label>
-                            <input type="date" id="fc-informe-fecha">
-                            <span class="fecha-legible" id="fc-informe-fecha-legible"></span>
-                        </div>
-                    </div>
-                    <div class="campo campo--ancho">
-                        <label for="fc-informe-texto">Resultado / informe</label>
-                        <textarea id="fc-informe-texto" rows="4"></textarea>
-                    </div>
-                    <div class="campo campo--ancho">
-                        <label>Adjuntar documentos ya subidos (pestaña Documentos)</label>
-                        <div id="fc-informe-documentos"><p class="texto-secundario mb-0">Sin documentos subidos todavía.</p></div>
-                    </div>
+                    <p class="texto-secundario">Un bloque de informe por cada examen marcado en la sección L.</p>
+                    <div id="fc-informe-bloques"></div>
                 </div>
             </details>
 

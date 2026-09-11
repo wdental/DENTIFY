@@ -46,19 +46,25 @@ const EXAMEN_ESTOMATOGNATICO_ITEMS = [
     { num: 13, etiqueta: 'Otros' }
 ];
 
+// Cada fila de higiene oral simplificada examina UNA pieza del trio, segun
+// disponibilidad en el odontograma activo: la titular; si ausente/perdida/
+// extraccion indicada, la primera alterna; si tampoco existe, la temporal
+// (ver piezaSugeridaParaTrio() / ESTADOS_EXCLUSIVOS_PIEZA en odontograma.js).
 const PIEZAS_HIGIENE = [
-    { etiqueta: '16 / 17 / 55' },
-    { etiqueta: '11 / 21 / 51' },
-    { etiqueta: '26 / 27 / 65' },
-    { etiqueta: '36 / 37 / 75' },
-    { etiqueta: '31 / 41 / 71' },
-    { etiqueta: '46 / 47 / 85' }
+    { trio: ['16', '17', '55'] },
+    { trio: ['11', '21', '51'] },
+    { trio: ['26', '27', '65'] },
+    { trio: ['36', '37', '75'] },
+    { trio: ['31', '41', '71'] },
+    { trio: ['46', '47', '85'] }
 ];
 
 let fichaClinicaActual = null;
 let examenSinPatologiaAparente = false;
 let cpoModoManual = false; // true mientras el usuario edita J con "Ajustar manualmente"
 let cpoBaseAutomatica = null; // ultimo valor autocalculado cargado, para detectar si el usuario realmente cambio algo
+let cpoEsAutomatico = true; // false cuando J muestra un valor ajustado manualmente y guardado (no el autocalculo)
+let cpoErrorAutomatico = false; // true si la ultima consulta a /cpo-sugerido fallo (para no mostrar "0" como si fuera el calculo real)
 
 // -----------------------------------------------------------------
 // Arranque: se ejecuta cuando la pestana existe (paciente.js ya cargo
@@ -72,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarAvisoDeSalida();
     inicializarRangosVitales();
     inicializarBotonesCpoManual();
+    inicializarSeccionExamenes();
 });
 
 // -----------------------------------------------------------------
@@ -176,13 +183,19 @@ function aplicarSinPatologiaAparente(valor) {
 function construirTablaHigiene() {
     const cuerpo = document.getElementById('cuerpo-tabla-higiene');
     cuerpo.innerHTML = PIEZAS_HIGIENE.map((fila, indice) => `
-        <tr>
-            <td>${fila.etiqueta}</td>
+        <tr data-indice-higiene="${indice}">
+            <td class="higiene-celda-pieza">
+                <select id="higiene-pieza-${indice}" onchange="onCambiarPiezaHigiene(${indice})">
+                    ${fila.trio.map((p) => `<option value="${p}">${p}</option>`).join('')}
+                </select>
+                <span class="higiene-raya oculto" id="higiene-raya-${indice}">—</span>
+            </td>
             <td><select id="higiene-placa-${indice}" onchange="recalcularHigiene()">${opcionesNumericas(0, 3)}</select></td>
             <td><select id="higiene-calculo-${indice}" onchange="recalcularHigiene()">${opcionesNumericas(0, 3)}</select></td>
             <td><select id="higiene-gingivitis-${indice}" onchange="recalcularHigiene()">${opcionesNumericas(0, 1)}</select></td>
         </tr>
     `).join('');
+    actualizarSugerenciasHigiene();
 }
 
 function opcionesNumericas(desde, hasta) {
@@ -191,17 +204,88 @@ function opcionesNumericas(desde, hasta) {
     return html;
 }
 
+// Estados que hacen que una pieza se considere NO disponible para examinar
+// (misma lista clinica que ESTADOS_EXCLUSIVOS_PIEZA de odontograma.js).
+const ESTADOS_PIEZA_NO_DISPONIBLE_HIGIENE = ['ausente', 'perdida_caries', 'perdida_otra_causa', 'extraccion_indicada'];
+
+// Una pieza se considera disponible si no hay odontograma activo (no hay
+// informacion para descartarla: se asume presente, titular por defecto) o
+// si el odontograma activo no la marca con un hallazgo excluyente.
+function piezaDisponibleEnOdontograma(pieza) {
+    if (typeof odontogramaActivo === 'undefined' || !odontogramaActivo || !odontogramaActivo.odontograma) return true;
+    const piezas = odontogramaActivo.piezas || [];
+    const excluida = piezas.some((f) => f.pieza === pieza && f.superficie === 'completa' && ESTADOS_PIEZA_NO_DISPONIBLE_HIGIENE.includes(f.hallazgo));
+    return !excluida;
+}
+
+function piezaSugeridaParaTrio(trio) {
+    return trio.find((pieza) => piezaDisponibleEnOdontograma(pieza)) || null;
+}
+
+// Recalcula, para cada fila, cual pieza del trio sugerir (resaltada, con
+// tooltip) y deshabilita la fila si ninguna del trio esta disponible (queda
+// con raya, fuera del promedio). Respeta la eleccion manual ya hecha por el
+// examinador (guardada en el <select>) mientras esa pieza siga disponible.
+function actualizarSugerenciasHigiene() {
+    PIEZAS_HIGIENE.forEach((fila, indice) => {
+        const select = document.getElementById(`higiene-pieza-${indice}`);
+        const raya = document.getElementById(`higiene-raya-${indice}`);
+        if (!select) return;
+        const sugerida = piezaSugeridaParaTrio(fila.trio);
+
+        [...select.options].forEach((op) => {
+            const disponible = piezaDisponibleEnOdontograma(op.value);
+            op.classList.toggle('higiene-opcion-sugerida', op.value === sugerida);
+            op.textContent = op.value === sugerida ? `${op.value} (sugerida)` : op.value;
+        });
+
+        const eleccionActual = select.dataset.eleccionManual === '1' ? select.value : null;
+        const eleccionValida = eleccionActual && fila.trio.includes(eleccionActual) && piezaDisponibleEnOdontograma(eleccionActual);
+        const valorFinal = eleccionValida ? eleccionActual : sugerida;
+
+        if (!valorFinal) {
+            select.value = fila.trio[0];
+            select.disabled = true;
+            select.classList.add('oculto');
+            if (raya) raya.classList.remove('oculto');
+            ['placa', 'calculo', 'gingivitis'].forEach((prefijo) => {
+                const sel = document.getElementById(`higiene-${prefijo}-${indice}`);
+                sel.value = '';
+                sel.disabled = true;
+            });
+        } else {
+            select.value = valorFinal;
+            select.disabled = false;
+            select.classList.remove('oculto');
+            select.title = valorFinal === sugerida ? 'Pieza sugerida según odontograma' : '';
+            select.classList.toggle('higiene-select-sugerida', valorFinal === sugerida);
+            if (raya) raya.classList.add('oculto');
+            ['placa', 'calculo', 'gingivitis'].forEach((prefijo) => {
+                document.getElementById(`higiene-${prefijo}-${indice}`).disabled = false;
+            });
+        }
+    });
+    recalcularHigiene();
+}
+
+function onCambiarPiezaHigiene(indice) {
+    const select = document.getElementById(`higiene-pieza-${indice}`);
+    select.dataset.eleccionManual = '1';
+    actualizarSugerenciasHigiene();
+    marcarCambioPendiente('secciones');
+}
+
 // Segun el instructivo del F033, el total de higiene oral simplificada es el
 // PROMEDIO por columna (suma / piezas efectivamente examinadas); las "—"
-// (sin registrar) no cuentan en el divisor. Se muestra con un decimal, o
-// "—" si ninguna pieza de esa columna fue examinada.
+// (sin registrar o sin pieza disponible del trio) no cuentan en el divisor.
+// Se muestra con un decimal, o "—" si ninguna pieza de esa columna fue examinada.
 function recalcularHigiene() {
     const promediarColumna = (prefijo) => {
         let suma = 0, examinadas = 0;
         PIEZAS_HIGIENE.forEach((_, indice) => {
-            const valor = document.getElementById(`higiene-${prefijo}-${indice}`).value;
-            if (valor === '') return;
-            suma += Number(valor);
+            const campo = document.getElementById(`higiene-${prefijo}-${indice}`);
+            if (campo.disabled || campo.value === '') return;
+            suma += Number(campo.value);
             examinadas++;
         });
         return examinadas > 0 ? (suma / examinadas).toFixed(1) : '—';
@@ -273,13 +357,20 @@ async function cargarFichaClinica() {
 
     const indicadores = fichaClinicaActual.indicadores_salud_bucal_json || {};
     const higiene = indicadores.higiene || [];
-    PIEZAS_HIGIENE.forEach((_, indice) => {
+    PIEZAS_HIGIENE.forEach((filaDef, indice) => {
         const fila = higiene[indice] || {};
         document.getElementById(`higiene-placa-${indice}`).value = fila.placa ?? '';
         document.getElementById(`higiene-calculo-${indice}`).value = fila.calculo ?? '';
         document.getElementById(`higiene-gingivitis-${indice}`).value = fila.gingivitis ?? '';
+        const select = document.getElementById(`higiene-pieza-${indice}`);
+        if (fila.pieza_examinada && filaDef.trio.includes(fila.pieza_examinada)) {
+            select.value = fila.pieza_examinada;
+            select.dataset.eleccionManual = '1';
+        } else {
+            delete select.dataset.eleccionManual;
+        }
     });
-    recalcularHigiene();
+    actualizarSugerenciasHigiene();
     document.getElementById('fc-enf-periodontal').value = indicadores.periodontal || '';
     document.getElementById('fc-oclusion').value = indicadores.oclusion || '';
     document.getElementById('fc-fluorosis').value = indicadores.fluorosis || '';
@@ -296,12 +387,10 @@ async function cargarFichaClinica() {
     document.getElementById('fc-examenes-detalle').value = examenesSolicitados.detalle || '';
     marcarCompletitud('examenes-solicitados', !!(examenesSolicitados.biometria || examenesSolicitados.quimica_sanguinea || examenesSolicitados.rayos_x || examenesSolicitados.otros || examenesSolicitados.detalle));
 
+    documentosPacienteCache = null;
+    toggleSeccionInformeExamenes();
     const examenesInforme = fichaClinicaActual.examenes_informe_json || {};
-    document.getElementById('fc-informe-fecha').value = examenesInforme.fecha || '';
-    sincronizarFechaLegible('fc-informe-fecha', 'fc-informe-fecha-legible');
-    document.getElementById('fc-informe-texto').value = examenesInforme.texto || '';
-    marcarCompletitud('examenes-informe', !!(examenesInforme.texto || (examenesInforme.documento_ids || []).length));
-    await cargarDocumentosParaInforme(examenesInforme.documento_ids || []);
+    marcarCompletitud('examenes-informe', TIPOS_EXAMEN.some((t) => examenesInforme[t.clave] && (examenesInforme[t.clave].texto || (examenesInforme[t.clave].documento_ids || []).length)));
 
     const profesional = fichaClinicaActual.profesional_responsable_json || {};
     await cargarProfesionalResponsable(profesional);
@@ -434,11 +523,15 @@ function valorHigieneONulo(id) {
 }
 
 function recopilarIndicadoresSaludBucal() {
-    const higiene = PIEZAS_HIGIENE.map((_, indice) => ({
-        placa: valorHigieneONulo(`higiene-placa-${indice}`),
-        calculo: valorHigieneONulo(`higiene-calculo-${indice}`),
-        gingivitis: valorHigieneONulo(`higiene-gingivitis-${indice}`)
-    }));
+    const higiene = PIEZAS_HIGIENE.map((filaDef, indice) => {
+        const selectPieza = document.getElementById(`higiene-pieza-${indice}`);
+        return {
+            pieza_examinada: selectPieza.disabled ? null : selectPieza.value,
+            placa: valorHigieneONulo(`higiene-placa-${indice}`),
+            calculo: valorHigieneONulo(`higiene-calculo-${indice}`),
+            gingivitis: valorHigieneONulo(`higiene-gingivitis-${indice}`)
+        };
+    });
     return {
         higiene,
         periodontal: document.getElementById('fc-enf-periodontal').value || null,
@@ -448,8 +541,19 @@ function recopilarIndicadoresSaludBucal() {
 }
 
 // -----------------------------------------------------------------
-// L - Pedido de examenes complementarios
+// L - Pedido de examenes complementarios. M (informe) queda condicionada a
+// L: aparece solo si hay al menos un examen marcado, con un bloque de
+// informe por cada examen marcado (ver toggleSeccionInformeExamenes()).
 // -----------------------------------------------------------------
+const TIPOS_EXAMEN = [
+    { clave: 'biometria', checkboxId: 'fc-examen-biometria', etiqueta: 'Biometría' },
+    { clave: 'quimica_sanguinea', checkboxId: 'fc-examen-quimica', etiqueta: 'Química sanguínea' },
+    { clave: 'rayos_x', checkboxId: 'fc-examen-rx', etiqueta: 'Rayos X' },
+    { clave: 'otros', checkboxId: 'fc-examen-otros', etiqueta: 'Otros' }
+];
+
+let documentosPacienteCache = null;
+
 function recopilarExamenesSolicitados() {
     return {
         biometria: document.getElementById('fc-examen-biometria').checked,
@@ -461,15 +565,93 @@ function recopilarExamenesSolicitados() {
     };
 }
 
+function inicializarSeccionExamenes() {
+    TIPOS_EXAMEN.forEach((tipo) => {
+        document.getElementById(tipo.checkboxId).addEventListener('change', (evento) => manejarCambioExamenSolicitado(tipo, evento));
+    });
+}
+
+// Al desmarcar un examen que ya tiene informe registrado en M, los datos se
+// CONSERVAN (solo se ocultan): se pide confirmacion informativa. Si el
+// usuario cancela, se re-marca el checkbox.
+function manejarCambioExamenSolicitado(tipo, evento) {
+    const checkbox = evento.target;
+    if (!checkbox.checked) {
+        const informe = (fichaClinicaActual && fichaClinicaActual.examenes_informe_json) || {};
+        const tieneInforme = informe[tipo.clave] && (informe[tipo.clave].fecha || informe[tipo.clave].texto || (informe[tipo.clave].documento_ids || []).length);
+        if (tieneInforme && !confirm(`Ya hay un informe de "${tipo.etiqueta}" registrado en la sección M. Al desmarcar este examen, el bloque se oculta pero el informe NO se elimina: reaparecerá si vuelve a marcar el examen. ¿Continuar?`)) {
+            checkbox.checked = true;
+            return;
+        }
+    }
+    toggleSeccionInformeExamenes();
+    marcarCambioPendiente('secciones');
+}
+
+// M permanece oculta mientras L no tenga ningun examen marcado; si hay al
+// menos uno, muestra un bloque de informe solo por cada examen marcado.
+function toggleSeccionInformeExamenes() {
+    const marcados = TIPOS_EXAMEN.filter((tipo) => document.getElementById(tipo.checkboxId).checked);
+    const seccion = document.getElementById('seccion-examenes-informe');
+    seccion.classList.toggle('oculto', marcados.length === 0);
+    if (marcados.length === 0) {
+        seccion.removeAttribute('open');
+        return;
+    }
+
+    const contenedor = document.getElementById('fc-informe-bloques');
+    const informeActual = (fichaClinicaActual && fichaClinicaActual.examenes_informe_json) || {};
+    const bloquesExistentes = new Set([...contenedor.children].map((el) => el.dataset.tipoExamen));
+    const clavesMarcadas = new Set(marcados.map((t) => t.clave));
+
+    // Quita bloques de examenes que ya no estan marcados (sus datos siguen
+    // intactos en fichaClinicaActual.examenes_informe_json hasta guardar).
+    [...contenedor.children].forEach((el) => {
+        if (!clavesMarcadas.has(el.dataset.tipoExamen)) el.remove();
+    });
+
+    marcados.forEach((tipo) => {
+        if (bloquesExistentes.has(tipo.clave)) return;
+        const datos = informeActual[tipo.clave] || {};
+        const bloque = document.createElement('div');
+        bloque.className = 'informe-examen-bloque';
+        bloque.dataset.tipoExamen = tipo.clave;
+        bloque.innerHTML = `
+            <h4 class="informe-examen-bloque__titulo">${tipo.etiqueta}</h4>
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="fc-informe-fecha-${tipo.clave}">Fecha del informe</label>
+                    <input type="date" id="fc-informe-fecha-${tipo.clave}" value="${datos.fecha || ''}" onchange="sincronizarFechaLegible('fc-informe-fecha-${tipo.clave}', 'fc-informe-fecha-legible-${tipo.clave}'); marcarCambioPendiente('secciones')">
+                    <span class="fecha-legible" id="fc-informe-fecha-legible-${tipo.clave}"></span>
+                </div>
+            </div>
+            <div class="campo campo--ancho">
+                <label for="fc-informe-texto-${tipo.clave}">Resultado / informe</label>
+                <textarea id="fc-informe-texto-${tipo.clave}" rows="3" onchange="marcarCambioPendiente('secciones')">${datos.texto || ''}</textarea>
+            </div>
+            <div class="campo campo--ancho">
+                <label>Adjuntar documentos ya subidos (pestaña Documentos)</label>
+                <div id="fc-informe-documentos-${tipo.clave}"><p class="texto-secundario mb-0">Cargando...</p></div>
+            </div>
+        `;
+        contenedor.appendChild(bloque);
+        sincronizarFechaLegible(`fc-informe-fecha-${tipo.clave}`, `fc-informe-fecha-legible-${tipo.clave}`);
+        cargarDocumentosParaInforme(tipo.clave, datos.documento_ids || []);
+    });
+}
+
 // -----------------------------------------------------------------
 // M - Informe de examenes (reutiliza los documentos ya subidos en la
 // pestaña Documentos: aqui solo se referencian, no se sube un archivo
-// aparte)
+// aparte). Un bloque de informe (fecha/texto/documentos) por examen
+// marcado en L.
 // -----------------------------------------------------------------
-async function cargarDocumentosParaInforme(documentoIdsSeleccionados) {
-    const contenedor = document.getElementById('fc-informe-documentos');
+async function cargarDocumentosParaInforme(claveExamen, documentoIdsSeleccionados) {
+    const contenedor = document.getElementById(`fc-informe-documentos-${claveExamen}`);
+    if (!contenedor) return;
     try {
-        const documentos = await api.get(`/api/pacientes/${pacienteId}/documentos`);
+        if (!documentosPacienteCache) documentosPacienteCache = await api.get(`/api/pacientes/${pacienteId}/documentos`);
+        const documentos = documentosPacienteCache;
         if (documentos.length === 0) {
             contenedor.innerHTML = '<p class="texto-secundario mb-0">Sin documentos subidos todavía. Suba el informe desde la pestaña Documentos y selecciónelo aquí.</p>';
             return;
@@ -477,7 +659,7 @@ async function cargarDocumentosParaInforme(documentoIdsSeleccionados) {
         const seleccionados = new Set(documentoIdsSeleccionados || []);
         contenedor.innerHTML = documentos.map((doc) => `
             <label class="check-item">
-                <input type="checkbox" data-documento-informe="${doc.id}" ${seleccionados.has(doc.id) ? 'checked' : ''}>
+                <input type="checkbox" data-documento-informe="${doc.id}" onchange="marcarCambioPendiente('secciones')" ${seleccionados.has(doc.id) ? 'checked' : ''}>
                 ${doc.nombre_original}
             </label>
         `).join('');
@@ -486,14 +668,30 @@ async function cargarDocumentosParaInforme(documentoIdsSeleccionados) {
     }
 }
 
+// Recolecta M completo: preserva (sin cambios) el informe de cualquier
+// examen que tenga datos guardados pero no este actualmente marcado en L
+// (bloque oculto, no borrado), y toma del DOM el de cada examen marcado.
 function recopilarExamenesInforme() {
-    const documentoIds = [...document.querySelectorAll('#fc-informe-documentos input[data-documento-informe]:checked')]
-        .map((el) => Number(el.dataset.documentoInforme));
-    return {
-        fecha: document.getElementById('fc-informe-fecha').value || null,
-        texto: document.getElementById('fc-informe-texto').value.trim() || null,
-        documento_ids: documentoIds
-    };
+    const informeAnterior = (fichaClinicaActual && fichaClinicaActual.examenes_informe_json) || {};
+    const marcados = new Set(TIPOS_EXAMEN.filter((tipo) => document.getElementById(tipo.checkboxId).checked).map((t) => t.clave));
+    const resultado = {};
+
+    TIPOS_EXAMEN.forEach((tipo) => {
+        if (marcados.has(tipo.clave)) {
+            const documentoIds = [...document.querySelectorAll(`#fc-informe-documentos-${tipo.clave} input[data-documento-informe]:checked`)]
+                .map((el) => Number(el.dataset.documentoInforme));
+            const fechaEl = document.getElementById(`fc-informe-fecha-${tipo.clave}`);
+            const textoEl = document.getElementById(`fc-informe-texto-${tipo.clave}`);
+            resultado[tipo.clave] = {
+                fecha: fechaEl ? (fechaEl.value || null) : null,
+                texto: textoEl ? (textoEl.value.trim() || null) : null,
+                documento_ids: documentoIds
+            };
+        } else if (informeAnterior[tipo.clave]) {
+            resultado[tipo.clave] = informeAnterior[tipo.clave]; // conservado, oculto
+        }
+    });
+    return resultado;
 }
 
 // -----------------------------------------------------------------
@@ -586,6 +784,7 @@ function cpoValoresIguales(a, b) {
 // -----------------------------------------------------------------
 async function cargarIndicesCpo() {
     const cpo = fichaClinicaActual.indices_cpo_json || {};
+    cpoEsAutomatico = !cpo.ajustado_manualmente;
     if (cpo.ajustado_manualmente) {
         aplicarValoresCpo(cpo.permanente || {}, cpo.temporal || {});
         cpoModoManual = false;
@@ -595,6 +794,7 @@ async function cargarIndicesCpo() {
         cpoModoManual = false;
         actualizarEstadoUiCpo(false);
     }
+    actualizarAvisoEstadoOdontogramaEnCpo();
     marcarCompletitud('indices-cpo', cpo.permanente !== undefined || cpo.temporal !== undefined);
 }
 
@@ -602,10 +802,48 @@ async function cargarCpoAutomatico() {
     try {
         const sugerido = await api.get(`/api/odontograma/${pacienteId}/cpo-sugerido`);
         aplicarValoresCpo(sugerido.permanente, sugerido.temporal);
-        cpoBaseAutomatica = { permanente: { ...sugerido.permanente }, temporal: { ...sugerido.temporal } };
+        cpoBaseAutomatica = { permanente: { ...sugerido.permanente }, temporal: { ...sugerido.temporal }, existeOdontograma: sugerido.existeOdontograma !== false };
+        cpoErrorAutomatico = false;
     } catch (error) {
         aplicarValoresCpo({}, {});
         cpoBaseAutomatica = null;
+        cpoErrorAutomatico = true;
+    }
+    actualizarAvisoEstadoOdontogramaEnCpo();
+}
+
+// Nota visible en J sobre el estado del odontograma que origina el
+// autocalculo: sin odontograma registrado, edicion sin guardar (J siempre
+// refleja la ultima version GUARDADA, nunca una edicion en curso), o un
+// fallo real al consultar el autocalculo (para no confundir un error con
+// un resultado de "0" legitimo).
+function actualizarAvisoEstadoOdontogramaEnCpo() {
+    const aviso = document.getElementById('cpo-aviso-estado-odontograma');
+    if (!aviso) return;
+    aviso.classList.remove('cpo-aviso-estado-odontograma--pendiente');
+
+    if (!cpoEsAutomatico) {
+        aviso.classList.add('oculto');
+        return;
+    }
+
+    const hayEdicionPendiente = typeof hayEdicionOdontogramaPendiente === 'function' && hayEdicionOdontogramaPendiente();
+
+    if (cpoErrorAutomatico) {
+        aviso.textContent = 'No se pudo calcular el CPO-ceo automático (falló la consulta al odontograma). Reintente recargando la ficha.';
+        aviso.classList.add('cpo-aviso-estado-odontograma--pendiente');
+        aviso.classList.remove('oculto');
+    } else if (cpoBaseAutomatica && cpoBaseAutomatica.existeOdontograma === false) {
+        // Sin version guardada: aun si hay una edicion en curso (odontograma
+        // inicial auto-abierto), no hay "ultima guardada" con la que contrastar.
+        aviso.textContent = 'Sin odontograma registrado para este paciente.';
+        aviso.classList.remove('oculto');
+    } else if (hayEdicionPendiente) {
+        aviso.textContent = 'Hay una edición del odontograma sin guardar: estos índices reflejan la última versión GUARDADA, no la edición en curso.';
+        aviso.classList.add('cpo-aviso-estado-odontograma--pendiente');
+        aviso.classList.remove('oculto');
+    } else {
+        aviso.classList.add('oculto');
     }
 }
 
@@ -644,11 +882,14 @@ function iniciarAjusteManualCpo() {
         return;
     }
     cpoModoManual = true;
+    cpoEsAutomatico = false;
     actualizarEstadoUiCpo(false);
+    actualizarAvisoEstadoOdontogramaEnCpo();
     marcarCambioPendiente('secciones');
 }
 
 async function restaurarCpoAutomatico() {
+    cpoEsAutomatico = true;
     await cargarCpoAutomatico();
     cpoModoManual = false;
     actualizarEstadoUiCpo(false);
@@ -722,7 +963,7 @@ async function guardarFichaCompleta() {
         marcarCompletitud('indicadores-salud-bucal', !!(indicadores.periodontal || indicadores.oclusion));
         marcarCompletitud('indices-cpo', true);
         marcarCompletitud('examenes-solicitados', !!(examenesSolicitados.biometria || examenesSolicitados.quimica_sanguinea || examenesSolicitados.rayos_x || examenesSolicitados.otros || examenesSolicitados.detalle));
-        marcarCompletitud('examenes-informe', !!(examenesInforme.texto || examenesInforme.documento_ids.length));
+        marcarCompletitud('examenes-informe', TIPOS_EXAMEN.some((t) => examenesInforme[t.clave] && (examenesInforme[t.clave].texto || (examenesInforme[t.clave].documento_ids || []).length)));
         if (profesional) marcarCompletitud('profesional-responsable', !!profesional.doctor_id);
 
         fichaClinicaActual.antecedentes_personales_json = personales;
@@ -762,11 +1003,13 @@ let callbackSalidaPendiente = null;
 function marcarCambioPendiente(origen) {
     cambiosSinGuardar[origen] = true;
     actualizarIndicadorCambiosPendientes();
+    if (origen === 'odontograma' && typeof actualizarAvisoEstadoOdontogramaEnCpo === 'function') actualizarAvisoEstadoOdontogramaEnCpo();
 }
 
 function limpiarCambioPendiente(origen) {
     cambiosSinGuardar[origen] = false;
     actualizarIndicadorCambiosPendientes();
+    if (origen === 'odontograma' && typeof actualizarAvisoEstadoOdontogramaEnCpo === 'function') actualizarAvisoEstadoOdontogramaEnCpo();
 }
 
 function hayCambiosSinGuardar() {

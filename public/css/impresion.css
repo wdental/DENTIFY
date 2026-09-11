@@ -101,6 +101,9 @@
 .f033-campo { display: flex; gap: 4px; }
 .f033-campo strong { font-weight: 700; white-space: nowrap; }
 
+.f033-informe-examen { margin-bottom: 4px; }
+.f033-informe-examen:last-child { margin-bottom: 0; }
+
 .f033-tabla { width: 100%; border-collapse: collapse; font-size: 8px; }
 .f033-tabla th, .f033-tabla td { border: 1px solid #bbb; padding: 1px 4px; text-align: left; line-height: 1.15; }
 .f033-tabla th { background-color: #f2efe8; }

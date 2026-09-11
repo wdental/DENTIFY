@@ -44,7 +44,17 @@ const EXAMEN_ESTOMATOGNATICO_ITEMS_IMPRESION = [
     { num: 11, etiqueta: 'A.T.M.' }, { num: 12, etiqueta: 'Ganglios' }, { num: 13, etiqueta: 'Otros' }
 ];
 
-const PIEZAS_HIGIENE_IMPRESION = ['16 / 17 / 55', '11 / 21 / 51', '26 / 27 / 65', '36 / 37 / 75', '31 / 41 / 71', '46 / 47 / 85'];
+const PIEZAS_HIGIENE_IMPRESION = [
+    ['16', '17', '55'], ['11', '21', '51'], ['26', '27', '65'],
+    ['36', '37', '75'], ['31', '41', '71'], ['46', '47', '85']
+];
+
+// Marca en negrita/subrayado la pieza efectivamente examinada dentro del
+// trio (la guardada en pieza_examinada); si no se examino ninguna, el trio
+// se muestra tal cual, sin marca.
+function trioConPiezaMarcada(trio, piezaExaminada) {
+    return trio.map((p) => (p === piezaExaminada ? `<u><strong>${p}</strong></u>` : p)).join(' / ');
+}
 
 const RAYA = '<span class="f033-raya">—</span>';
 
@@ -285,8 +295,9 @@ function promedioColumnaImpresion(higiene, campo) {
 function bloqueI(ficha) {
     const indicadores = ficha.indicadores_salud_bucal_json || {};
     const higiene = indicadores.higiene || [];
-    const filas = PIEZAS_HIGIENE_IMPRESION.map((etiqueta, indice) => {
+    const filas = PIEZAS_HIGIENE_IMPRESION.map((trio, indice) => {
         const fila = higiene[indice] || {};
+        const etiqueta = fila.pieza_examinada ? trioConPiezaMarcada(trio, fila.pieza_examinada) : trio.join(' / ');
         return `<tr><td>${etiqueta}</td><td>${fila.placa ?? RAYA}</td><td>${fila.calculo ?? RAYA}</td><td>${fila.gingivitis ?? RAYA}</td></tr>`;
     }).join('');
     const etiquetasNivel = { leve: 'Leve', moderada: 'Moderada', severa: 'Severa', ninguna: 'Ninguna' };
@@ -376,12 +387,26 @@ function bloqueL(ficha) {
     `;
 }
 
+const ETIQUETAS_TIPO_EXAMEN_IMPRESION = { biometria: 'Biometría', quimica_sanguinea: 'Química sanguínea', rayos_x: 'Rayos X', otros: 'Otros' };
+
+// M solo se puebla con los informes que realmente existen (tienen fecha,
+// texto o documentos adjuntos), sin importar si el examen sigue marcado en
+// L (los datos se conservan aunque el usuario lo haya desmarcado despues).
 function bloqueM(ficha) {
     const m = ficha.examenes_informe_json || {};
+    const bloques = Object.keys(ETIQUETAS_TIPO_EXAMEN_IMPRESION)
+        .map((clave) => [clave, m[clave]])
+        .filter(([, datos]) => datos && (datos.fecha || datos.texto || (datos.documento_ids || []).length))
+        .map(([clave, datos]) => `
+            <div class="f033-informe-examen">
+                <strong>${ETIQUETAS_TIPO_EXAMEN_IMPRESION[clave] || clave}${datos.fecha ? ' — ' + formatearFecha(datos.fecha) : ''}</strong>
+                <p style="margin:2px 0 0 0;">${datos.texto || RAYA}</p>
+            </div>
+        `);
     return `
         <div class="f033-seccion">
-            <div class="f033-seccion__titulo">M. Informe de exámenes${m.fecha ? ' — ' + formatearFecha(m.fecha) : ''}</div>
-            <div class="f033-seccion__cuerpo"><p style="margin:0;">${m.texto || RAYA}</p></div>
+            <div class="f033-seccion__titulo">M. Informe de exámenes</div>
+            <div class="f033-seccion__cuerpo">${bloques.length ? bloques.join('') : `<p style="margin:0;">${RAYA}</p>`}</div>
         </div>
     `;
 }
