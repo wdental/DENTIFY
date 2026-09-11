@@ -1232,6 +1232,15 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     border-radius: var(--radio);
     margin-bottom: 14px;
     overflow: hidden;
+    max-width: 1200px;
+}
+
+/* Unica seccion que necesita el ancho completo de .contenido--paciente: el
+   odontograma (paleta + diagrama + columna de evoluciones/resumen). El
+   resto de secciones (formularios y tablas angostas) se ven mal estiradas
+   a 1600px, asi que se quedan en el ancho de lectura comodo de siempre. */
+.seccion-clinica--ancha {
+    max-width: none;
 }
 
 .seccion-clinica > summary {

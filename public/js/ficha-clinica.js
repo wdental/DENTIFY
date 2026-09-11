@@ -828,14 +828,24 @@ function actualizarAvisoEstadoOdontogramaEnCpo() {
     }
 
     const hayEdicionPendiente = typeof hayEdicionOdontogramaPendiente === 'function' && hayEdicionOdontogramaPendiente();
+    const sinVersionGuardada = cpoBaseAutomatica && cpoBaseAutomatica.existeOdontograma === false;
 
     if (cpoErrorAutomatico) {
         aviso.textContent = 'No se pudo calcular el CPO-ceo automático (falló la consulta al odontograma). Reintente recargando la ficha.';
         aviso.classList.add('cpo-aviso-estado-odontograma--pendiente');
         aviso.classList.remove('oculto');
-    } else if (cpoBaseAutomatica && cpoBaseAutomatica.existeOdontograma === false) {
-        // Sin version guardada: aun si hay una edicion en curso (odontograma
-        // inicial auto-abierto), no hay "ultima guardada" con la que contrastar.
+    } else if (sinVersionGuardada && hayEdicionPendiente && typeof calcularCpoEnVivo === 'function') {
+        // Nunca hubo una version guardada que "proteger": mostrar 0 aqui
+        // seria mas confuso que util cuando el odontograma en edicion ya
+        // tiene hallazgos. Se muestra el calculo EN VIVO de esa edicion
+        // (con nota explicita de que aun no esta guardado) en vez del 0
+        // literal — se refresca en cada cambio via finalizarCambio().
+        const enVivo = calcularCpoEnVivo();
+        aplicarValoresCpo(enVivo.permanente, enVivo.temporal);
+        aviso.textContent = 'Odontograma aún sin guardar: mostrando el cálculo en vivo de esta edición. Se fijará al usar "Guardar nueva versión".';
+        aviso.classList.add('cpo-aviso-estado-odontograma--pendiente');
+        aviso.classList.remove('oculto');
+    } else if (sinVersionGuardada) {
         aviso.textContent = 'Sin odontograma registrado para este paciente.';
         aviso.classList.remove('oculto');
     } else if (hayEdicionPendiente) {
