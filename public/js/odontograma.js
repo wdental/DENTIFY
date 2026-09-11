@@ -494,6 +494,7 @@ function iniciarNuevaVersionOdontograma(tipoForzado, esAutomatico) {
 }
 
 function cancelarNuevaVersionOdontograma() {
+    if (typeof cancelarSeguimientoSiActivo === 'function') cancelarSeguimientoSiActivo();
     modoEdicion = false;
     document.getElementById('selector-version-odontograma').disabled = false;
     document.getElementById('btn-nueva-version-odontograma').classList.remove('oculto');
@@ -505,6 +506,13 @@ function cancelarNuevaVersionOdontograma() {
 }
 
 async function guardarNuevaVersionOdontograma() {
+    // Modulo de seguimiento: si esta edicion se inicio desde "Evolucion de
+    // tratamiento", el guardado sigue un flujo distinto (encadena con la
+    // nota de evolucion) - ver public/js/seguimiento.js.
+    if (typeof modoSeguimientoOdontograma !== 'undefined' && modoSeguimientoOdontograma) {
+        return await guardarOdontogramaConSeguimiento();
+    }
+
     if (!confirm('Esta accion creara una nueva version inmutable del odontograma. La version anterior quedara archivada, disponible solo para consulta. ¿Guardar ahora?')) {
         return;
     }

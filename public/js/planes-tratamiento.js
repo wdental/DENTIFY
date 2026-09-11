@@ -464,27 +464,55 @@ async function sugerirPlanTrasGuardarOdontograma(odontogramaId, piezasGuardadas)
 }
 
 // -----------------------------------------------------------------
-// Cierre del ciclo con evoluciones (Fase 4A, punto 5): al registrar una
-// evolucion con piezas tratadas, se ofrece marcar realizados los items
-// pendientes del plan que coincidan, y luego precargar la conversion de
-// hallazgos en un nuevo odontograma de evolucion. Siempre con confirmacion.
+// Cierre del ciclo con evoluciones (Fase 4A, punto 5 + ajuste tras
+// reporte de uso real): al registrar una evolucion con piezas tratadas,
+// se ofrece marcar como realizados los hallazgos rojos pendientes de
+// esas piezas y precargar la conversion en un odontograma de evolucion.
+//
+// IMPORTANTE: esto ya NO depende de que exista un plan de tratamiento
+// aceptado. La fuente de verdad es el odontograma ACTIVO (cualquier
+// hallazgo rojo en las piezas tratadas se ofrece convertir), porque en
+// el uso real muchas sesiones no pasan por un plan formal y el odontograma
+// se quedaba sin actualizar sin que nadie lo notara ("¿ya lo hice o no?").
+// Si ademas existe un plan aceptado/en_curso con un item pendiente en esa
+// pieza, tambien se marca "realizado" y se vincula a la evolucion (para
+// que el estado del plan y su total sigan siendo confiables).
 // -----------------------------------------------------------------
 async function manejarCierrePlanTrasEvolucion(evolucionId, piezas) {
     if (!piezas || piezas.length === 0) return;
 
-    let pendientes;
-    try {
-        pendientes = await api.get(`/api/planes-tratamiento/${pacienteId}/pendientes-por-pieza?piezas=${piezas.join(',')}`);
-    } catch (error) {
-        return;
-    }
-    if (!pendientes || pendientes.length === 0) return;
+    // 1) Hallazgos rojos del odontograma ACTIVO en las piezas tratadas
+    //    (fuente principal, no depende de ningun plan).
+    const candidatosOdontograma = (typeof odontogramaActivo !== 'undefined' && odontogramaActivo && odontogramaActivo.piezas)
+        ? odontogramaActivo.piezas
+            .filter((p) => p.color_tipo === 'rojo' && p.hallazgo && CONVERSION_HALLAZGO_REALIZADO[p.hallazgo] && piezas.includes(p.pieza))
+            .map((p) => ({ piezas: p.pieza, hallazgo_origen: p.hallazgo, plan_id: null, id: null }))
+        : [];
 
-    const lista = pendientes.map((p) => `- ${p.descripcion} (pieza ${p.piezas})`).join('\n');
-    if (!confirm(`Hay ítems pendientes del plan de tratamiento que coinciden con las piezas tratadas:\n${lista}\n\n¿Marcarlos como realizados?`)) return;
+    // 2) Items pendientes de un plan aceptado/en_curso en esas piezas (si
+    //    existe alguno) - se combinan con lo anterior, sin duplicar pieza+hallazgo.
+    let pendientesPlan = [];
+    try {
+        pendientesPlan = await api.get(`/api/planes-tratamiento/${pacienteId}/pendientes-por-pieza?piezas=${piezas.join(',')}`);
+    } catch (error) {
+        pendientesPlan = [];
+    }
+
+    const combinados = [...pendientesPlan];
+    candidatosOdontograma.forEach((c) => {
+        const piezaPrincipal = String(c.piezas).split('-')[0];
+        const yaCubierto = combinados.some((it) => String(it.piezas).split('-')[0] === piezaPrincipal && it.hallazgo_origen === c.hallazgo_origen);
+        if (!yaCubierto) combinados.push(c);
+    });
+
+    if (combinados.length === 0) return;
+
+    const lista = combinados.map((it) => `- ${ETIQUETAS_HALLAZGO_SEGUIMIENTO[it.hallazgo_origen] || it.hallazgo_origen} (pieza ${it.piezas})`).join('\n');
+    if (!confirm(`El odontograma tiene hallazgos pendientes en las piezas tratadas:\n${lista}\n\n¿Marcarlos como realizados?`)) return;
 
     let ultimoResultado = null;
-    for (const item of pendientes) {
+    for (const item of combinados) {
+        if (!item.plan_id || !item.id) continue; // solo los que vienen de un plan tienen item que actualizar
         try {
             ultimoResultado = await api.put(`/api/planes-tratamiento/${pacienteId}/${item.plan_id}/items/${item.id}/marcar-realizado`, { evolucion_id: evolucionId });
         } catch (error) {
@@ -494,7 +522,7 @@ async function manejarCierrePlanTrasEvolucion(evolucionId, piezas) {
 
     if (confirm('¿Registrar un odontograma de evolución convirtiendo estos hallazgos a su estado "realizado"? Podrá revisar los cambios antes de guardar.')) {
         if (typeof precargarConversionOdontograma === 'function') {
-            precargarConversionOdontograma(pendientes);
+            precargarConversionOdontograma(combinados);
         } else {
             alert('Abra la sección "Ficha clínica" → Odontograma para registrar la conversión manualmente.');
         }
@@ -503,7 +531,7 @@ async function manejarCierrePlanTrasEvolucion(evolucionId, piezas) {
     if (ultimoResultado && ultimoResultado.todosResueltos) {
         if (confirm('Todos los ítems del plan de tratamiento están resueltos. ¿Marcar el plan como finalizado?')) {
             try {
-                await api.put(`/api/planes-tratamiento/${pacienteId}/${pendientes[0].plan_id}/finalizar`);
+                await api.put(`/api/planes-tratamiento/${pacienteId}/${pendientesPlan[0].plan_id}/finalizar`);
             } catch (error) {
                 alert('No se pudo finalizar el plan: ' + error.message);
             }
@@ -513,6 +541,22 @@ async function manejarCierrePlanTrasEvolucion(evolucionId, piezas) {
     if (typeof cargarPlanTab === 'function') await cargarPlanTab();
     if (typeof cargarPanelResumenPaciente === 'function') await cargarPanelResumenPaciente();
 }
+
+// Etiquetas breves de los hallazgos rojos, solo para los mensajes de
+// confirmacion de esta pantalla (duplicado intencional, ver la misma
+// tabla en routes/planes-tratamiento.js: es una lista de 9 entradas, no
+// vale la pena acoplar backend y frontend por esto).
+const ETIQUETAS_HALLAZGO_SEGUIMIENTO = {
+    caries: 'Caries',
+    extraccion_indicada: 'Extracción indicada',
+    endodoncia_indicada: 'Endodoncia por realizar',
+    corona_indicada: 'Corona indicada',
+    sellante_necesario: 'Sellante necesario',
+    protesis_fija_indicada: 'Prótesis fija indicada',
+    protesis_removible_indicada: 'Prótesis removible indicada',
+    protesis_total_indicada: 'Prótesis total indicada',
+    implante_indicado: 'Implante indicado'
+};
 
 const CONVERSION_HALLAZGO_REALIZADO = {
     caries: 'obturado',

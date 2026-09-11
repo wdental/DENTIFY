@@ -123,6 +123,13 @@ async function abrirModalEvolucion(esAlta) {
     document.getElementById('form-evolucion').reset();
     document.getElementById('ev-cita-id').value = '';
     document.getElementById('ev-es-alta').value = esAlta ? '1' : '0';
+    document.getElementById('ev-piezas').disabled = false;
+    const avisoSeguimientoPrevio = document.getElementById('aviso-seguimiento-evolucion');
+    if (avisoSeguimientoPrevio) avisoSeguimientoPrevio.remove();
+    // Se limpia siempre al abrir; abrirModalEvolucionParaSeguimiento() (ver
+    // seguimiento.js) vuelve a asignarlo justo despues de llamar a esta
+    // funcion, para el caso del flujo guiado de evolucion+odontograma.
+    if (typeof odontogramaIdPendienteEvolucion !== 'undefined') odontogramaIdPendienteEvolucion = null;
 
     const hoy = new Date().toISOString().slice(0, 10);
     document.getElementById('ev-fecha').value = hoy;
@@ -153,6 +160,7 @@ async function abrirModalEvolucion(esAlta) {
 
 function cerrarModalEvolucion() {
     document.getElementById('modal-evolucion').classList.remove('abierto');
+    if (typeof limpiarSeguimientoSiPendiente === 'function') limpiarSeguimientoSiPendiente();
 }
 
 async function revisarCitaDelDia() {
@@ -201,15 +209,18 @@ async function guardarEvolucion(evento) {
         piezas_tratadas: piezas,
         es_alta: document.getElementById('ev-es-alta').value === '1',
         cita_id: document.getElementById('ev-cita-id').value || null,
+        odontograma_id: typeof odontogramaIdPendienteEvolucion !== 'undefined' ? odontogramaIdPendienteEvolucion : null,
         firma_paciente: firmaPaciente,
         firma_doctor: firmaDoctor
     };
 
     try {
         const resultado = await api.post(`/api/evoluciones/${pacienteId}`, datos);
+        if (typeof limpiarSeguimientoSiPendiente === 'function') limpiarSeguimientoSiPendiente();
         cerrarModalEvolucion();
         await cargarEvolucionesCompletas();
         if (typeof cargarPanelEvolucionesLateral === 'function') await cargarPanelEvolucionesLateral();
+        if (typeof cargarSeguimientoTab === 'function') await cargarSeguimientoTab();
         if (typeof manejarCierrePlanTrasEvolucion === 'function') await manejarCierrePlanTrasEvolucion(resultado.id, piezas);
 
         if (datos.es_alta) {

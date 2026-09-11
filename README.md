@@ -262,6 +262,15 @@ Al registrar una evolución con piezas tratadas, si el paciente tiene un plan ac
 
 Cuatro tablas nuevas (`tratamientos`, `mapeo_hallazgo_tratamiento`, `planes_tratamiento`, `plan_items`, `CREATE TABLE IF NOT EXISTS` en `db/schema.sql`) — no afectan ninguna tabla existente. Las tablas `presupuestos`/`pagos` (stubs desde la Fase 1, sin interfaz) quedan reservadas para la Fase 4B (pagos y caja), sin relación directa con `planes_tratamiento`.
 
+## Ajuste post-Fase 4A: módulo de seguimiento de evolución + odontograma
+
+Tras usar la Fase 4A en la clínica, se detectó una fuente real de confusión: la única forma de que el odontograma reflejara automáticamente un tratamiento ya realizado era a través de un plan de tratamiento formalmente **aceptado**. Como muchas sesiones del día a día no pasan por ese ritual completo (generar → presentar → firmar un plan), el odontograma se quedaba sin actualizar sin que nadie lo notara — daba la sensación de que "un hallazgo vuelve a estar en rojo" cuando en realidad nunca había cambiado.
+
+- **Sugerencia de conversión independiente del plan**: al guardar cualquier evolución con piezas tratadas, Dentify compara esas piezas contra los hallazgos rojos del **odontograma activo** (no contra un plan) y ofrece convertirlos a su estado realizado, con confirmación explícita. Si además existe un plan aceptado/en curso con un ítem pendiente en esa pieza, también se marca como realizado y se vincula a la evolución — pero ya no es un requisito.
+- **Nueva pestaña "Evolución de tratamiento"**: un flujo guiado que une en un solo acto la nota de evolución y la actualización del odontograma. Al presionar "+ Registrar evolución con odontograma" se abre el editor real del odontograma (todas las piezas, cualquier hallazgo del catálogo — cubre también un problema nuevo no registrado antes, por ejemplo un accidente o una pieza rota que no estaba en el odontograma inicial). Al guardar esa versión, se abre automáticamente el mismo modal de "Nueva evolución" de siempre, con las piezas modificadas **detectadas automáticamente** (diff entre el odontograma antes y después) y precargadas en el campo "piezas tratadas" (bloqueado, ya no se escribe a mano), vinculando la evolución a esa versión concreta (`evoluciones.odontograma_id`, columna nueva, migración sin pérdida de datos).
+- **Historial sin ambigüedad**: cada evolución en esta pestaña muestra explícitamente **"✓ Odontograma actualizado"** (con enlace directo a esa versión) o **"— Sin cambios en el odontograma"**, en vez de dejarlo implícito.
+- No se modificó el versionado inmutable del odontograma, las reglas de exclusión clínica, ni la sección P (Tratamiento) del Formulario 033 — sigue mostrando las mismas evoluciones, ahora con el vínculo opcional visible.
+
 ## Requisitos
 
 - **Node.js** versión LTS (18 o superior). Descargar de [https://nodejs.org](https://nodejs.org)

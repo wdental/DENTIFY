@@ -228,6 +228,7 @@ CREATE TABLE IF NOT EXISTS evoluciones (
     piezas_tratadas_json TEXT,                     -- ['16','25',...] FDI, opcional
     es_alta INTEGER NOT NULL DEFAULT 0,
     cita_id INTEGER REFERENCES citas(id) ON DELETE SET NULL, -- cita de agenda vinculada, opcional
+    odontograma_id INTEGER REFERENCES odontogramas(id), -- version de odontograma registrada en la misma sesion (modulo de seguimiento, Fase 4A-bis)
     anulada INTEGER NOT NULL DEFAULT 0,
     motivo_anulacion TEXT,
     anulado_por INTEGER REFERENCES usuarios(id),

@@ -189,6 +189,18 @@ function migrar(db) {
         console.log('Migracion: evoluciones.cita_id ahora usa ON DELETE SET NULL (borrar una cita ya no falla ni afecta la evolucion vinculada); evoluciones existentes conservadas');
     }
 
+    // Modulo de seguimiento (evolucion + odontograma en un solo flujo,
+    // Fase 4A-bis): vincula opcionalmente una evolucion con la version de
+    // odontograma registrada como consecuencia directa de esa sesion, para
+    // mostrar en pantalla si el odontograma quedo actualizado o no y evitar
+    // la ambiguedad de "¿ya registre esto o no?". Columna nueva, nula por
+    // defecto: no afecta ninguna evolucion existente.
+    const columnasEvoluciones2 = db.prepare("PRAGMA table_info(evoluciones)").all().map((c) => c.name);
+    if (columnasEvoluciones2.length > 0 && !columnasEvoluciones2.includes('odontograma_id')) {
+        db.exec('ALTER TABLE evoluciones ADD COLUMN odontograma_id INTEGER REFERENCES odontogramas(id)');
+        console.log('Migracion: columna "odontograma_id" agregada a evoluciones (vinculo opcional con la version de odontograma registrada en la misma sesion)');
+    }
+
     // Vincula opcionalmente una cuenta de usuario con su doctor en la tabla
     // "doctores" (un odontologo que inicia sesion con su propia cuenta no
     // deberia tener que elegirse a si mismo en cada selector de doctor de la

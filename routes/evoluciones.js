@@ -16,12 +16,14 @@ function cargarEvoluciones(pacienteId, limite) {
         SELECT e.*, doc.nombre_completo AS doctor_nombre,
                u.nombre AS creado_por_nombre, ua.nombre AS anulado_por_nombre,
                c.fecha AS cita_fecha, c.hora_inicio AS cita_hora_inicio,
-               fp.firma_data AS firma_paciente, fd.firma_data AS firma_doctor
+               fp.firma_data AS firma_paciente, fd.firma_data AS firma_doctor,
+               o.tipo AS odontograma_tipo, o.fecha_registro AS odontograma_fecha
         FROM evoluciones e
         LEFT JOIN doctores doc ON doc.id = e.doctor_id
         LEFT JOIN usuarios u ON u.id = e.creado_por
         LEFT JOIN usuarios ua ON ua.id = e.anulado_por
         LEFT JOIN citas c ON c.id = e.cita_id
+        LEFT JOIN odontogramas o ON o.id = e.odontograma_id
         LEFT JOIN firmas fp ON fp.documento_tipo = 'evolucion_paciente' AND fp.documento_id = e.id
         LEFT JOIN firmas fd ON fd.documento_tipo = 'evolucion_doctor' AND fd.documento_id = e.id
         WHERE e.paciente_id = ?
@@ -76,7 +78,7 @@ router.post('/:pacienteId', (req, res) => {
     const {
         fecha, doctor_id, diagnosticos_complicaciones, procedimientos,
         prescripciones, piezas_tratadas, es_alta, cita_id,
-        firma_paciente, firma_doctor
+        firma_paciente, firma_doctor, odontograma_id
     } = req.body;
 
     if (!procedimientos || !procedimientos.trim()) {
@@ -99,6 +101,11 @@ router.post('/:pacienteId', (req, res) => {
         if (!cita) return res.status(400).json({ error: 'La cita indicada no pertenece a este paciente' });
     }
 
+    if (odontograma_id) {
+        const odontograma = db.prepare('SELECT id FROM odontogramas WHERE id = ? AND paciente_id = ?').get(odontograma_id, req.params.pacienteId);
+        if (!odontograma) return res.status(400).json({ error: 'El odontograma indicado no pertenece a este paciente' });
+    }
+
     const transaccion = db.transaction(() => {
         const filaMax = db.prepare('SELECT MAX(numero_sesion) AS maximo FROM evoluciones WHERE paciente_id = ?').get(req.params.pacienteId);
         const numeroSesion = (filaMax.maximo || 0) + 1;
@@ -106,8 +113,8 @@ router.post('/:pacienteId', (req, res) => {
         const resultado = db.prepare(`
             INSERT INTO evoluciones (
                 paciente_id, numero_sesion, fecha, doctor_id, diagnosticos_complicaciones,
-                procedimientos, prescripciones, piezas_tratadas_json, es_alta, cita_id, creado_por
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                procedimientos, prescripciones, piezas_tratadas_json, es_alta, cita_id, odontograma_id, creado_por
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             req.params.pacienteId,
             numeroSesion,
@@ -119,6 +126,7 @@ router.post('/:pacienteId', (req, res) => {
             JSON.stringify(Array.isArray(piezas_tratadas) ? piezas_tratadas : []),
             es_alta ? 1 : 0,
             cita_id || null,
+            odontograma_id || null,
             req.session.usuario.id
         );
 

@@ -46,6 +46,7 @@
             <button class="pestana" data-panel="panel-ficha-clinica">Ficha clínica (F033)</button>
             <button class="pestana" data-panel="panel-consentimientos">Consentimientos</button>
             <button class="pestana" data-panel="panel-plan-tratamiento">Plan de tratamiento</button>
+            <button class="pestana" data-panel="panel-evolucion-tratamiento">Evolución de tratamiento</button>
         </div>
 
         <div class="panel-pestana activo" id="panel-datos">
@@ -467,6 +468,17 @@
             <div class="tarjeta" style="margin-top:20px;">
                 <h3>Historial de planes</h3>
                 <div id="historial-planes-tratamiento"><p class="texto-secundario">Cargando historial...</p></div>
+            </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-evolucion-tratamiento">
+            <div class="tarjeta">
+                <div class="flex-entre" style="margin-bottom:16px;">
+                    <h3 class="mb-0">Evolución de tratamiento</h3>
+                    <button class="btn btn-primario btn-sm" id="btn-nueva-evolucion-seguimiento">+ Registrar evolución con odontograma</button>
+                </div>
+                <p class="texto-secundario">Este flujo guiado abre el odontograma para registrar lo atendido hoy (cualquier pieza, incluida una no registrada antes — por ejemplo un accidente) y luego pide la nota de evolución ya vinculada a esa versión. Cada sesión muestra si el odontograma quedó o no actualizado, sin ambigüedad.</p>
+                <div id="lista-seguimiento-evoluciones"><p class="texto-secundario">Cargando evoluciones...</p></div>
             </div>
         </div>
 
@@ -960,5 +972,6 @@
 <script src="/js/diagnosticos.js"></script>
 <script src="/js/consentimientos.js"></script>
 <script src="/js/planes-tratamiento.js"></script>
+<script src="/js/seguimiento.js"></script>
 </body>
 </html>
