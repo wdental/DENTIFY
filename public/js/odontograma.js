@@ -1057,7 +1057,10 @@ function actualizarCpoEnVivo() {
 // -----------------------------------------------------------------
 // Construccion del SVG del diagrama
 // -----------------------------------------------------------------
-function renderizarSvgOdontograma() {
+// elementoDestino es opcional (por defecto el <svg id="odontograma-svg">
+// de la app interactiva); imprimir-f033.js lo usa para dibujar dos
+// diagramas distintos (inicial + actual) en la misma pagina de impresion.
+function renderizarSvgOdontograma(elementoDestino) {
     // Cada fila reserva, de su lado "afuera" de la boca, la banda del numero
     // (+ MOV/REC si es permanente) y, de su lado "adentro", la banda del
     // asterisco de sellante - ver extentoExterior()/extentoInterior().
@@ -1122,7 +1125,7 @@ function renderizarSvgOdontograma() {
     contenido += dibujarTramos(piezaPosiciones);
     contenido += dibujarSeleccionTramo(piezaPosiciones);
 
-    const svg = document.getElementById('odontograma-svg');
+    const svg = elementoDestino || document.getElementById('odontograma-svg');
     svg.setAttribute('viewBox', `0 0 ${ANCHO_SVG} ${alturaSvg}`);
     svg.setAttribute('width', ANCHO_SVG);
     svg.setAttribute('data-modo-lectura', modoEdicion ? '0' : '1');

@@ -64,17 +64,29 @@ const RAYA = '<span class="f033-raya">—</span>';
     if (!pacienteId) { mostrarErrorCarga('Falta el identificador del paciente en la URL'); return; }
 
     try {
-        const [paciente, ficha, odontogramaResp, diagnosticos, evoluciones, doctores] = await Promise.all([
+        const [paciente, ficha, odontogramaResp, diagnosticos, evoluciones, doctores, versionesOdontograma] = await Promise.all([
             api.get(`/api/pacientes/${pacienteId}`),
             api.get(`/api/ficha-clinica/${pacienteId}`),
             api.get(`/api/odontograma/${pacienteId}/activo`),
             api.get(`/api/diagnosticos/${pacienteId}`),
             api.get(`/api/evoluciones/${pacienteId}`),
-            api.get('/api/doctores')
+            api.get('/api/doctores'),
+            api.get(`/api/odontograma/${pacienteId}/versiones`)
         ]);
 
+        // Se imprime SIEMPRE el odontograma inicial (linea base fija) junto al
+        // actual (evolucion/alta activa), para poder comparar lo encontrado en
+        // la primera consulta contra el estado presente - si el paciente aun
+        // no tiene ninguna evolucion, el activo Y el inicial son la misma
+        // version y solo se muestra un diagrama (ver bloqueH).
+        let odontogramaInicialResp = null;
+        const versionInicial = (versionesOdontograma || []).find((v) => v.tipo === 'inicial');
+        if (versionInicial && (!odontogramaResp.odontograma || versionInicial.id !== odontogramaResp.odontograma.id)) {
+            odontogramaInicialResp = await api.get(`/api/odontograma/version/${versionInicial.id}`);
+        }
+
         document.title = `Dentify - F033 - ${paciente.apellidos} ${paciente.nombres}`;
-        renderizarImpresion({ paciente, ficha, odontogramaResp, diagnosticos, evoluciones, doctores });
+        renderizarImpresion({ paciente, ficha, odontogramaResp, odontogramaInicialResp, diagnosticos, evoluciones, doctores });
     } catch (error) {
         mostrarErrorCarga('No se pudo cargar el formulario: ' + error.message);
     }
@@ -90,21 +102,30 @@ function renderizarImpresion(datos) {
 
     contenedor.innerHTML = paginaUno(datos) + paginaDos(datos);
 
-    // Ahora que el <svg id="odontograma-svg"> ya existe en el DOM, se
-    // reutiliza el renderizador real del odontograma (odontograma.js) para
-    // dibujar la version activa con exactamente los mismos simbolos.
-    piezasVisibles = (datos.odontogramaResp && datos.odontogramaResp.piezas) || [];
+    // Ahora que los <svg> ya existen en el DOM, se reutiliza el renderizador
+    // real del odontograma (odontograma.js) para dibujar cada version con
+    // exactamente los mismos simbolos - el inicial (si es distinto del
+    // activo) y el actual, uno a la vez (ambos comparten el estado global
+    // piezasVisibles, por eso se renderizan en dos pasos secuenciales).
     modoEdicion = false;
     herramientaActiva = null;
     tramoEnProgreso = null;
-    if (typeof renderizarSvgOdontograma === 'function') renderizarSvgOdontograma();
+
+    if (datos.odontogramaInicialResp && typeof renderizarSvgOdontograma === 'function') {
+        piezasVisibles = datos.odontogramaInicialResp.piezas || [];
+        renderizarSvgOdontograma(document.getElementById('odontograma-svg-inicial'));
+    }
+    piezasVisibles = (datos.odontogramaResp && datos.odontogramaResp.piezas) || [];
+    if (typeof renderizarSvgOdontograma === 'function') {
+        renderizarSvgOdontograma(document.getElementById('odontograma-svg-actual'));
+    }
 }
 
 // -----------------------------------------------------------------
 // PAGINA 1
 // -----------------------------------------------------------------
 function paginaUno(datos) {
-    const { paciente, ficha, odontogramaResp } = datos;
+    const { paciente, ficha, odontogramaResp, odontogramaInicialResp } = datos;
     return `
         <div class="hoja-f033">
             ${encabezadoForma(1)}
@@ -114,7 +135,7 @@ function paginaUno(datos) {
             ${bloqueDE(ficha)}
             ${bloqueF(ficha)}
             ${bloqueG(ficha)}
-            ${bloqueH(odontogramaResp)}
+            ${bloqueH(odontogramaResp, odontogramaInicialResp)}
             ${bloqueI(ficha)}
             ${bloqueJ(ficha)}
             ${bloqueK()}
@@ -266,16 +287,55 @@ function bloqueG(ficha) {
     `;
 }
 
-function bloqueH(odontogramaResp) {
-    const odontograma = odontogramaResp && odontogramaResp.odontograma;
-    const meta = odontograma
-        ? `${ETIQUETAS_TIPO_ODONTOGRAMA[odontograma.tipo] || 'Evolución'} — ${formatearFecha((odontograma.fecha_registro || '').slice(0, 10))}${odontograma.doctor_nombre ? ' · ' + odontograma.doctor_nombre : ''}`
+// Imprime SIEMPRE el odontograma actual (evolucion/alta activa); ademas,
+// si el paciente ya tiene evoluciones (el inicial dejo de ser el activo),
+// imprime tambien el odontograma INICIAL como linea base fija para poder
+// comparar contra el estado presente - a pedido de uso real, antes solo se
+// imprimia la version activa y se perdia el registro visual de lo que el
+// paciente presento en su primera consulta.
+function bloqueH(odontogramaResp, odontogramaInicialResp) {
+    const odontogramaActual = odontogramaResp && odontogramaResp.odontograma;
+    const metaActual = odontogramaActual
+        ? `${ETIQUETAS_TIPO_ODONTOGRAMA[odontogramaActual.tipo] || 'Evolución'} — ${formatearFecha((odontogramaActual.fecha_registro || '').slice(0, 10))}${odontogramaActual.doctor_nombre ? ' · ' + odontogramaActual.doctor_nombre : ''}`
         : 'Sin odontograma registrado';
+
+    const odontogramaInicial = odontogramaInicialResp && odontogramaInicialResp.odontograma;
+    const columnaActual = `
+        <p class="f033-odontograma-subtitulo">${odontogramaInicial ? 'Odontograma actual (evolución)' : 'Odontograma'} — ${metaActual}</p>
+        <div class="f033-odontograma-svg-envoltura">
+            <svg id="odontograma-svg-actual" class="odontograma-svg"></svg>
+        </div>
+    `;
+
+    // Sin evolucion todavia (el activo ES el inicial): un solo diagrama a
+    // ancho completo, igual que antes de este ajuste.
+    if (!odontogramaInicial) {
+        return `
+            <div class="f033-seccion">
+                <div class="f033-seccion__titulo">H. Odontograma</div>
+                <div class="f033-seccion__cuerpo">${columnaActual}</div>
+            </div>
+        `;
+    }
+
+    // Con evolucion: el inicial (linea base fija) y el actual lado a lado,
+    // para poder comparar lo encontrado en la primera consulta contra el
+    // estado presente sin perder ese registro visual.
+    const columnaInicial = `
+        <p class="f033-odontograma-subtitulo">Odontograma inicial — ${formatearFecha((odontogramaInicial.fecha_registro || '').slice(0, 10))}${odontogramaInicial.doctor_nombre ? ' · ' + odontogramaInicial.doctor_nombre : ''}</p>
+        <div class="f033-odontograma-svg-envoltura">
+            <svg id="odontograma-svg-inicial" class="odontograma-svg"></svg>
+        </div>
+    `;
+
     return `
         <div class="f033-seccion">
-            <div class="f033-seccion__titulo">H. Odontograma — ${meta}</div>
-            <div class="f033-seccion__cuerpo f033-odontograma-svg-envoltura">
-                <svg id="odontograma-svg" class="odontograma-svg"></svg>
+            <div class="f033-seccion__titulo">H. Odontograma</div>
+            <div class="f033-seccion__cuerpo">
+                <div class="f033-odontograma-doble">
+                    <div class="f033-odontograma-columna">${columnaInicial}</div>
+                    <div class="f033-odontograma-columna">${columnaActual}</div>
+                </div>
             </div>
         </div>
     `;

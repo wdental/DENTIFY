@@ -121,6 +121,31 @@
     display: inline-block;
 }
 
+.f033-odontograma-subtitulo {
+    text-align: center;
+    font-weight: 700;
+    font-size: 7.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin: 2px 0 0 0;
+}
+
+/* Odontograma inicial + actual lado a lado (ver bloqueH en
+   imprimir-f033.js) - cada columna reduce el ancho maximo del svg para
+   que ambos quepan sin desbordar la hoja A4. */
+.f033-odontograma-doble {
+    display: flex;
+    gap: 4mm;
+    align-items: flex-start;
+}
+.f033-odontograma-doble .f033-odontograma-columna {
+    flex: 1 1 50%;
+    min-width: 0;
+}
+.f033-odontograma-doble .f033-odontograma-svg-envoltura svg {
+    max-width: 100%;
+}
+
 /* La seccion K reutiliza .odontograma-leyenda tal cual (misma funcion que
    la pantalla de edicion); se recorta su espaciado, pensado para pantalla. */
 .hoja-f033 .odontograma-leyenda {
