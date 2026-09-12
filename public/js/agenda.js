@@ -8,7 +8,7 @@
 
 let usuarioSesion = null;
 let doctoresActivos = [];
-let fechaSeleccionada = new Date().toISOString().slice(0, 10);
+let fechaSeleccionada = fechaHoyIso();
 let vistaActual = 'dia';
 let pacienteSeleccionado = null;
 let temporizadorBusquedaPaciente = null;
@@ -85,13 +85,13 @@ function inicioSemana(fechaStr) {
     const dia = d.getDay();
     const diff = dia === 0 ? -6 : 1 - dia;
     d.setDate(d.getDate() + diff);
-    return d.toISOString().slice(0, 10);
+    return fechaIsoLocal(d);
 }
 
 function sumarDias(fechaStr, dias) {
     const d = new Date(fechaStr + 'T00:00:00');
     d.setDate(d.getDate() + dias);
-    return d.toISOString().slice(0, 10);
+    return fechaIsoLocal(d);
 }
 
 // -----------------------------------------------------------------
@@ -119,7 +119,7 @@ function sumarDias(fechaStr, dias) {
     document.getElementById('btn-periodo-anterior').addEventListener('click', () => cambiarPeriodo(-1));
     document.getElementById('btn-periodo-siguiente').addEventListener('click', () => cambiarPeriodo(1));
     document.getElementById('btn-hoy').addEventListener('click', () => {
-        fechaSeleccionada = new Date().toISOString().slice(0, 10);
+        fechaSeleccionada = fechaHoyIso();
         document.getElementById('campo-fecha-agenda').value = fechaSeleccionada;
         cargarVistaActual();
     });
@@ -364,7 +364,7 @@ function renderizarVistaSemana(lunes, domingo, citas) {
         const conteoPorEstado = {};
         citasDelDia.forEach((c) => { conteoPorEstado[c.estado] = (conteoPorEstado[c.estado] || 0) + 1; });
 
-        const esHoy = fecha === new Date().toISOString().slice(0, 10);
+        const esHoy = fecha === fechaHoyIso();
         const domingoDia = esDomingo(fecha);
 
         return `

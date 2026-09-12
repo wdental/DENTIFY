@@ -28,13 +28,19 @@ function formatearFechaConDia(fechaIso) {
     return `${DIAS_SEMANA_ES[d.getDay()]}, ${formatearFecha(fechaIso)}`;
 }
 
-// Fecha de HOY en ISO (YYYY-MM-DD) segun el reloj LOCAL del equipo.
-// No usar new Date().toISOString(): esa es la fecha UTC y en Ecuador
-// (UTC-5) a partir de las 19:00 ya devuelve el dia siguiente, de modo que
-// un registro hecho de noche naceria fechado "mañana".
-function fechaHoyIso() {
-    const d = new Date();
+// Fecha de un Date en ISO (YYYY-MM-DD) segun el reloj LOCAL del equipo.
+// No usar toISOString(): esa es la fecha UTC y en Ecuador (UTC-5) a partir
+// de las 19:00 ya devuelve el dia siguiente, de modo que la agenda abriria
+// en "mañana" y un registro hecho de noche naceria fechado mal. La clinica
+// atiende hasta las 21:00, asi que la diferencia es de uso diario.
+function fechaIsoLocal(fecha) {
+    const d = fecha instanceof Date ? fecha : new Date(fecha);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Fecha de HOY en ISO (YYYY-MM-DD) segun el reloj local.
+function fechaHoyIso() {
+    return fechaIsoLocal(new Date());
 }
 
 // -----------------------------------------------------------------

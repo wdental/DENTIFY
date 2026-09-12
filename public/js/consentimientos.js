@@ -206,7 +206,7 @@ function abrirKioskoFirma() {
         representante_clausula: clausulaRepresentanteVista(esMenor, repNombre, repCedula),
         doctor_nombre: doctor ? doctor.nombre_completo : 'Sin especificar',
         doctor_registro: doctor && doctor.registro_profesional ? doctor.registro_profesional : 'Sin especificar',
-        fecha: formatearFecha(new Date().toISOString().slice(0, 10)),
+        fecha: formatearFecha(fechaHoyIso()),
         piezas: document.getElementById('cons-piezas').value.trim() || 'No aplica',
         procedimiento_detalle: document.getElementById('cons-procedimiento-detalle').value.trim() || 'Sin observaciones adicionales.'
     };

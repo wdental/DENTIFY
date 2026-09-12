@@ -41,7 +41,7 @@ async function cargarResumenDashboard() {
         document.getElementById('valor-nuevos-mes').textContent = resumen.nuevosMes;
         document.getElementById('valor-citas-hoy').textContent = resumen.citasHoy.length;
         document.getElementById('valor-noshows-mes').textContent = resumen.noShowsMes;
-        document.getElementById('fecha-hoy-dashboard').textContent = formatearFechaConDia(new Date().toISOString().slice(0, 10));
+        document.getElementById('fecha-hoy-dashboard').textContent = formatearFechaConDia(fechaHoyIso());
         dibujarIndicadoresFinancieros(resumen.finanzas);
         dibujarIndicadoresLaboratorio(resumen.laboratorio);
 

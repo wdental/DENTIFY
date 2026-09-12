@@ -116,7 +116,8 @@ router.get('/', (req, res) => {
     let { desde, hasta } = req.query;
 
     if (!desde && !hasta && !paciente_id) {
-        desde = new Date().toISOString().slice(0, 10);
+        // Reloj local, no UTC: de noche el rango por defecto se corria a mañana.
+        desde = db.prepare("SELECT date('now', 'localtime') AS fecha").get().fecha;
         hasta = desde;
     } else {
         desde = desde || '0001-01-01';
