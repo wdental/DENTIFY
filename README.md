@@ -366,6 +366,37 @@ No hay mecanismo de subida propio: se suben en la pestaña **Documentos** del pa
 los referencia. Al registrar un trabajo se marcan con una casilla los documentos que le
 corresponden.
 
+## Avisos y confirmaciones
+
+Dentify no usa las ventanas de aviso del navegador. Todas las confirmaciones aparecen **centradas en
+la pantalla**, con la tipografía y los colores de la clínica, y **cada botón dice qué va a pasar** en
+lugar de "OK / Cancelar": *"Eliminar cita" / "Conservar"*, *"Guardar versión" / "Seguir editando"*,
+*"Quitar los demás" / "Dejar como está"*. Las acciones que borran algo pintan su botón en rojo y
+arrancan con el foco puesto en cancelar, para que pulsar Enter sin leer no borre nada. `Esc` cancela
+y un clic fuera del cuadro también.
+
+Los avisos que solo informan (por ejemplo, "la pieza 24 está marcada como ausente") llevan un único
+botón *"Entendido"*, sin un "Cancelar" que no cancela nada.
+
+Está implementado en `public/js/dialogos.js` (`confirmarAccion` y `avisar`), que se carga en todas
+las pantallas.
+
+## Limpieza de datos de prueba
+
+Un trabajo de laboratorio no se puede borrar desde la aplicación, solo cancelar — correcto para el
+trabajo real, incómodo al probar el módulo. Para eso está `scripts/purgar-laboratorio-pruebas.js`,
+que se ejecuta con Dentify cerrado:
+
+```
+node scripts/purgar-laboratorio-pruebas.js --orden=LAB-2026-0007
+node scripts/purgar-laboratorio-pruebas.js --historia=WD-2026-0043 --aplicar
+```
+
+Exige decir qué borrar (nunca borra todo por su cuenta) y **por defecto solo muestra lo que
+borraría**: hay que repetir el comando con `--aplicar`. Arrastra los reenvíos por ajuste que
+dependan de un trabajo borrado y, si el año queda sin ninguna orden, reinicia el contador para que
+la primera orden real vuelva a ser `LAB-AAAA-0001`.
+
 ## Requisitos
 
 - **Node.js** versión LTS (18 o superior). Descargar de [https://nodejs.org](https://nodejs.org)
@@ -478,8 +509,9 @@ Dentify/
 │                                tratamientos, planes-tratamiento, pagos, planes-pago,
 │                                laboratorio)
 ├── middleware/                 Middlewares de autenticacion y roles
+├── scripts/                    Utilidades de mantenimiento (purga de datos de prueba)
 ├── utils/                      Utilidades (respaldo, numero de historia, numero de recibo,
-│                                numero de orden de laboratorio, monto en letras,
+│                                numero de orden de laboratorio, monto en letras, fecha local,
 │                                finanzas, googleCalendar, sincronizacion)
 ├── public/                     Frontend (HTML, CSS, JS, sin frameworks)
 ├── uploads/pacientes/          Documentos adjuntos de cada paciente

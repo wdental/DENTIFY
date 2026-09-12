@@ -463,15 +463,25 @@ async function mostrarVersionHistorica(id) {
         `;
         sincronizarUiModo();
     } catch (error) {
-        alert('No se pudo cargar esa version: ' + error.message);
+        await avisar({ titulo: 'No se pudo cargar esa versión', mensaje: error.message });
     }
 }
 
 // -----------------------------------------------------------------
 // Registrar nueva version (inmutable al guardar)
 // -----------------------------------------------------------------
-function iniciarNuevaVersionOdontograma(tipoForzado, esAutomatico) {
-    if (!esAutomatico && !confirm('Va a registrar un nuevo odontograma. Al guardar, esta version quedara fija y no podra editarse despues (se creara una nueva version para cualquier cambio futuro). ¿Continuar?')) {
+// Es async por los dialogos, pero cuando esAutomatico es true no hay
+// dialogo que esperar y el cuerpo corre sincronicamente hasta el final
+// (el await nunca se evalua por el corto-circuito del &&), asi que los
+// llamadores automaticos - seguimiento.js, planes-tratamiento.js - pueden
+// seguir invocandola sin await y ver el modo de edicion ya activo.
+async function iniciarNuevaVersionOdontograma(tipoForzado, esAutomatico) {
+    if (!esAutomatico && !(await confirmarAccion({
+        titulo: 'Registrar un odontograma nuevo',
+        mensaje: 'Va a crear una versión nueva. Al guardarla quedará fija y no podrá editarse: cualquier cambio posterior genera otra versión.\n\nLa versión actual se conserva para consulta.',
+        confirmar: 'Empezar a registrar',
+        cancelar: 'Cancelar'
+    }))) {
         return;
     }
 
@@ -522,9 +532,13 @@ async function guardarNuevaVersionOdontograma() {
         return await guardarOdontogramaConSeguimiento();
     }
 
-    if (!confirm('Esta accion creara una nueva version inmutable del odontograma. La version anterior quedara archivada, disponible solo para consulta. ¿Guardar ahora?')) {
-        return;
-    }
+    const confirmado = await confirmarAccion({
+        titulo: 'Guardar esta versión del odontograma',
+        mensaje: 'La versión queda fija y no podrá editarse después. La anterior se archiva y sigue disponible para consulta.',
+        confirmar: 'Guardar versión',
+        cancelar: 'Seguir editando'
+    });
+    if (!confirmado) return;
 
     const esInicial = document.getElementById('odo-tipo-envoltura').classList.contains('oculto');
     const datos = {
@@ -545,7 +559,7 @@ async function guardarNuevaVersionOdontograma() {
         if (typeof actualizarSugerenciasHigiene === 'function') actualizarSugerenciasHigiene();
         if (typeof sugerirPlanTrasGuardarOdontograma === 'function') await sugerirPlanTrasGuardarOdontograma(resultado.id, datos.piezas);
     } catch (error) {
-        alert('No se pudo guardar el odontograma: ' + error.message);
+        await avisar({ titulo: 'No se pudo guardar el odontograma', mensaje: error.message });
     }
 }
 
@@ -735,7 +749,7 @@ function establecerTramo(codigo, piezaInicio, piezaFin) {
 // -----------------------------------------------------------------
 // Interaccion: clic / doble clic / hover sobre el SVG
 // -----------------------------------------------------------------
-function manejarClicOdontograma(evento) {
+async function manejarClicOdontograma(evento) {
     if (!modoEdicion || !herramientaActiva) return;
 
     const zona = evento.target.closest('[data-pieza]');
@@ -746,7 +760,7 @@ function manejarClicOdontograma(evento) {
     const caja = zona.dataset.caja;
 
     if (herramientaActiva === 'borrar') {
-        manejarBorrado(pieza, superficie, caja);
+        await manejarBorrado(pieza, superficie, caja);
         finalizarCambio();
         return;
     }
@@ -757,7 +771,7 @@ function manejarClicOdontograma(evento) {
         if (esPiezaTemporal(pieza)) return; // no aplica a piezas temporales, igual que en el F033
         if (!valorSeleccionadoEspecial) { actualizarHint('Elija primero un valor (1-4) junto a la paleta.', true); return; }
         const exclusiva = tienePiezaExclusiva(pieza);
-        if (exclusiva) { alert(mensajeBloqueoExclusion(pieza, exclusiva)); return; }
+        if (exclusiva) { await avisarBloqueoExclusion(pieza, exclusiva); return; }
         aplicarValorEspecial(pieza, herramientaActiva, valorSeleccionadoEspecial);
         finalizarCambio();
         return;
@@ -770,18 +784,18 @@ function manejarClicOdontograma(evento) {
         if (!superficie || superficie === 'completa') return; // exige clic en una cara especifica
         const actual = filaSuperficie(pieza, superficie);
         const codigoDestino = actual && actual.hallazgo === herramientaActiva ? null : herramientaActiva;
-        if (codigoDestino && !autorizarAplicacionHallazgo(pieza, codigoDestino)) return;
+        if (codigoDestino && !(await autorizarAplicacionHallazgo(pieza, codigoDestino))) return;
         establecerHallazgoSuperficie(pieza, superficie, codigoDestino);
         finalizarCambio();
     } else if (meta.nivel === 'pieza') {
         const grupo = grupoDePiezaCodigo(herramientaActiva);
         const actual = filaPiezaPorGrupo(pieza, grupo);
         const codigoDestino = actual && actual.hallazgo === herramientaActiva ? null : herramientaActiva;
-        if (codigoDestino && !autorizarAplicacionHallazgo(pieza, codigoDestino)) return;
+        if (codigoDestino && !(await autorizarAplicacionHallazgo(pieza, codigoDestino))) return;
         establecerHallazgoPieza(pieza, codigoDestino, grupo);
         finalizarCambio();
     } else if (meta.nivel === 'tramo') {
-        manejarClicTramo(pieza);
+        await manejarClicTramo(pieza);
         finalizarCambio();
     }
 }
@@ -807,6 +821,16 @@ function mensajeBloqueoExclusion(pieza, codigoExclusivo) {
     return `La pieza ${pieza} está marcada como ${etiquetaHallazgo(codigoExclusivo).toLowerCase()}. Quite ese hallazgo para registrar otros.`;
 }
 
+// Bloqueo por exclusion clinica: no hay decision que tomar, solo se
+// informa por que no se puede registrar el hallazgo.
+function avisarBloqueoExclusion(pieza, codigoExclusivo) {
+    return avisar({
+        titulo: `La pieza ${pieza} no admite otros hallazgos`,
+        mensaje: mensajeBloqueoExclusion(pieza, codigoExclusivo),
+        boton: 'Entendido'
+    });
+}
+
 function etiquetaHallazgo(codigo) {
     const meta = HALLAZGOS[codigo];
     return meta ? meta.etiqueta : codigo;
@@ -826,10 +850,14 @@ function tramoIncompatibleEnPieza(pieza, codigoNuevo) {
 // Devuelve true si el hallazgo puede aplicarse; false si se bloqueo o el
 // usuario cancelo la confirmacion. Si corresponde, limpia primero los
 // demas hallazgos de la pieza (con confirmacion del usuario).
-function autorizarAplicacionHallazgo(pieza, codigoNuevo) {
+async function autorizarAplicacionHallazgo(pieza, codigoNuevo) {
     const tramoConflicto = tramoIncompatibleEnPieza(pieza, codigoNuevo);
     if (tramoConflicto) {
-        alert(`La pieza ${pieza} está cubierta por "${etiquetaHallazgo(tramoConflicto.hallazgo)}" (${tramoConflicto.pieza}–${finDeTramo(tramoConflicto)}), que no admite este hallazgo. Quite la prótesis para registrarlo.`);
+        await avisar({
+            titulo: `La pieza ${pieza} está cubierta por una prótesis`,
+            mensaje: `"${etiquetaHallazgo(tramoConflicto.hallazgo)}" (${tramoConflicto.pieza}–${finDeTramo(tramoConflicto)}) no admite este hallazgo. Quite la prótesis para registrarlo.`,
+            boton: 'Entendido'
+        });
         return false;
     }
 
@@ -838,16 +866,16 @@ function autorizarAplicacionHallazgo(pieza, codigoNuevo) {
 
     if (exclusivaActual && exclusivaActual !== codigoNuevo) {
         if (!nuevoEsExclusivo) {
-            alert(mensajeBloqueoExclusion(pieza, exclusivaActual));
+            await avisarBloqueoExclusion(pieza, exclusivaActual);
             return false;
         }
-        if (!confirm(`Esto eliminará los demás hallazgos de la pieza ${pieza}. ¿Continuar?`)) return false;
+        if (!(await confirmarBorradoDeLaPieza(pieza))) return false;
         limpiarPiezaCompleta(pieza);
         return true;
     }
 
     if (nuevoEsExclusivo && tieneOtrosHallazgos(pieza, true)) {
-        if (!confirm(`Esto eliminará los demás hallazgos de la pieza ${pieza}. ¿Continuar?`)) return false;
+        if (!(await confirmarBorradoDeLaPieza(pieza))) return false;
         limpiarPiezaCompleta(pieza);
         return true;
     }
@@ -855,12 +883,24 @@ function autorizarAplicacionHallazgo(pieza, codigoNuevo) {
     return true;
 }
 
-function manejarClicTramo(pieza) {
+// Los cuatro estados excluyentes (ausente, perdidas, extraccion indicada)
+// vacian la pieza: se avisa exactamente que se va a perder.
+function confirmarBorradoDeLaPieza(pieza) {
+    return confirmarAccion({
+        titulo: `Esto vaciará la pieza ${pieza}`,
+        mensaje: `Se quitarán los demás hallazgos registrados en la pieza ${pieza} (caries, obturaciones, movilidad, recesión y prótesis que la cubran).`,
+        confirmar: 'Quitar los demás',
+        cancelar: 'Dejar como está',
+        peligro: true
+    });
+}
+
+async function manejarClicTramo(pieza) {
     const meta = HALLAZGOS[herramientaActiva];
 
     if (!tramoEnProgreso) {
         const exclusiva = tienePiezaExclusiva(pieza);
-        if (exclusiva) { alert(mensajeBloqueoExclusion(pieza, exclusiva)); return; }
+        if (exclusiva) { await avisarBloqueoExclusion(pieza, exclusiva); return; }
         tramoEnProgreso = { codigo: herramientaActiva, piezaInicio: pieza };
         actualizarHint(`"${meta.etiqueta}": pieza inicial ${pieza} seleccionada. Ahora seleccione la pieza final.`, true);
         return;
@@ -873,11 +913,15 @@ function manejarClicTramo(pieza) {
         return;
     }
     if (arcadaPorPieza[pieza] !== arcadaPorPieza[inicio]) {
-        alert('Ambas piezas del tramo deben pertenecer a la misma arcada.');
+        await avisar({
+            titulo: 'El tramo debe quedar en una sola arcada',
+            mensaje: 'Las dos piezas que delimitan una prótesis tienen que pertenecer a la misma arcada (ambas superiores o ambas inferiores).',
+            boton: 'Entendido'
+        });
         return;
     }
 
-    if (!autorizarNuevoTramo(tramoEnProgreso.codigo, inicio, pieza)) {
+    if (!(await autorizarNuevoTramo(tramoEnProgreso.codigo, inicio, pieza))) {
         tramoEnProgreso = null;
         actualizarHintPredeterminado();
         return;
@@ -893,12 +937,12 @@ function manejarClicTramo(pieza) {
 // las piezas cubiertas por un tramo nuevo no pueden tener hallazgos
 // incompatibles con esa categoria, y dos tramos no pueden solaparse.
 // -----------------------------------------------------------------
-function autorizarNuevoTramo(codigo, piezaInicio, piezaFin) {
+async function autorizarNuevoTramo(codigo, piezaInicio, piezaFin) {
     const cubiertas = piezasCubiertasPorTramo(piezaInicio, piezaFin);
 
     for (const p of cubiertas) {
         const exclusiva = tienePiezaExclusiva(p);
-        if (exclusiva) { alert(mensajeBloqueoExclusion(p, exclusiva)); return false; }
+        if (exclusiva) { await avisarBloqueoExclusion(p, exclusiva); return false; }
     }
 
     const tramosSolapados = piezasVisibles.filter((f) => {
@@ -907,7 +951,14 @@ function autorizarNuevoTramo(codigo, piezaInicio, piezaFin) {
         return cubiertasExistente.some((p) => cubiertas.includes(p));
     });
     if (tramosSolapados.length > 0) {
-        if (!confirm('Ya existe una prótesis en una o más piezas de este tramo. Esto la reemplazará. ¿Continuar?')) return false;
+        const reemplazar = await confirmarAccion({
+            titulo: 'Ya hay una prótesis en este tramo',
+            mensaje: 'Una o más piezas de este tramo ya están cubiertas por otra prótesis. La nueva la reemplazará.',
+            confirmar: 'Reemplazar prótesis',
+            cancelar: 'Cancelar',
+            peligro: true
+        });
+        if (!reemplazar) return false;
         piezasVisibles = piezasVisibles.filter((f) => !tramosSolapados.includes(f));
     }
 
@@ -915,7 +966,14 @@ function autorizarNuevoTramo(codigo, piezaInicio, piezaFin) {
     const incompatibles = PROTESIS_HALLAZGOS_INCOMPATIBLES[categoria] || [];
     const filasIncompatibles = piezasVisibles.filter((f) => cubiertas.includes(f.pieza) && f.hallazgo && incompatibles.includes(f.hallazgo));
     if (filasIncompatibles.length > 0) {
-        if (!confirm('Esto eliminará los hallazgos incompatibles de las piezas del tramo. ¿Continuar?')) return false;
+        const quitar = await confirmarAccion({
+            titulo: 'Hay hallazgos que la prótesis no admite',
+            mensaje: 'Las piezas de este tramo tienen hallazgos incompatibles con la prótesis. Se quitarán al registrarla.',
+            confirmar: 'Quitar y registrar',
+            cancelar: 'Cancelar',
+            peligro: true
+        });
+        if (!quitar) return false;
         piezasVisibles = piezasVisibles.filter((f) => !filasIncompatibles.includes(f));
     }
 
@@ -927,7 +985,7 @@ function autorizarNuevoTramo(codigo, piezaInicio, piezaFin) {
 // tenia nada, se intenta a nivel de pieza completa (ausente, corona,
 // endodoncia, implante, perdidas...) y por ultimo el tramo que cubra la
 // pieza (con confirmacion, ya que afecta piezas vecinas).
-function manejarBorrado(pieza, superficie, caja) {
+async function manejarBorrado(pieza, superficie, caja) {
     if (caja === 'movilidad' || caja === 'recesion') {
         const anot = filaAnotacion(pieza);
         if (!anot) return;
@@ -956,13 +1014,21 @@ function manejarBorrado(pieza, superficie, caja) {
         return;
     }
 
-    borrarTramoDePieza(pieza);
+    await borrarTramoDePieza(pieza);
 }
 
-function borrarTramoDePieza(pieza) {
+async function borrarTramoDePieza(pieza) {
     const fila = piezasVisibles.find((f) => esFilaTramo(f) && piezasCubiertasPorTramo(f.pieza, finDeTramo(f)).includes(pieza));
     if (!fila) return;
-    if (!confirm(`¿Eliminar la prótesis del tramo ${fila.pieza}–${finDeTramo(fila)}?`)) return;
+    // El tramo cubre varias piezas: se borra completo, no solo la del clic.
+    const confirmado = await confirmarAccion({
+        titulo: 'Quitar la prótesis completa',
+        mensaje: `La prótesis abarca el tramo ${fila.pieza}–${finDeTramo(fila)}. Se quita de todas sus piezas, no solo de la ${pieza}.`,
+        confirmar: 'Quitar prótesis',
+        cancelar: 'Conservar',
+        peligro: true
+    });
+    if (!confirmado) return;
     piezasVisibles = piezasVisibles.filter((f) => f !== fila);
 }
 

@@ -429,8 +429,14 @@ async function guardarTrabajo(evento) {
         }
         cerrarModalTrabajo();
         await refrescarTodo();
-        if (resultado && confirm('¿Imprimir la orden de trabajo para enviarla al laboratorio?')) {
-            imprimirOrden(resultado.id);
+        if (resultado) {
+            const imprimir = await confirmarAccion({
+                titulo: 'Orden de trabajo registrada',
+                mensaje: `Se registró la orden ${resultado.numero_orden}. Puede imprimirla para enviarla con el trabajo al laboratorio.`,
+                confirmar: 'Imprimir orden',
+                cancelar: 'Después'
+            });
+            if (imprimir) imprimirOrden(resultado.id);
         }
     } catch (error) {
         errorDiv.innerHTML = `<div class="alerta alerta--error">${escaparLab(error.message)}</div>`;

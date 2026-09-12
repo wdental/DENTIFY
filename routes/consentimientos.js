@@ -12,6 +12,7 @@ const path = require('path');
 const crypto = require('crypto');
 const db = require('../db/conexion');
 const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { ahoraLocal, hoyLocal } = require('../utils/fechaLocal');
 const { resolverMarcadores, construirClausulaRepresentante, BLOQUES_DECISION, textoRevocacion, calcularEdad } = require('../utils/plantillas');
 
 const router = express.Router();
@@ -151,7 +152,7 @@ router.post('/:pacienteId', (req, res) => {
         representante_clausula: construirClausulaRepresentante(esMenor, representante_nombre, representante_cedula),
         doctor_nombre: doctor ? doctor.nombre_completo : 'Sin especificar',
         doctor_registro: doctor && doctor.registro_profesional ? doctor.registro_profesional : 'Sin especificar',
-        fecha: formatearFechaLarga(new Date().toISOString()),
+        fecha: formatearFechaLarga(hoyLocal()),
         piezas: (piezas || '').trim() || 'No aplica',
         procedimiento_detalle: (procedimiento_detalle || '').trim() || 'Sin observaciones adicionales.'
     };
@@ -243,7 +244,7 @@ router.put('/:id/anular', requiereAdmin, (req, res) => {
     if (!motivo || !motivo.trim()) return res.status(400).json({ error: 'Debe indicar el motivo de la anulación' });
 
     db.prepare("UPDATE consentimientos SET estado = 'anulado', motivo_anulacion = ?, anulado_por = ?, anulado_en = ? WHERE id = ?")
-        .run(motivo.trim(), req.session.usuario.id, new Date().toISOString(), req.params.id);
+        .run(motivo.trim(), req.session.usuario.id, ahoraLocal(), req.params.id);
 
     res.json({ ok: true });
 });

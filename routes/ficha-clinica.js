@@ -10,6 +10,7 @@
 const express = require('express');
 const db = require('../db/conexion');
 const { requiereSesion } = require('../middleware/auth');
+const { ahoraLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -120,7 +121,7 @@ router.put('/:pacienteId/seccion/:seccion', (req, res) => {
 
     const datos = {
         ...req.body,
-        actualizado_en: new Date().toISOString(),
+        actualizado_en: ahoraLocal(),
         actualizado_por: req.session.usuario.nombre
     };
 

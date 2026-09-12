@@ -578,14 +578,22 @@ function inicializarSeccionExamenes() {
 // Al desmarcar un examen que ya tiene informe registrado en M, los datos se
 // CONSERVAN (solo se ocultan): se pide confirmacion informativa. Si el
 // usuario cancela, se re-marca el checkbox.
-function manejarCambioExamenSolicitado(tipo, evento) {
+async function manejarCambioExamenSolicitado(tipo, evento) {
     const checkbox = evento.target;
     if (!checkbox.checked) {
         const informe = (fichaClinicaActual && fichaClinicaActual.examenes_informe_json) || {};
         const tieneInforme = informe[tipo.clave] && (informe[tipo.clave].fecha || informe[tipo.clave].texto || (informe[tipo.clave].documento_ids || []).length);
-        if (tieneInforme && !confirm(`Ya hay un informe de "${tipo.etiqueta}" registrado en la sección M. Al desmarcar este examen, el bloque se oculta pero el informe NO se elimina: reaparecerá si vuelve a marcar el examen. ¿Continuar?`)) {
-            checkbox.checked = true;
-            return;
+        if (tieneInforme) {
+            const ocultar = await confirmarAccion({
+                titulo: `Ya hay un informe de "${tipo.etiqueta}"`,
+                mensaje: 'Al desmarcar este examen, su bloque de informe en la sección M se oculta, pero el informe NO se borra: reaparece si vuelve a marcar el examen.',
+                confirmar: 'Desmarcar y ocultar',
+                cancelar: 'Mantener marcado'
+            });
+            if (!ocultar) {
+                checkbox.checked = true;
+                return;
+            }
         }
     }
     toggleSeccionInformeExamenes();
@@ -749,7 +757,7 @@ function recopilarProfesionalResponsable() {
     if (select.disabled) return null; // no admin y ya bloqueado: no reenviar (el servidor lo rechazaria igual)
     return {
         doctor_id: select.value || null,
-        fecha_apertura: fichaClinicaActual.fecha_creacion || new Date().toISOString(),
+        fecha_apertura: fichaClinicaActual.fecha_creacion || ahoraLocalIso(),
         firma: obtenerFirmaDataUrl('fc-profesional-firma')
     };
 }
@@ -783,7 +791,7 @@ function recopilarIndicesCpo() {
     if (cpoModoManual && !coincideConAutomatico) {
         datos.ajustado_manualmente = true;
         datos.ajustado_por = usuarioActual.nombre;
-        datos.ajustado_en = new Date().toISOString();
+        datos.ajustado_en = ahoraLocalIso();
     } else {
         datos.ajustado_manualmente = false;
         datos.ajustado_por = null;
@@ -908,10 +916,14 @@ function actualizarEstadoUiCpo(ajustadoManualmente, ajustadoPor, ajustadoEn) {
     }
 }
 
-function iniciarAjusteManualCpo() {
-    if (!confirm('Esto le permite sobrescribir el cálculo automático de CPO-ceo. Los valores dejarán de actualizarse solos con el odontograma hasta que use "Restaurar cálculo automático". ¿Continuar?')) {
-        return;
-    }
+async function iniciarAjusteManualCpo() {
+    const confirmado = await confirmarAccion({
+        titulo: 'Ajustar el CPO-ceo a mano',
+        mensaje: 'Podrá sobrescribir el cálculo automático. Los valores dejarán de actualizarse solos con el odontograma hasta que use "Restaurar cálculo automático".',
+        confirmar: 'Ajustar a mano',
+        cancelar: 'Dejar automático'
+    });
+    if (!confirmado) return;
     cpoModoManual = true;
     cpoEsAutomatico = false;
     actualizarEstadoUiCpo(false);
@@ -938,7 +950,7 @@ async function usarCpoSugerido() {
         aplicarValoresCpo(sugerido.permanente, sugerido.temporal);
         marcarCambioPendiente('secciones'); // .value= no dispara 'input', se marca a mano
     } catch (error) {
-        alert('No se pudo calcular el sugerido: ' + error.message);
+        await avisar({ titulo: 'No se pudo calcular el sugerido', mensaje: error.message });
     }
 }
 
@@ -1009,7 +1021,7 @@ async function guardarFichaCompleta() {
         limpiarCambioPendiente('secciones');
         mostrarConfirmacionGuardado();
     } catch (error) {
-        alert('Ocurrió un error al guardar la ficha clínica: ' + error.message);
+        await avisar({ titulo: 'No se pudo guardar la ficha clínica', mensaje: error.message });
     } finally {
         if (boton) boton.disabled = false;
     }
@@ -1087,7 +1099,11 @@ function inicializarAvisoDeSalida() {
         const odontogramaPendiente = typeof hayEdicionOdontogramaPendiente === 'function' && hayEdicionOdontogramaPendiente();
         cerrarDialogoSalida();
         if (odontogramaPendiente) {
-            alert('Se guardaron los cambios de la ficha. El odontograma en edición no se guarda automáticamente: use "Guardar nueva versión" o "Cancelar edición" en la sección H antes de salir.');
+            await avisar({
+                titulo: 'Ficha guardada — falta el odontograma',
+                mensaje: 'Se guardaron los cambios de la ficha, pero el odontograma que está editando no se guarda solo: use "Guardar nueva versión" o "Cancelar edición" en la sección H antes de salir.',
+                boton: 'Ir al odontograma'
+            });
             return;
         }
         if (callback) callback();

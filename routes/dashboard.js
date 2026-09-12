@@ -5,6 +5,7 @@ const express = require('express');
 const db = require('../db/conexion');
 const { requiereSesion } = require('../middleware/auth');
 const { calcularIndicadores } = require('./pagos');
+const { hoyLocal, inicioMesLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -16,7 +17,7 @@ router.get('/resumen', (req, res) => {
     // Fechas de "hoy" y "este mes" segun el reloj LOCAL del servidor, no UTC:
     // con toISOString(), a partir de las 19:00 en Ecuador el panel mostraba las
     // citas de MAÑANA y "nuevos este mes" se saltaba el dia 1.
-    const inicioMes = db.prepare("SELECT date('now', 'localtime', 'start of month') AS fecha").get().fecha;
+    const inicioMes = inicioMesLocal();
 
     const nuevosMes = db.prepare(
         'SELECT COUNT(*) AS total FROM pacientes WHERE activo = 1 AND date(fecha_registro) >= date(?)'
@@ -30,7 +31,7 @@ router.get('/resumen', (req, res) => {
         ORDER BY total DESC
     `).all();
 
-    const hoy = db.prepare("SELECT date('now', 'localtime') AS fecha").get().fecha;
+    const hoy = hoyLocal();
     const citasHoy = db.prepare(`
         SELECT c.id, c.hora_inicio, c.hora_fin, c.estado, c.doctor_nombre, c.sillon,
                p.id AS paciente_id, p.nombres AS paciente_nombres, p.apellidos AS paciente_apellidos

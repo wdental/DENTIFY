@@ -8,6 +8,7 @@
 const express = require('express');
 const db = require('../db/conexion');
 const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { ahoraLocal } = require('../utils/fechaLocal');
 const { generarNumeroRecibo } = require('../utils/numeroRecibo');
 const { montoEnLetras } = require('../utils/montoEnLetras');
 const { redondear, hoyIso, pagosDelPlanPago, resumenFinancieroPaciente, saldosGlobales, cuotasVencidas } = require('../utils/finanzas');
@@ -274,7 +275,7 @@ router.put('/:id/anular', requiereAdmin, (req, res) => {
 
     const transaccion = db.transaction(() => {
         db.prepare('UPDATE pagos SET anulado = 1, motivo_anulacion = ?, anulado_por = ?, anulado_en = ? WHERE id = ?')
-            .run(motivo, req.session.usuario.id, new Date().toISOString(), pago.id);
+            .run(motivo, req.session.usuario.id, ahoraLocal(), pago.id);
         if (pago.plan_pago_id) {
             const planPago = db.prepare('SELECT monto_total, estado FROM planes_pago WHERE id = ?').get(pago.plan_pago_id);
             if (planPago && planPago.estado === 'completado' && totalPagadoPlanPago(pago.plan_pago_id) < redondear(planPago.monto_total)) {

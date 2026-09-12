@@ -6,6 +6,7 @@
 const express = require('express');
 const db = require('../db/conexion');
 const { requiereSesion } = require('../middleware/auth');
+const { ahoraLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -50,7 +51,7 @@ router.post('/:pacienteId', (req, res) => {
         if (!doctor) return res.status(400).json({ error: 'Doctor no encontrado' });
     }
 
-    const ahora = new Date().toISOString();
+    const ahora = ahoraLocal();
     const resultado = db.prepare(`
         INSERT INTO diagnosticos (paciente_id, descripcion, codigo_cie10, tipo, doctor_id, fecha_pre, fecha_def, creado_por)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -77,7 +78,7 @@ router.put('/:id/promover', (req, res) => {
     if (diagnostico.tipo === 'DEF') return res.status(400).json({ error: 'Este diagnostico ya es definitivo' });
 
     db.prepare('UPDATE diagnosticos SET tipo = ?, fecha_def = ? WHERE id = ?')
-        .run('DEF', new Date().toISOString(), req.params.id);
+        .run('DEF', ahoraLocal(), req.params.id);
 
     res.json({ ok: true });
 });

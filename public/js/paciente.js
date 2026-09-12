@@ -61,11 +61,15 @@ const CLASE_ESTADO_CITA = {
     if (typeof cargarConsentimientos === 'function') await cargarConsentimientos();
 })();
 
-function irAImprimirF033() {
+async function irAImprimirF033() {
     if (typeof hayCambiosSinGuardar === 'function' && hayCambiosSinGuardar()) {
-        if (!confirm('Hay cambios sin guardar en la ficha. La impresión del F033 usa siempre los últimos datos guardados, no los cambios pendientes. ¿Continuar de todas formas?')) {
-            return;
-        }
+        const seguir = await confirmarAccion({
+            titulo: 'Hay cambios sin guardar',
+            mensaje: 'La impresión del F033 usa siempre los últimos datos guardados, no los cambios que tiene pendientes en pantalla.',
+            confirmar: 'Imprimir lo guardado',
+            cancelar: 'Volver a la ficha'
+        });
+        if (!seguir) return;
     }
     window.open(`/imprimir-f033.html?id=${pacienteId}`, '_blank');
 }
@@ -214,9 +218,14 @@ async function guardarPaciente(evento) {
 }
 
 async function eliminarPaciente() {
-    if (!confirm(`¿Seguro que desea eliminar a ${pacienteActual.nombres} ${pacienteActual.apellidos}? Podra restaurarlo despues si fue un error.`)) {
-        return;
-    }
+    const confirmado = await confirmarAccion({
+        titulo: 'Eliminar paciente',
+        mensaje: `Se eliminará a ${pacienteActual.nombres} ${pacienteActual.apellidos} del listado.\n\nEs un borrado reversible: su historia clínica se conserva y puede restaurarlo después desde el listado de pacientes.`,
+        confirmar: 'Eliminar paciente',
+        cancelar: 'Conservar',
+        peligro: true
+    });
+    if (!confirmado) return;
     try {
         await api.del(`/api/pacientes/${pacienteActual.id}`);
         await cargarPaciente();
@@ -293,12 +302,19 @@ async function subirDocumento(evento) {
 }
 
 async function eliminarDocumento(docId) {
-    if (!confirm('¿Eliminar este documento?')) return;
+    const confirmado = await confirmarAccion({
+        titulo: 'Eliminar documento',
+        mensaje: 'El archivo se borra del expediente del paciente y no se puede recuperar.',
+        confirmar: 'Eliminar documento',
+        cancelar: 'Conservar',
+        peligro: true
+    });
+    if (!confirmado) return;
     try {
         await api.del(`/api/pacientes/${pacienteId}/documentos/${docId}`);
         await cargarDocumentos();
     } catch (error) {
-        alert('Error al eliminar: ' + error.message);
+        await avisar({ titulo: 'No se pudo eliminar', mensaje: error.message });
     }
 }
 

@@ -2686,3 +2686,44 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     line-height: 1.5;
     margin: 4px 0 0 0;
 }
+
+/* ---------------------------------------------------------------
+   Dialogos propios (public/js/dialogos.js) que reemplazan a
+   confirm()/alert(): centrados en pantalla, por encima de cualquier
+   modal ya abierto, y con un boton por cada salida posible.
+   --------------------------------------------------------------- */
+.dialogo-fondo {
+    z-index: 300;
+}
+
+.dialogo {
+    max-width: 480px;
+}
+
+.dialogo__titulo {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.dialogo__mensaje p {
+    margin: 0 0 10px 0;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--texto-principal);
+}
+
+.dialogo__mensaje p:last-child {
+    margin-bottom: 0;
+}
+
+.dialogo__botones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+    flex-wrap: wrap;
+}
+
+.dialogo__botones .btn {
+    min-width: 120px;
+}

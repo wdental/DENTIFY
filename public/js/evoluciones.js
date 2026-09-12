@@ -250,7 +250,11 @@ async function guardarEvolucion(evento) {
             const tieneAlta = versionesOdontograma && versionesOdontograma.some((v) => v.tipo === 'alta');
             const activaEsAlta = odontogramaActivo && odontogramaActivo.odontograma && odontogramaActivo.odontograma.tipo === 'alta';
             if (!tieneAlta && !activaEsAlta) {
-                alert('Evolución de ALTA registrada. Recuerde registrar también un odontograma de tipo "Alta" en la sección H si corresponde.');
+                await avisar({
+                    titulo: 'Evolución de ALTA registrada',
+                    mensaje: 'Si corresponde, registre también un odontograma de tipo "Alta" en la sección H.',
+                    boton: 'Entendido'
+                });
             }
         }
     } catch (error) {

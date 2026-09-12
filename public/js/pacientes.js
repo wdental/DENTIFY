@@ -73,7 +73,7 @@ async function restaurarPacienteListado(id) {
         await api.put(`/api/pacientes/${id}/restaurar`, {});
         await cargarPacientes();
     } catch (error) {
-        alert('Error al restaurar: ' + error.message);
+        await avisar({ titulo: 'No se pudo restaurar', mensaje: error.message });
     }
 }
 

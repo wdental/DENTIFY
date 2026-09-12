@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const db = require('../db/conexion');
 const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { ahoraLocal } = require('../utils/fechaLocal');
 const { construirClausulaRepresentante, calcularEdad } = require('../utils/plantillas');
 
 const router = express.Router();
@@ -358,7 +359,7 @@ router.post('/:pacienteId/:id/presentar', (req, res) => {
     if (items.length === 0) return res.status(400).json({ error: 'El plan no tiene líneas para presentar' });
 
     db.prepare("UPDATE planes_tratamiento SET estado = 'presentado', fecha_presentado = ? WHERE id = ?")
-        .run(new Date().toISOString(), req.params.id);
+        .run(ahoraLocal(), req.params.id);
 
     res.json({ ok: true, plan: cargarPlanConItems(req.params.id) });
 });
@@ -431,7 +432,7 @@ router.post('/:pacienteId/:id/aceptar', (req, res) => {
             WHERE id = ?
         `).run(
             contenidoFinal, hash, firmanteNombre, firmanteCedula || null, esMenor ? 1 : 0,
-            (condiciones || plan.condiciones || null), total, new Date().toISOString(), plan.id
+            (condiciones || plan.condiciones || null), total, ahoraLocal(), plan.id
         );
 
         const rutaFirmaPaciente = guardarFirmaPng(pacienteId, `plan_${plan.id}_paciente.png`, firma_paciente);

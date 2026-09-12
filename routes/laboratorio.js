@@ -15,6 +15,7 @@ const express = require('express');
 const db = require('../db/conexion');
 const { requiereSesion, requiereAdmin } = require('../middleware/auth');
 const { generarNumeroOrdenLaboratorio } = require('../utils/numeroOrdenLaboratorio');
+const { hoyLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -38,9 +39,7 @@ const TIPOS_SUGERIDOS = [
     'Modelo de estudio', 'Aparatología ortodóncica', 'Otro'
 ];
 
-function hoyLocal() {
-    return db.prepare("SELECT date('now', 'localtime') AS hoy").get().hoy;
-}
+
 
 // -----------------------------------------------------------------
 // Catalogo de laboratorios

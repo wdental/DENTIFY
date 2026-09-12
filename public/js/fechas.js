@@ -43,6 +43,17 @@ function fechaHoyIso() {
     return fechaIsoLocal(new Date());
 }
 
+// Marca de tiempo local 'YYYY-MM-DD HH:MM:SS', en el mismo formato que
+// usan los DEFAULT de la base (datetime('now','localtime')). Para los
+// campos de auditoria que se arman en el navegador.
+function ahoraLocalIso() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${fechaIsoLocal(d)} ${hh}:${mm}:${ss}`;
+}
+
 // -----------------------------------------------------------------
 // Los <input type="date"> nativos muestran el formato del navegador
 // (ej. "12/27/1989") y eso no se puede cambiar. Este par de funciones ata

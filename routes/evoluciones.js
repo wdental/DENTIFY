@@ -7,6 +7,7 @@
 const express = require('express');
 const db = require('../db/conexion');
 const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { ahoraLocal, hoyLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -89,8 +90,8 @@ router.post('/:pacienteId', (req, res) => {
     // anterior (una sesion que se carga despues), nunca futura. Se compara
     // contra el reloj LOCAL, igual que el resto de las marcas de tiempo del
     // sistema (datetime('now','localtime')), no contra UTC.
-    const hoyLocal = db.prepare("SELECT date('now', 'localtime') AS hoy").get().hoy;
-    if (fecha && String(fecha).slice(0, 10) > hoyLocal) {
+    const hoy = hoyLocal();
+    if (fecha && String(fecha).slice(0, 10) > hoy) {
         return res.status(400).json({ error: 'La fecha de la evolución no puede ser futura: documenta una sesión ya realizada' });
     }
 
@@ -127,7 +128,7 @@ router.post('/:pacienteId', (req, res) => {
         `).run(
             req.params.pacienteId,
             numeroSesion,
-            fecha || hoyLocal,
+            fecha || hoy,
             doctor_id || null,
             (diagnosticos_complicaciones || '').trim() || null,
             procedimientos.trim(),
@@ -164,7 +165,7 @@ router.put('/:id/anular', requiereAdmin, (req, res) => {
     if (!motivo || !motivo.trim()) return res.status(400).json({ error: 'Debe indicar el motivo de la anulacion' });
 
     db.prepare('UPDATE evoluciones SET anulada = 1, motivo_anulacion = ?, anulado_por = ?, anulado_en = ? WHERE id = ?')
-        .run(motivo.trim(), req.session.usuario.id, new Date().toISOString(), req.params.id);
+        .run(motivo.trim(), req.session.usuario.id, ahoraLocal(), req.params.id);
 
     res.json({ ok: true });
 });

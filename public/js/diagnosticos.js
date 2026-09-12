@@ -145,21 +145,34 @@ async function agregarDiagnostico() {
 }
 
 async function promoverDiagnostico(id) {
-    if (!confirm('¿Promover este diagnóstico de presuntivo (PRE) a definitivo (DEF)?')) return;
+    const confirmado = await confirmarAccion({
+        titulo: 'Promover a definitivo',
+        mensaje: 'Este diagnóstico pasará de presuntivo (PRE) a definitivo (DEF). Queda registrada la fecha de cada estado.',
+        confirmar: 'Promover a definitivo',
+        cancelar: 'Dejar como presuntivo'
+    });
+    if (!confirmado) return;
     try {
         await api.put(`/api/diagnosticos/${id}/promover`, {});
         await cargarDiagnosticos();
     } catch (error) {
-        alert('No se pudo promover: ' + error.message);
+        await avisar({ titulo: 'No se pudo promover', mensaje: error.message });
     }
 }
 
 async function eliminarDiagnostico(id) {
-    if (!confirm('¿Quitar este diagnóstico de la ficha?')) return;
+    const confirmado = await confirmarAccion({
+        titulo: 'Quitar diagnóstico',
+        mensaje: 'El diagnóstico se quita de la sección N de la ficha clínica.',
+        confirmar: 'Quitar diagnóstico',
+        cancelar: 'Conservar',
+        peligro: true
+    });
+    if (!confirmado) return;
     try {
         await api.del(`/api/diagnosticos/${id}`);
         await cargarDiagnosticos();
     } catch (error) {
-        alert('No se pudo quitar: ' + error.message);
+        await avisar({ titulo: 'No se pudo quitar', mensaje: error.message });
     }
 }

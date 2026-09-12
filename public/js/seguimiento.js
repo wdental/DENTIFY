@@ -95,9 +95,13 @@ function verVersionOdontogramaDesdeSeguimiento(odontogramaId) {
 // -----------------------------------------------------------------
 // Flujo guiado: odontograma primero, evolucion despues
 // -----------------------------------------------------------------
-function iniciarFlujoSeguimiento() {
+async function iniciarFlujoSeguimiento() {
     if (modoEdicion) {
-        alert('Ya hay una edición del odontograma en curso. Termine de guardarla o cancélela antes de registrar una nueva evolución con odontograma.');
+        await avisar({
+            titulo: 'Hay una edición del odontograma en curso',
+            mensaje: 'Termine de guardarla, o cancélela, antes de registrar una nueva evolución con odontograma.',
+            boton: 'Ir al odontograma'
+        });
         return;
     }
 
@@ -136,9 +140,13 @@ function calcularPiezasCambiadas(antes, despues) {
 // Llamada desde guardarNuevaVersionOdontograma() en odontograma.js cuando
 // modoSeguimientoOdontograma esta activo, en vez del guardado normal.
 async function guardarOdontogramaConSeguimiento() {
-    if (!confirm('Esta acción creará una nueva versión inmutable del odontograma para esta evolución. La versión anterior quedará archivada. ¿Guardar ahora?')) {
-        return;
-    }
+    const confirmado = await confirmarAccion({
+        titulo: 'Guardar el odontograma de esta evolución',
+        mensaje: 'Se creará una versión nueva del odontograma, que ya no podrá editarse. La versión anterior queda archivada y disponible para consulta.\n\nDespués se abrirá la nota de evolución con las piezas que modificó.',
+        confirmar: 'Guardar versión',
+        cancelar: 'Seguir editando'
+    });
+    if (!confirmado) return;
 
     const esInicial = document.getElementById('odo-tipo-envoltura').classList.contains('oculto');
     const datos = {
@@ -163,7 +171,7 @@ async function guardarOdontogramaConSeguimiento() {
 
         abrirModalEvolucionParaSeguimiento(resultado.id, piezasCambiadas);
     } catch (error) {
-        alert('No se pudo guardar el odontograma: ' + error.message);
+        await avisar({ titulo: 'No se pudo guardar el odontograma', mensaje: error.message });
     }
 }
 

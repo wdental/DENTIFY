@@ -531,7 +531,13 @@ async function guardarCita(evento, forzar) {
         await actualizarIndicadorSync();
     } catch (error) {
         if (error.data && error.data.advertencia && error.data.puedeForzar) {
-            if (confirm(`${error.message}\n\n¿Continuar de todas formas?`)) {
+            const forzarIgual = await confirmarAccion({
+                titulo: 'El doctor ya tiene una cita a esa hora',
+                mensaje: `${error.message}\n\nComo administrador puede agendarla igual (por ejemplo, si va a atender en los dos sillones).`,
+                confirmar: 'Agendar de todas formas',
+                cancelar: 'Elegir otra hora'
+            });
+            if (forzarIgual) {
                 return guardarCita(null, true);
             }
             return;
@@ -541,7 +547,14 @@ async function guardarCita(evento, forzar) {
 }
 
 async function eliminarCita(citaId) {
-    if (!confirm('¿Eliminar esta cita? Tambien se eliminara el evento de Google Calendar si existe.')) return;
+    const confirmado = await confirmarAccion({
+        titulo: 'Eliminar cita',
+        mensaje: 'La cita se borra de la agenda y no se puede recuperar. Si tiene un evento en Google Calendar, también se elimina allá.',
+        confirmar: 'Eliminar cita',
+        cancelar: 'Conservar',
+        peligro: true
+    });
+    if (!confirmado) return;
     try {
         await api.del(`/api/citas/${citaId}`);
         cerrarModalCita();

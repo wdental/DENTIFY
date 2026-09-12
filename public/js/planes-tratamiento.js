@@ -185,7 +185,14 @@ async function guardarEdicionItemPlan(itemId) {
 }
 
 async function quitarItemPlan(itemId) {
-    if (!confirm('¿Quitar esta línea del plan?')) return;
+    const confirmado = await confirmarAccion({
+        titulo: 'Quitar línea del plan',
+        mensaje: 'La línea se elimina de este plan en borrador. El total se recalcula.',
+        confirmar: 'Quitar línea',
+        cancelar: 'Conservar',
+        peligro: true
+    });
+    if (!confirmado) return;
     try {
         await api.del(`/api/planes-tratamiento/${pacienteId}/${planVigente.id}/items/${itemId}`);
         await cargarPlanTab();
@@ -215,7 +222,7 @@ async function generarPlanTratamiento(odontogramaId, silencioso) {
     } catch (error) {
         if (silencioso) return; // sugerencia automatica: si falla, no molestar al usuario
         if (mensajeDiv) mensajeDiv.innerHTML = `<div class="alerta alerta--error">${error.message}</div>`;
-        else alert('No se pudo generar el plan: ' + error.message);
+        else await avisar({ titulo: 'No se pudo generar el plan', mensaje: error.message });
     }
 }
 
@@ -399,7 +406,13 @@ async function confirmarFirmaPlan() {
 // Nueva version / finalizar
 // -----------------------------------------------------------------
 async function crearNuevaVersionPlan(planId) {
-    if (!confirm('El plan aceptado permanecerá intacto. Se creará una nueva versión en borrador con los ítems pendientes para seguir editando. ¿Continuar?')) return;
+    const confirmado = await confirmarAccion({
+        titulo: 'Crear una nueva versión del plan',
+        mensaje: 'El plan aceptado y firmado permanece intacto. Se crea una versión nueva en borrador, con los ítems pendientes, para seguir editándola.',
+        confirmar: 'Crear nueva versión',
+        cancelar: 'Cancelar'
+    });
+    if (!confirmado) return;
     try {
         await api.post(`/api/planes-tratamiento/${pacienteId}/${planId}/nueva-version`);
         await cargarPlanTab();
@@ -409,7 +422,13 @@ async function crearNuevaVersionPlan(planId) {
 }
 
 async function finalizarPlan(planId) {
-    if (!confirm('¿Marcar este plan como finalizado?')) return;
+    const confirmado = await confirmarAccion({
+        titulo: 'Finalizar el plan de tratamiento',
+        mensaje: 'El plan queda cerrado. Si el paciente todavía tiene saldo pendiente, seguirá contando como deuda.',
+        confirmar: 'Marcar finalizado',
+        cancelar: 'Dejar en curso'
+    });
+    if (!confirmado) return;
     try {
         await api.put(`/api/planes-tratamiento/${pacienteId}/${planId}/finalizar`);
         await cargarPlanTab();
@@ -458,7 +477,13 @@ async function sugerirPlanTrasGuardarOdontograma(odontogramaId, piezasGuardadas)
         return;
     }
 
-    if (confirm('Este odontograma tiene hallazgos en rojo (patología pendiente). ¿Generar un plan de tratamiento provisional a partir de esta versión?')) {
+    const generar = await confirmarAccion({
+        titulo: 'Hay patología pendiente en el odontograma',
+        mensaje: 'Esta versión tiene hallazgos en rojo. Dentify puede armar un plan de tratamiento en borrador a partir de ellos, con los precios del catálogo, para que usted lo revise.',
+        confirmar: 'Generar plan en borrador',
+        cancelar: 'No, gracias'
+    });
+    if (generar) {
         await generarPlanTratamiento(odontogramaId, true);
     }
 }
@@ -508,7 +533,13 @@ async function manejarCierrePlanTrasEvolucion(evolucionId, piezas) {
     if (combinados.length === 0) return;
 
     const lista = combinados.map((it) => `- ${ETIQUETAS_HALLAZGO_SEGUIMIENTO[it.hallazgo_origen] || it.hallazgo_origen} (pieza ${it.piezas})`).join('\n');
-    if (!confirm(`El odontograma tiene hallazgos pendientes en las piezas tratadas:\n${lista}\n\n¿Marcarlos como realizados?`)) return;
+    const marcar = await confirmarAccion({
+        titulo: 'Hallazgos pendientes en las piezas tratadas',
+        mensaje: `El odontograma todavía tiene estos hallazgos pendientes en las piezas que acaba de registrar:\n${lista}`,
+        confirmar: 'Marcar como realizados',
+        cancelar: 'Dejarlos pendientes'
+    });
+    if (!marcar) return;
 
     let ultimoResultado = null;
     for (const item of combinados) {
@@ -520,20 +551,36 @@ async function manejarCierrePlanTrasEvolucion(evolucionId, piezas) {
         }
     }
 
-    if (confirm('¿Registrar un odontograma de evolución convirtiendo estos hallazgos a su estado "realizado"? Podrá revisar los cambios antes de guardar.')) {
+    const convertir = await confirmarAccion({
+        titulo: 'Actualizar el odontograma',
+        mensaje: 'Se abre una nueva versión de tipo evolución con esos hallazgos convertidos a su estado realizado (caries → obturado, etc.). Podrá revisar los cambios antes de guardarla.',
+        confirmar: 'Abrir odontograma',
+        cancelar: 'No actualizar ahora'
+    });
+    if (convertir) {
         if (typeof precargarConversionOdontograma === 'function') {
             precargarConversionOdontograma(combinados);
         } else {
-            alert('Abra la sección "Ficha clínica" → Odontograma para registrar la conversión manualmente.');
+            await avisar({
+                titulo: 'Registre la conversión a mano',
+                mensaje: 'Abra la sección "Ficha clínica" → Odontograma para actualizar los hallazgos.',
+                boton: 'Entendido'
+            });
         }
     }
 
     if (ultimoResultado && ultimoResultado.todosResueltos) {
-        if (confirm('Todos los ítems del plan de tratamiento están resueltos. ¿Marcar el plan como finalizado?')) {
+        const finalizar = await confirmarAccion({
+            titulo: 'El plan quedó completo',
+            mensaje: 'Todos los ítems del plan de tratamiento están resueltos.',
+            confirmar: 'Marcar finalizado',
+            cancelar: 'Dejar en curso'
+        });
+        if (finalizar) {
             try {
                 await api.put(`/api/planes-tratamiento/${pacienteId}/${pendientesPlan[0].plan_id}/finalizar`);
             } catch (error) {
-                alert('No se pudo finalizar el plan: ' + error.message);
+                await avisar({ titulo: 'No se pudo finalizar el plan', mensaje: error.message });
             }
         }
     }
