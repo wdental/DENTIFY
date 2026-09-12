@@ -178,6 +178,9 @@ async function abrirModalEvolucionParaSeguimiento(odontogramaId, piezasCambiadas
     const campoPiezas = document.getElementById('ev-piezas');
     campoPiezas.value = piezasCambiadas.join(', ');
     campoPiezas.disabled = true;
+    // Las fichas de hallazgos pendientes se repintan en modo consulta: aqui
+    // las piezas vienen del odontograma recien guardado y no se editan.
+    if (typeof renderizarPiezasConHallazgos === 'function') renderizarPiezasConHallazgos();
 
     const aviso = document.createElement('p');
     aviso.className = 'seccion-clinica__ayuda';

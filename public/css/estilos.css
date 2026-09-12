@@ -2556,3 +2556,61 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 /* Cuotas vencidas: contacto para gestion de cobro */
 .contacto-cobro a { font-weight: 600; }
 .dias-atraso--alto { color: var(--rojo-alerta); font-weight: 700; }
+
+/* ---------------------------------------------------------------
+   Piezas con hallazgos pendientes (modal de nueva evolucion)
+   Fichas clicables que evitan escribir los numeros FDI de memoria.
+   --------------------------------------------------------------- */
+.piezas-hallazgos {
+    margin-top: 8px;
+}
+
+.piezas-hallazgos__fichas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.pieza-hallazgo {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 11px;
+    border: 1px solid rgba(192, 57, 43, 0.35);
+    border-radius: 20px;
+    background-color: rgba(192, 57, 43, 0.07);
+    color: var(--rojo-patologia);
+    font-family: var(--fuente-cuerpo);
+    font-size: 0.74rem;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.pieza-hallazgo:hover:not(:disabled) {
+    background-color: rgba(192, 57, 43, 0.15);
+}
+
+.pieza-hallazgo:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.pieza-hallazgo--activa {
+    background-color: rgba(156, 122, 48, 0.18);
+    border-color: var(--dorado);
+    color: var(--dorado);
+}
+
+.pieza-hallazgo--activa:hover:not(:disabled) {
+    background-color: rgba(156, 122, 48, 0.26);
+}
+
+.pieza-hallazgo__numero {
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+.pieza-hallazgo__detalle {
+    opacity: 0.85;
+}

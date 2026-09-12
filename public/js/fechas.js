@@ -28,6 +28,15 @@ function formatearFechaConDia(fechaIso) {
     return `${DIAS_SEMANA_ES[d.getDay()]}, ${formatearFecha(fechaIso)}`;
 }
 
+// Fecha de HOY en ISO (YYYY-MM-DD) segun el reloj LOCAL del equipo.
+// No usar new Date().toISOString(): esa es la fecha UTC y en Ecuador
+// (UTC-5) a partir de las 19:00 ya devuelve el dia siguiente, de modo que
+// un registro hecho de noche naceria fechado "mañana".
+function fechaHoyIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // -----------------------------------------------------------------
 // Los <input type="date"> nativos muestran el formato del navegador
 // (ej. "12/27/1989") y eso no se puede cambiar. Este par de funciones ata

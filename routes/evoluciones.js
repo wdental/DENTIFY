@@ -85,6 +85,15 @@ router.post('/:pacienteId', (req, res) => {
         return res.status(400).json({ error: 'Los procedimientos realizados son obligatorios' });
     }
 
+    // Una evolucion documenta una sesion que YA ocurrio: la fecha puede ser
+    // anterior (una sesion que se carga despues), nunca futura. Se compara
+    // contra el reloj LOCAL, igual que el resto de las marcas de tiempo del
+    // sistema (datetime('now','localtime')), no contra UTC.
+    const hoyLocal = db.prepare("SELECT date('now', 'localtime') AS hoy").get().hoy;
+    if (fecha && String(fecha).slice(0, 10) > hoyLocal) {
+        return res.status(400).json({ error: 'La fecha de la evolución no puede ser futura: documenta una sesión ya realizada' });
+    }
+
     // Registro legal e inmutable: exige ambas firmas al momento de crear la
     // evolucion (no hay ruta de edicion posterior donde agregarlas despues).
     if (!firma_paciente || !firma_doctor) {
@@ -118,7 +127,7 @@ router.post('/:pacienteId', (req, res) => {
         `).run(
             req.params.pacienteId,
             numeroSesion,
-            fecha || new Date().toISOString(),
+            fecha || hoyLocal,
             doctor_id || null,
             (diagnosticos_complicaciones || '').trim() || null,
             procedimientos.trim(),
