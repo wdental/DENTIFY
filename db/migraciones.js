@@ -414,6 +414,100 @@ function migrar(db) {
         const abonosCreados = reconstruirTrabajos();
         console.log(`Migracion: "trabajos_laboratorio" ahora lleva cantidad/costo unitario y los pagos se registran como abonos (${abonosCreados} pago(s) previo(s) convertido(s) en abono)`);
     }
+
+    // -----------------------------------------------------------------
+    // Laboratorio: las idas y vueltas de un trabajo pasan a ser un
+    // SUB-REGISTRO de la misma orden, no ordenes nuevas.
+    //
+    // La Fase 4C registraba un reenvio por ajuste como un trabajo hijo con
+    // su propio numero (LAB-2026-0003 "ajuste de LAB-2026-0001"). En el uso
+    // real eso fragmenta el seguimiento: una protesis total va y vuelve
+    // varias veces y para el laboratorio sigue siendo UNA orden, la que
+    // tiene anotada. Ahora cada movimiento es una fila de
+    // `envios_laboratorio` y el numero de orden nunca cambia.
+    //
+    // Los trabajos hijos que ya existieran se convierten en envios de su
+    // orden raiz: su costo pasa a `costo_adicional`, sus abonos se
+    // reasignan a la raiz y la fila hija se elimina. No se pierde nada.
+    // -----------------------------------------------------------------
+    const tablasLab = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('trabajos_laboratorio', 'envios_laboratorio')").all().map((f) => f.name);
+
+    if (tablasLab.includes('trabajos_laboratorio') && !tablasLab.includes('envios_laboratorio')) {
+        const migrarEnvios = db.transaction(() => {
+            db.exec(`
+                CREATE TABLE envios_laboratorio (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trabajo_id INTEGER NOT NULL REFERENCES trabajos_laboratorio(id) ON DELETE CASCADE,
+                    numero INTEGER NOT NULL,
+                    motivo TEXT NOT NULL DEFAULT 'inicial' CHECK (motivo IN
+                        ('inicial', 'prueba', 'ajuste', 'reparacion', 'otro')),
+                    fecha_envio TEXT,
+                    fecha_estimada TEXT,
+                    fecha_recepcion TEXT,
+                    costo_adicional REAL NOT NULL DEFAULT 0,
+                    notas TEXT,
+                    registrado_por INTEGER REFERENCES usuarios(id),
+                    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            `);
+            db.exec('CREATE INDEX IF NOT EXISTS idx_envioslab_trabajo ON envios_laboratorio (trabajo_id, numero)');
+
+            const tienePadre = db.prepare("PRAGMA table_info(trabajos_laboratorio)").all().some((c) => c.name === 'trabajo_padre_id');
+            const insertarEnvio = db.prepare(`
+                INSERT INTO envios_laboratorio (trabajo_id, numero, motivo, fecha_envio, fecha_estimada, fecha_recepcion, costo_adicional, notas, registrado_por)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+
+            const todos = db.prepare('SELECT * FROM trabajos_laboratorio ORDER BY id').all();
+            const raices = tienePadre ? todos.filter((t) => !t.trabajo_padre_id) : todos;
+            const hijos = tienePadre ? todos.filter((t) => t.trabajo_padre_id) : [];
+
+            // Envio 1 de cada orden, con las fechas que ya tenia.
+            raices.forEach((tr) => {
+                if (!tr.fecha_envio && tr.estado === 'por_enviar') return; // todavia no salio
+                insertarEnvio.run(tr.id, 1, 'inicial', tr.fecha_envio, tr.fecha_estimada, tr.fecha_recepcion, 0, null, tr.creado_por);
+            });
+
+            // Cada hijo se vuelve un envio de su orden raiz.
+            const porId = {};
+            todos.forEach((tr) => { porId[tr.id] = tr; });
+            const raizDe = (tr) => {
+                let actual = tr;
+                while (actual.trabajo_padre_id && porId[actual.trabajo_padre_id]) actual = porId[actual.trabajo_padre_id];
+                return actual;
+            };
+
+            hijos.forEach((hijo) => {
+                const raiz = raizDe(hijo);
+                if (raiz.id === hijo.id) return;
+                const siguiente = (db.prepare('SELECT COALESCE(MAX(numero), 0) AS maximo FROM envios_laboratorio WHERE trabajo_id = ?').get(raiz.id).maximo) + 1;
+                insertarEnvio.run(
+                    raiz.id, siguiente, 'ajuste',
+                    hijo.fecha_envio, hijo.fecha_estimada, hijo.fecha_recepcion,
+                    hijo.costo || 0,
+                    hijo.indicaciones || hijo.notas || `Reenvío que estaba registrado como ${hijo.numero_orden}`,
+                    hijo.creado_por
+                );
+                // Los abonos del hijo pasan a la orden raiz, y su costo se
+                // suma al total de esa orden.
+                db.prepare('UPDATE pagos_laboratorio SET trabajo_id = ? WHERE trabajo_id = ?').run(raiz.id, hijo.id);
+                if (hijo.costo > 0) {
+                    db.prepare('UPDATE trabajos_laboratorio SET costo = costo + ? WHERE id = ?').run(hijo.costo, raiz.id);
+                }
+                // El estado del hijo manda si era el movimiento en curso.
+                if (hijo.estado === 'enviado') {
+                    db.prepare("UPDATE trabajos_laboratorio SET estado = 'enviado', fecha_envio = ?, fecha_estimada = ?, fecha_recepcion = NULL WHERE id = ?")
+                        .run(hijo.fecha_envio, hijo.fecha_estimada, raiz.id);
+                }
+                db.prepare('DELETE FROM trabajos_laboratorio WHERE id = ?').run(hijo.id);
+            });
+
+            if (tienePadre) db.exec('ALTER TABLE trabajos_laboratorio DROP COLUMN trabajo_padre_id');
+            return { ordenes: raices.length, convertidos: hijos.length };
+        });
+        const resultado = migrarEnvios();
+        console.log(`Migracion: las idas y vueltas al laboratorio pasan a "envios_laboratorio" (${resultado.ordenes} orden(es), ${resultado.convertidos} reenvio(s) convertido(s) en envio)`);
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)

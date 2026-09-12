@@ -329,12 +329,22 @@ ambas cuentas (margen por tratamiento) queda para la Fase 5.
 - **Laboratorios** (solo admin): catálogo con contacto, teléfono, email, dirección y datos de
   transferencia. Se siembra la primera vez con los laboratorios de la clínica.
 
-### Reenvío por ajuste
+### Una orden, muchas idas y vueltas
 
-Si un trabajo vuelve al laboratorio, **no se edita el original**: se crea una orden nueva vinculada
-a él (`ajuste de LAB-2026-####`), con sus propias fechas y su propio costo — normalmente 0 si el
-laboratorio no cobra el ajuste. El original conserva intacta su historia, igual que una revocación
-de consentimiento o una nueva versión de plan.
+Un trabajo puede ir y volver del laboratorio varias veces — típico de una prótesis total: envío
+inicial, prueba en boca, ajuste, otro ajuste. Todo eso es **una sola orden**: el número
+`LAB-AAAA-####` es el que el laboratorio tiene anotado y **no cambia nunca**.
+
+Cada movimiento queda en el historial de la orden, con su motivo (*envío inicial*, *prueba en
+boca*, *ajuste*, *reparación*), su fecha de envío, la fecha prometida, la fecha en que volvió y qué
+se pidió corregir. En la bandeja se ve "3 envíos · último: Ajuste", y el detalle completo está en
+**Ver detalle**. Un trabajo ya entregado al paciente puede volver por una **reparación**, sin dejar
+de ser el mismo trabajo.
+
+Para reenviar hay que haber registrado antes su recepción — si no, el sistema avisa que el trabajo
+ya está en el laboratorio. Si el laboratorio **cobra** el reenvío, ese costo adicional se suma al
+total de la orden (normalmente es $0). La orden que se imprime para el reenvío lleva el mismo número
+y arriba dice "Envío N° 2 · Ajuste", con lo que hay que corregir.
 
 ### Costo: cantidad × precio unitario
 
@@ -403,11 +413,14 @@ inmutable.
 
 ## Fechas: un solo formato
 
-Todo el sistema muestra y pide las fechas en **dd/mm/aaaa** (`12/09/2026`). Los campos donde se
-escribe una fecha **no dependen del idioma del navegador**: un `<input type="date">` normal se
-dibuja con el formato del navegador (con Brave o Chrome en inglés se ve `09/12/2026` para el 12 de
-septiembre), así que `public/js/campo-fecha.js` los reemplaza por un campo `dd/mm/aaaa` con botón de
-calendario. Por debajo la fecha sigue viajando en ISO (`YYYY-MM-DD`) a la base de datos.
+Las fechas se **leen** en `dd/mmm/aaaa` (`12/sep/2026`) en listas, tablas e impresiones: con el mes
+en letras nadie tiene que adivinar si un `09/12` es septiembre o diciembre.
+
+Los campos donde se **escribe** una fecha usan `dd/mm/aaaa` numérico, porque ahí se teclea, y **no
+dependen del idioma del navegador**: un `<input type="date">` normal se dibuja con el formato del
+navegador (con Brave o Chrome en inglés se ve `09/12/2026` para el 12 de septiembre), así que
+`public/js/campo-fecha.js` los reemplaza por un campo `dd/mm/aaaa` con botón de calendario. Por
+debajo la fecha sigue viajando en ISO (`YYYY-MM-DD`) a la base de datos.
 
 Se puede escribir la fecha de corrido (`25122026` se convierte en `25/12/2026`) y una fecha que no
 existe (31/02) se limpia al salir del campo. La línea bajo el campo muestra el día de la semana,

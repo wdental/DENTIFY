@@ -7,21 +7,23 @@
 const MESES_ABREV_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const DIAS_SEMANA_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
-// dd/mm/aaaa, ej. 12/09/2026. Es el UNICO formato de fecha del sistema:
-// el mismo que muestran los campos donde se escribe (ver campo-fecha.js),
-// para que nunca haya que adivinar si un 09/12 es septiembre o diciembre.
+// dd/mmm/aaaa con el mes abreviado en minusculas, ej. 12/sep/2026.
+// Es el formato de LECTURA (listas, tablas, impresiones): con el mes en
+// letras nunca hay que adivinar si un 09/12 es septiembre o diciembre.
+// Los campos donde se ESCRIBE una fecha usan dd/mm/aaaa numerico, porque
+// ahi se teclea (ver public/js/campo-fecha.js).
 function formatearFecha(fechaIso) {
     if (!fechaIso) return '';
     const d = new Date(String(fechaIso).slice(0, 10) + 'T00:00:00');
     if (isNaN(d.getTime())) return fechaIso;
 
     const dia = String(d.getDate()).padStart(2, '0');
-    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const mes = MESES_ABREV_ES[d.getMonth()];
     const anio = d.getFullYear();
     return `${dia}/${mes}/${anio}`;
 }
 
-// dia de la semana en minusculas + fecha, ej. "sábado, 12/09/2026"
+// dia de la semana en minusculas + fecha, ej. "sábado, 12/sep/2026"
 function formatearFechaConDia(fechaIso) {
     if (!fechaIso) return '';
     const d = new Date(String(fechaIso).slice(0, 10) + 'T00:00:00');

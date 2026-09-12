@@ -63,7 +63,7 @@ function filaTrabajoPaciente(t) {
     return `
         <tr class="${t.estado === 'cancelado' ? 'fila-anulada' : ''}">
             <td><strong>${t.numero_orden}</strong>
-                ${t.trabajo_padre_numero ? `<div class="texto-secundario">ajuste de ${t.trabajo_padre_numero}</div>` : ''}</td>
+                ${t.total_envios > 1 ? `<div class="texto-secundario">${t.total_envios} envíos · último: ${t.motivo_envio_actual_etiqueta || ''}</div>` : ''}</td>
             <td>${t.tipo_trabajo}
                 ${t.piezas ? `<div class="texto-secundario">Piezas: ${t.piezas}</div>` : ''}</td>
             <td>${t.laboratorio_nombre}</td>

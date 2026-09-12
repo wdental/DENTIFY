@@ -23,6 +23,11 @@ const ETIQUETAS_METODO_LAB = {
     efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta', otro: 'Otro'
 };
 
+const ETIQUETAS_MOTIVO_ENVIO = {
+    inicial: 'Envío inicial', prueba: 'Prueba en boca', ajuste: 'Ajuste',
+    reparacion: 'Reparación', otro: 'Otro'
+};
+
 (async () => {
     usuarioLaboratorio = await inicializarSidebar();
     if (!usuarioLaboratorio) return;
@@ -223,7 +228,7 @@ function filaTrabajo(t) {
     return `
         <tr class="${t.estado === 'cancelado' ? 'fila-anulada' : ''}">
             <td><strong>${escaparLab(t.numero_orden)}</strong>
-                ${t.trabajo_padre_numero ? `<div class="texto-secundario">ajuste de ${escaparLab(t.trabajo_padre_numero)}</div>` : ''}</td>
+                ${t.total_envios > 1 ? `<div class="dinero-detalle">${t.total_envios} envíos · último: ${escaparLab(t.motivo_envio_actual_etiqueta || '')}</div>` : ''}</td>
             <td><a href="/paciente.html?id=${t.paciente_id}">${escaparLab(t.paciente_apellidos)} ${escaparLab(t.paciente_nombres)}</a>
                 <div class="texto-secundario">${escaparLab(t.paciente_historia || '')}</div></td>
             <td>${escaparLab(t.tipo_trabajo)}
@@ -257,11 +262,15 @@ function accionesTrabajo(t) {
     if (t.estado === 'por_enviar') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'enviado')">Enviar</button>`);
     if (t.estado === 'enviado') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'recibido')">Recibir</button>`);
     if (t.estado === 'recibido') {
-        acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'instalado')">Instalar</button>`);
-        acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalReenvio(${t.id})">Reenviar por ajuste</button>`);
+        acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'instalado')">Entregar al paciente</button>`);
+    }
+    // Un trabajo ya entregado puede volver al laboratorio por una
+    // reparacion: sigue siendo la misma orden.
+    if (t.estado === 'recibido' || t.estado === 'instalado') {
+        acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalReenvio(${t.id})">Reenviar</button>`);
     }
     if (t.estado !== 'cancelado') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalTrabajo(${t.id})">Editar</button>`);
-    if (t.abonado > 0) acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalAbonos(${t.id})">Ver abonos</button>`);
+    acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalAbonos(${t.id})">Ver detalle</button>`);
     if (usuarioLaboratorio.rol === 'admin' && t.estado !== 'cancelado' && t.abonado === 0) {
         acciones.push(`<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('cancelar', ${t.id})">Cancelar</button>`);
     }
@@ -535,6 +544,7 @@ function abrirModalReenvio(trabajoId) {
     document.getElementById('form-reenvio').reset();
     document.getElementById('tr-trabajo-id').value = trabajoId;
     document.getElementById('tr-costo').value = 0;
+    document.getElementById('tr-motivo').value = trabajo && trabajo.estado === 'instalado' ? 'reparacion' : 'ajuste';
 
     const hoy = fechaHoyIso();
     document.getElementById('tr-fecha-envio').max = hoy;
@@ -542,7 +552,8 @@ function abrirModalReenvio(trabajoId) {
     ['tr-fecha-envio', 'tr-fecha-estimada'].forEach((campo) => sincronizarFechaLegible(campo, campo + '-legible'));
 
     if (trabajo) {
-        document.querySelector('#modal-reenvio h2').textContent = `Reenviar ${trabajo.numero_orden} por ajuste`;
+        document.querySelector('#modal-reenvio h2').textContent =
+            `Reenviar ${trabajo.numero_orden} (envío ${(trabajo.total_envios || 1) + 1})`;
     }
     document.getElementById('modal-reenvio').classList.add('abierto');
 }
@@ -554,14 +565,15 @@ async function guardarReenvio(evento) {
     const id = document.getElementById('tr-trabajo-id').value;
 
     try {
-        const resultado = await api.post(`/api/laboratorio/trabajos/${id}/reenvio`, {
+        const resultado = await api.post(`/api/laboratorio/trabajos/${id}/envios`, {
+            motivo: document.getElementById('tr-motivo').value,
             fecha_envio: document.getElementById('tr-fecha-envio').value,
             fecha_estimada: document.getElementById('tr-fecha-estimada').value || null,
-            costo: document.getElementById('tr-costo').value || 0,
-            indicaciones: document.getElementById('tr-indicaciones').value.trim()
+            costo_adicional: document.getElementById('tr-costo').value || 0,
+            notas: document.getElementById('tr-indicaciones').value.trim()
         });
         cerrarModal('modal-reenvio');
-        mostrarMensajeLab(`Reenvío registrado como ${resultado.numero_orden}.`);
+        mostrarMensajeLab(`Envío ${resultado.numero_envio} registrado en la orden ${resultado.numero_orden}.`);
         await refrescarTodo();
     } catch (error) {
         errorDiv.innerHTML = `<div class="alerta alerta--error">${escaparLab(error.message)}</div>`;
@@ -748,18 +760,38 @@ async function cargarPagosRealizados() {
 async function abrirModalAbonos(trabajoId) {
     const contenedor = document.getElementById('lista-abonos');
     document.getElementById('resumen-abonos').innerHTML = '';
+    document.getElementById('lista-envios').innerHTML = '';
     contenedor.innerHTML = '<p class="texto-secundario">Cargando...</p>';
     document.getElementById('modal-abonos').classList.add('abierto');
 
     try {
         const t = await api.get(`/api/laboratorio/trabajos/${trabajoId}`);
-        document.getElementById('titulo-modal-abonos').textContent = `Abonos de ${t.numero_orden}`;
+        document.getElementById('titulo-modal-abonos').textContent = `Detalle de ${t.numero_orden}`;
         document.getElementById('resumen-abonos').innerHTML = `
             <div class="alerta" style="margin-bottom:12px;">
                 ${escaparLab(t.laboratorio_nombre)} · ${escaparLab(t.tipo_trabajo)}<br>
                 Total <strong>${dineroLab(t.costo)}</strong> · abonado <strong>${dineroLab(t.abonado)}</strong> ·
                 saldo <strong>${dineroLab(t.saldo)}</strong> (${escaparLab(t.estado_pago_etiqueta)})
             </div>`;
+
+        const envios = document.getElementById('lista-envios');
+        envios.innerHTML = (t.envios || []).length === 0
+            ? '<p class="texto-secundario">Todavía no ha salido al laboratorio.</p>'
+            : `<div class="tabla-envoltorio"><table>
+                    <thead><tr><th>#</th><th>Motivo</th><th>Enviado</th><th>Prometido</th><th>Recibido</th><th>Costo extra</th><th>Qué se pidió</th></tr></thead>
+                    <tbody>
+                        ${t.envios.map((e) => `
+                            <tr>
+                                <td><strong>${e.numero}</strong></td>
+                                <td>${escaparLab(e.motivo_etiqueta)}</td>
+                                <td>${e.fecha_envio ? formatearFecha(e.fecha_envio) : '<span class="texto-secundario">—</span>'}</td>
+                                <td class="texto-secundario">${e.fecha_estimada ? formatearFecha(e.fecha_estimada) : '—'}</td>
+                                <td>${e.fecha_recepcion ? formatearFecha(e.fecha_recepcion) : '<span class="insignia insignia--dorado">en laboratorio</span>'}</td>
+                                <td>${Number(e.costo_adicional) > 0 ? dineroLab(e.costo_adicional) : '<span class="texto-secundario">—</span>'}</td>
+                                <td class="celda-texto-plantilla">${escaparLab(e.notas || '—')}</td>
+                            </tr>`).join('')}
+                    </tbody>
+               </table></div>`;
 
         contenedor.innerHTML = (t.abonos || []).length === 0
             ? '<p class="texto-secundario">Todavía no hay abonos registrados.</p>'

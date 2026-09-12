@@ -26,6 +26,10 @@
 function renderizarOrden(t) {
     const fechaEnvio = t.fecha_envio ? formatearFecha(t.fecha_envio) : '—';
     const fechaEstimada = t.fecha_estimada ? formatearFecha(t.fecha_estimada) : '—';
+    // Un trabajo que ya fue y volvio se reimprime con el MISMO numero de
+    // orden: es el que el laboratorio tiene anotado. Lo que cambia es el
+    // numero de envio y lo que se pide corregir esta vez.
+    const ultimoEnvio = (t.envios || []).length > 1 ? t.envios[t.envios.length - 1] : null;
 
     document.getElementById('contenido-impresion').innerHTML = `
         <div class="hoja-wd hoja-wd--a5">
@@ -45,12 +49,17 @@ function renderizarOrden(t) {
                 <tr><th>Color / tono</th><td>${escaparHtmlImpresion(t.color || '—')}</td></tr>
                 <tr><th>Fecha de envío</th><td>${fechaEnvio}</td></tr>
                 <tr><th>Entrega solicitada</th><td>${fechaEstimada}</td></tr>
-                ${t.trabajo_padre_numero ? `<tr><th>Ajuste de</th><td>${escaparHtmlImpresion(t.trabajo_padre_numero)}</td></tr>` : ''}
+                ${(t.envios || []).length > 1 ? `<tr><th>Envío</th><td>N° ${t.envios.length} · ${escaparHtmlImpresion(t.envios[t.envios.length - 1].motivo_etiqueta)}</td></tr>` : ''}
             </table>
 
+            ${ultimoEnvio && ultimoEnvio.notas ? `
+                <div class="orden-lab-indicaciones">
+                    <h2 class="wd-subtitulo-doc">${escaparHtmlImpresion(ultimoEnvio.motivo_etiqueta)} — qué corregir</h2>
+                    <p>${escaparHtmlImpresion(ultimoEnvio.notas).replace(/\n/g, '<br>')}</p>
+                </div>` : ''}
             ${t.indicaciones ? `
                 <div class="orden-lab-indicaciones">
-                    <h2 class="wd-subtitulo-doc">Indicaciones</h2>
+                    <h2 class="wd-subtitulo-doc">Indicaciones${ultimoEnvio ? ' originales' : ''}</h2>
                     <p>${escaparHtmlImpresion(t.indicaciones).replace(/\n/g, '<br>')}</p>
                 </div>` : ''}
 

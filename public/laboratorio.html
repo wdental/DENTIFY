@@ -228,12 +228,21 @@
 <div class="modal-fondo" id="modal-reenvio">
     <div class="modal">
         <button class="modal__cerrar" id="cerrar-modal-reenvio">&times;</button>
-        <h2>Reenviar al laboratorio por ajuste</h2>
-        <p class="seccion-clinica__ayuda">Se crea una <strong>orden nueva</strong> vinculada a la original, que queda intacta con su historial. Si el laboratorio no cobra el ajuste, deje el costo en 0.</p>
+        <h2>Reenviar al laboratorio</h2>
+        <p class="seccion-clinica__ayuda"><strong>No se crea una orden nueva</strong>: se agrega un envío al historial de esta misma orden, que conserva su número — el que el laboratorio tiene anotado. Si el laboratorio no cobra el reenvío, deje el costo adicional en 0.</p>
         <div id="error-modal-reenvio"></div>
         <form id="form-reenvio">
             <input type="hidden" id="tr-trabajo-id">
             <div class="form-grid">
+                <div class="campo">
+                    <label for="tr-motivo">Motivo *</label>
+                    <select id="tr-motivo" required>
+                        <option value="ajuste">Ajuste</option>
+                        <option value="prueba">Prueba en boca</option>
+                        <option value="reparacion">Reparación</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
                 <div class="campo">
                     <label for="tr-fecha-envio">Fecha de reenvío</label>
                     <input type="date" id="tr-fecha-envio" required>
@@ -245,17 +254,18 @@
                     <span class="fecha-legible" id="tr-fecha-estimada-legible"></span>
                 </div>
                 <div class="campo">
-                    <label for="tr-costo">Costo del ajuste (USD)</label>
+                    <label for="tr-costo">Costo adicional (USD)</label>
                     <input type="number" id="tr-costo" step="0.01" min="0" value="0">
+                    <span class="seccion-clinica__ayuda">Se suma al total de la orden. Normalmente 0.</span>
                 </div>
                 <div class="campo campo--ancho">
-                    <label for="tr-indicaciones">Motivo del ajuste / indicaciones</label>
+                    <label for="tr-indicaciones">Qué se le pide corregir *</label>
                     <textarea id="tr-indicaciones" required></textarea>
                 </div>
             </div>
             <div class="flex-entre" style="margin-top: 22px;">
                 <button type="button" class="btn btn-secundario" id="cancelar-modal-reenvio">Cancelar</button>
-                <button type="submit" class="btn btn-primario">Registrar reenvío</button>
+                <button type="submit" class="btn btn-primario">Registrar envío</button>
             </div>
         </form>
     </div>
@@ -311,9 +321,13 @@
 <div class="modal-fondo" id="modal-abonos">
     <div class="modal modal--ancho">
         <button class="modal__cerrar" id="cerrar-modal-abonos">&times;</button>
-        <h2 id="titulo-modal-abonos">Abonos del trabajo</h2>
-        <p class="seccion-clinica__ayuda">Un abono no se edita. Solo un administrador puede anularlo con motivo: queda visible tachado y fuera del saldo.</p>
+        <h2 id="titulo-modal-abonos">Detalle del trabajo</h2>
         <div id="resumen-abonos"></div>
+        <h3>Idas y vueltas al laboratorio</h3>
+        <p class="seccion-clinica__ayuda">Todos los movimientos de esta orden, sin cambiar su número.</p>
+        <div id="lista-envios"></div>
+        <h3 style="margin-top:24px;">Abonos</h3>
+        <p class="seccion-clinica__ayuda">Un abono no se edita. Solo un administrador puede anularlo con motivo: queda visible tachado y fuera del saldo.</p>
         <div id="lista-abonos"></div>
         <div class="flex-entre" style="margin-top: 20px;">
             <button type="button" class="btn btn-secundario" id="cerrar-modal-abonos-pie">Cerrar</button>

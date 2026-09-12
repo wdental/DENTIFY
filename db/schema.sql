@@ -538,10 +538,12 @@ CREATE TABLE IF NOT EXISTS contador_ordenes_laboratorio (
 -- legal inmutable), esto es logistica: se puede corregir mientras no este
 -- pagado. Una vez marcado pagado, solo un admin revierte el pago.
 --
--- Un reenvio por ajuste NO edita el trabajo original: crea una fila hija
--- con trabajo_padre_id, con sus propias fechas y su propio costo (a menudo
--- 0 si el laboratorio no cobra el ajuste), igual que una revocacion de
--- consentimiento o una nueva version de plan.
+-- Una orden es UNA sola, aunque el trabajo vaya y vuelva del laboratorio
+-- varias veces (tipico de una protesis total: prueba en boca, ajuste,
+-- ajuste otra vez). Cada ida y vuelta es una fila de `envios_laboratorio`,
+-- no una orden nueva: el numero de orden es el que el laboratorio tiene
+-- anotado y no debe cambiar. `estado` y las fechas del trabajo reflejan el
+-- movimiento en curso; el historial completo vive en los envios.
 CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     numero_orden TEXT NOT NULL UNIQUE,
@@ -566,14 +568,14 @@ CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
     cita_id INTEGER REFERENCES citas(id) ON DELETE SET NULL,  -- cita de instalacion prevista
     evolucion_id INTEGER REFERENCES evoluciones(id),  -- sesion en la que se instalo
     documentos_json TEXT,                   -- ids de documentos_pacientes (fotos/escaneos)
-    trabajo_padre_id INTEGER REFERENCES trabajos_laboratorio(id), -- reenvio por ajuste
 
     -- Un trabajo puede ser por varias unidades (ej. 5 coronas a $100):
     -- el costo total es cantidad x costo_unitario, como en el registro
-    -- manual que llevaba la clinica en Excel.
+    -- manual que llevaba la clinica en Excel, mas lo que el laboratorio
+    -- cobre por un reenvio (normalmente 0).
     cantidad INTEGER NOT NULL DEFAULT 1 CHECK (cantidad > 0),
     costo_unitario REAL NOT NULL DEFAULT 0,
-    costo REAL NOT NULL DEFAULT 0,          -- total: cantidad x costo_unitario
+    costo REAL NOT NULL DEFAULT 0,          -- cantidad x unitario + costos adicionales de los envios
 
     motivo_cancelacion TEXT,
     cancelado_por INTEGER REFERENCES usuarios(id),
@@ -587,6 +589,27 @@ CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_paciente ON trabajos_laboratorio (paciente_id);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_laboratorio ON trabajos_laboratorio (laboratorio_id);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_estado ON trabajos_laboratorio (estado);
+
+-- Cada ida y vuelta del trabajo al laboratorio. El envio 1 es el inicial;
+-- los siguientes son la prueba en boca, un ajuste o una reparacion, sin
+-- generar una orden nueva. Si el laboratorio cobra por el reenvio, ese
+-- `costo_adicional` se suma al costo total de la orden.
+CREATE TABLE IF NOT EXISTS envios_laboratorio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trabajo_id INTEGER NOT NULL REFERENCES trabajos_laboratorio(id) ON DELETE CASCADE,
+    numero INTEGER NOT NULL,                -- 1, 2, 3... por trabajo
+    motivo TEXT NOT NULL DEFAULT 'inicial' CHECK (motivo IN
+        ('inicial', 'prueba', 'ajuste', 'reparacion', 'otro')),
+    fecha_envio TEXT,
+    fecha_estimada TEXT,                    -- entrega prometida para ESTE envio
+    fecha_recepcion TEXT,                   -- cuando volvio del laboratorio
+    costo_adicional REAL NOT NULL DEFAULT 0,
+    notas TEXT,                             -- que se le pidio corregir
+    registrado_por INTEGER REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_envioslab_trabajo ON envios_laboratorio (trabajo_id, numero);
 
 -- Abonos a un trabajo de laboratorio. La clinica paga a los laboratorios
 -- en partes ("Abonado" y "Saldo" de su registro manual), asi que el pago

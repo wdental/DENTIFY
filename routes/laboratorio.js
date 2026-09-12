@@ -29,6 +29,14 @@ const ETIQUETAS_ESTADO = {
     cancelado: 'Cancelado'
 };
 const METODOS_PAGO = ['efectivo', 'transferencia', 'tarjeta', 'otro'];
+const MOTIVOS_ENVIO = ['inicial', 'prueba', 'ajuste', 'reparacion', 'otro'];
+const ETIQUETAS_MOTIVO = {
+    inicial: 'Envío inicial',
+    prueba: 'Prueba en boca',
+    ajuste: 'Ajuste',
+    reparacion: 'Reparación',
+    otro: 'Otro'
+};
 const ETIQUETAS_ESTADO_PAGO = {
     sin_costo: 'Sin costo registrado',
     pendiente: 'Pendiente',
@@ -106,6 +114,9 @@ router.put('/laboratorios/:id', requiereAdmin, (req, res) => {
 });
 
 router.get('/tipos-sugeridos', (req, res) => res.json(TIPOS_SUGERIDOS));
+router.get('/motivos-envio', (req, res) => res.json(
+    MOTIVOS_ENVIO.filter((m) => m !== 'inicial').map((m) => ({ valor: m, etiqueta: ETIQUETAS_MOTIVO[m] }))
+));
 router.get('/metodos-pago', (req, res) => res.json(METODOS_PAGO));
 
 // -----------------------------------------------------------------
@@ -120,16 +131,17 @@ const SQL_TRABAJO = `
            doc.nombre_completo AS doctor_nombre,
            u.nombre AS creado_por_nombre,
            c.fecha AS cita_fecha, c.hora_inicio AS cita_hora_inicio,
-           padre.numero_orden AS trabajo_padre_numero,
            (SELECT COALESCE(SUM(pl.monto), 0) FROM pagos_laboratorio pl
-             WHERE pl.trabajo_id = t.id AND pl.anulado = 0) AS abonado
+             WHERE pl.trabajo_id = t.id AND pl.anulado = 0) AS abonado,
+           (SELECT COUNT(*) FROM envios_laboratorio el WHERE el.trabajo_id = t.id) AS total_envios,
+           (SELECT el.motivo FROM envios_laboratorio el WHERE el.trabajo_id = t.id
+             ORDER BY el.numero DESC LIMIT 1) AS motivo_envio_actual
     FROM trabajos_laboratorio t
     JOIN laboratorios l ON l.id = t.laboratorio_id
     JOIN pacientes p ON p.id = t.paciente_id
     LEFT JOIN doctores doc ON doc.id = t.doctor_id
     LEFT JOIN usuarios u ON u.id = t.creado_por
     LEFT JOIN citas c ON c.id = t.cita_id
-    LEFT JOIN trabajos_laboratorio padre ON padre.id = t.trabajo_padre_id
 `;
 
 // Marca de atraso: el trabajo sigue en el laboratorio y o bien paso la
@@ -169,6 +181,7 @@ function decorarTrabajo(fila) {
         pagado: estadoPago === 'pagado',
         documentos_ids: documentos,
         estado_etiqueta: ETIQUETAS_ESTADO[fila.estado] || fila.estado,
+        motivo_envio_actual_etiqueta: ETIQUETAS_MOTIVO[fila.motivo_envio_actual] || null,
         atrasado,
         cita_en_riesgo: citaEnRiesgo,
         // Un trabajo cancelado no se le debe al laboratorio.
@@ -217,9 +230,13 @@ router.get('/trabajos/:id', (req, res) => {
         WHERE pl.trabajo_id = ?
         ORDER BY pl.fecha, pl.id
     `).all(fila.id);
-    decorado.reenvios = db.prepare(
-        'SELECT id, numero_orden, estado, fecha_envio, fecha_recepcion, costo FROM trabajos_laboratorio WHERE trabajo_padre_id = ? ORDER BY id'
-    ).all(fila.id);
+    decorado.envios = db.prepare(`
+        SELECT el.*, u.nombre AS registrado_por_nombre
+        FROM envios_laboratorio el
+        LEFT JOIN usuarios u ON u.id = el.registrado_por
+        WHERE el.trabajo_id = ?
+        ORDER BY el.numero
+    `).all(fila.id).map((e) => ({ ...e, motivo_etiqueta: ETIQUETAS_MOTIVO[e.motivo] || e.motivo }));
     if (decorado.documentos_ids.length > 0) {
         const marcadores = decorado.documentos_ids.map(() => '?').join(',');
         decorado.documentos = db.prepare(
@@ -338,6 +355,48 @@ function validarDatosTrabajo(req, res, datos) {
     return true;
 }
 
+// -----------------------------------------------------------------
+// Envios: cada ida y vuelta del trabajo al laboratorio, dentro de la
+// MISMA orden. El envio 1 es el inicial; los siguientes son la prueba en
+// boca, un ajuste o una reparacion. El numero de orden nunca cambia:
+// es el que el laboratorio tiene anotado.
+// -----------------------------------------------------------------
+function envioAbierto(trabajoId) {
+    return db.prepare(
+        'SELECT * FROM envios_laboratorio WHERE trabajo_id = ? AND fecha_recepcion IS NULL ORDER BY numero DESC LIMIT 1'
+    ).get(trabajoId);
+}
+
+function registrarEnvio(trabajoId, datos) {
+    const siguiente = db.prepare(
+        'SELECT COALESCE(MAX(numero), 0) AS maximo FROM envios_laboratorio WHERE trabajo_id = ?'
+    ).get(trabajoId).maximo + 1;
+
+    db.prepare(`
+        INSERT INTO envios_laboratorio (trabajo_id, numero, motivo, fecha_envio, fecha_estimada, costo_adicional, notas, registrado_por)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        trabajoId, siguiente, datos.motivo || 'ajuste',
+        datos.fecha_envio || null, datos.fecha_estimada || null,
+        Number(datos.costo_adicional) || 0, (datos.notas || '').trim() || null,
+        datos.usuarioId || null
+    );
+    return siguiente;
+}
+
+// El total de la orden es cantidad x unitario mas lo que el laboratorio
+// haya cobrado por los reenvios.
+function recalcularCostoTrabajo(trabajoId) {
+    const fila = db.prepare(`
+        SELECT t.cantidad, t.costo_unitario,
+               COALESCE((SELECT SUM(el.costo_adicional) FROM envios_laboratorio el WHERE el.trabajo_id = t.id), 0) AS adicionales
+        FROM trabajos_laboratorio t WHERE t.id = ?
+    `).get(trabajoId);
+    if (!fila) return;
+    const total = redondear(fila.cantidad * fila.costo_unitario + fila.adicionales);
+    db.prepare('UPDATE trabajos_laboratorio SET costo = ? WHERE id = ?').run(total, trabajoId);
+}
+
 router.post('/trabajos', (req, res) => {
     const datos = req.body;
 
@@ -356,9 +415,9 @@ router.post('/trabajos', (req, res) => {
             INSERT INTO trabajos_laboratorio (
                 numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
                 piezas, color, indicaciones, estado, fecha_envio, fecha_estimada,
-                plan_item_id, cita_id, documentos_json, trabajo_padre_id,
+                plan_item_id, cita_id, documentos_json,
                 cantidad, costo_unitario, costo, notas, creado_por
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             numeroOrden, datos.paciente_id, datos.laboratorio_id, datos.doctor_id || null,
             String(datos.tipo_trabajo).trim(), (datos.descripcion || '').trim() || null,
@@ -367,11 +426,19 @@ router.post('/trabajos', (req, res) => {
             datos.fecha_envio || null, datos.fecha_estimada || null,
             datos.plan_item_id || null, datos.cita_id || null,
             Array.isArray(datos.documentos_ids) && datos.documentos_ids.length ? JSON.stringify(datos.documentos_ids) : null,
-            datos.trabajo_padre_id || null,
             importe.cantidad, importe.unitario, importe.total,
             (datos.notas || '').trim() || null,
             req.session.usuario.id
         );
+        // Si ya salio hacia el laboratorio, queda registrado el envio 1.
+        if (estado === 'enviado') {
+            registrarEnvio(resultado.lastInsertRowid, {
+                motivo: 'inicial',
+                fecha_envio: datos.fecha_envio,
+                fecha_estimada: datos.fecha_estimada || null,
+                usuarioId: req.session.usuario.id
+            });
+        }
         return { id: resultado.lastInsertRowid, numeroOrden };
     });
 
@@ -397,7 +464,10 @@ router.put('/trabajos/:id', (req, res) => {
         'SELECT COALESCE(SUM(monto), 0) AS total FROM pagos_laboratorio WHERE trabajo_id = ? AND anulado = 0'
     ).get(req.params.id).total;
     const importe = totalDelTrabajo(datos);
-    if (abonado > 0 && importe.total !== Math.round(Number(trabajo.costo) * 100) / 100) {
+    // Se compara contra cantidad x unitario, no contra `costo`: el costo
+    // guardado ya incluye lo que el laboratorio cobro por los reenvios.
+    const baseActual = redondear(Number(trabajo.cantidad) * Number(trabajo.costo_unitario));
+    if (abonado > 0 && importe.total !== baseActual) {
         return res.status(400).json({ error: 'Este trabajo ya tiene abonos registrados: para cambiar el costo, un administrador debe anular los abonos primero.' });
     }
 
@@ -420,6 +490,9 @@ router.put('/trabajos/:id', (req, res) => {
         (datos.notas || '').trim() || null,
         req.params.id
     );
+    // El total vuelve a incluir lo que el laboratorio haya cobrado por los
+    // reenvios, que no se toca desde este formulario.
+    recalcularCostoTrabajo(req.params.id);
     res.json({ ok: true });
 });
 
@@ -444,11 +517,34 @@ router.put('/trabajos/:id/estado', (req, res) => {
         if (fecha_estimada && fecha_estimada < fechaPaso) {
             return res.status(400).json({ error: 'La fecha estimada de entrega no puede ser anterior al envío' });
         }
-        db.prepare("UPDATE trabajos_laboratorio SET estado = 'enviado', fecha_envio = ?, fecha_estimada = COALESCE(?, fecha_estimada) WHERE id = ?")
-            .run(fechaPaso, fecha_estimada || null, req.params.id);
+        db.transaction(() => {
+            db.prepare("UPDATE trabajos_laboratorio SET estado = 'enviado', fecha_envio = ?, fecha_estimada = COALESCE(?, fecha_estimada), fecha_recepcion = NULL WHERE id = ?")
+                .run(fechaPaso, fecha_estimada || null, req.params.id);
+            // Si habia un envio sin cerrar se actualiza; si no, este es uno
+            // nuevo (el primero, o una vuelta al laboratorio).
+            const abierto = envioAbierto(req.params.id);
+            if (abierto) {
+                db.prepare('UPDATE envios_laboratorio SET fecha_envio = ?, fecha_estimada = COALESCE(?, fecha_estimada) WHERE id = ?')
+                    .run(fechaPaso, fecha_estimada || null, abierto.id);
+            } else {
+                const hayPrevios = db.prepare('SELECT COUNT(*) AS total FROM envios_laboratorio WHERE trabajo_id = ?').get(req.params.id).total > 0;
+                registrarEnvio(req.params.id, {
+                    motivo: hayPrevios ? 'ajuste' : 'inicial',
+                    fecha_envio: fechaPaso,
+                    fecha_estimada: fecha_estimada || null,
+                    usuarioId: req.session.usuario.id
+                });
+            }
+        })();
     } else if (estado === 'recibido') {
-        db.prepare("UPDATE trabajos_laboratorio SET estado = 'recibido', fecha_recepcion = ? WHERE id = ?")
-            .run(fechaPaso, req.params.id);
+        db.transaction(() => {
+            db.prepare("UPDATE trabajos_laboratorio SET estado = 'recibido', fecha_recepcion = ? WHERE id = ?")
+                .run(fechaPaso, req.params.id);
+            const abierto = envioAbierto(req.params.id);
+            if (abierto) {
+                db.prepare('UPDATE envios_laboratorio SET fecha_recepcion = ? WHERE id = ?').run(fechaPaso, abierto.id);
+            }
+        })();
     } else if (estado === 'instalado') {
         if (evolucion_id) {
             const evolucion = db.prepare('SELECT id FROM evoluciones WHERE id = ? AND paciente_id = ?').get(evolucion_id, trabajo.paciente_id);
@@ -463,44 +559,53 @@ router.put('/trabajos/:id/estado', (req, res) => {
     res.json({ ok: true });
 });
 
-// Reenvio por ajuste: NO edita el trabajo original (que conserva su
-// historia real), crea uno hijo con sus propias fechas y su propio costo.
-router.post('/trabajos/:id/reenvio', (req, res) => {
-    const original = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
-    if (!original) return res.status(404).json({ error: 'Trabajo no encontrado' });
-    if (original.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
+// Reenvio al laboratorio: NO crea una orden nueva. Suma un ENVIO al
+// sub-registro de la misma orden (prueba en boca, ajuste, reparacion) y
+// deja el trabajo otra vez "en laboratorio". El numero de orden se
+// mantiene, que es el que el laboratorio tiene anotado: una protesis
+// total puede ir y volver varias veces y sigue siendo el mismo trabajo.
+router.post('/trabajos/:id/envios', (req, res) => {
+    const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
+    if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
+    if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
+    if (trabajo.estado === 'por_enviar') {
+        return res.status(400).json({ error: 'Este trabajo todavía no ha salido: use "Enviar" para registrar el primer envío.' });
+    }
+    if (envioAbierto(req.params.id)) {
+        return res.status(400).json({ error: 'El trabajo ya está en el laboratorio: registre primero su recepción.' });
+    }
 
     const datos = req.body;
+    const motivo = MOTIVOS_ENVIO.includes(datos.motivo) && datos.motivo !== 'inicial' ? datos.motivo : 'ajuste';
+
     const fechaEnvio = datos.fecha_envio || hoyLocal();
     if (fechaEnvio > hoyLocal()) return res.status(400).json({ error: 'La fecha de envío no puede ser futura' });
     if (datos.fecha_estimada && datos.fecha_estimada < fechaEnvio) {
         return res.status(400).json({ error: 'La fecha estimada de entrega no puede ser anterior al envío' });
     }
+    const costoAdicional = Number(datos.costo_adicional) || 0;
+    if (costoAdicional < 0) return res.status(400).json({ error: 'El costo adicional no es válido' });
 
-    const transaccion = db.transaction(() => {
-        const numeroOrden = generarNumeroOrdenLaboratorio(fechaEnvio);
-        const resultado = db.prepare(`
-            INSERT INTO trabajos_laboratorio (
-                numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
-                piezas, color, indicaciones, estado, fecha_envio, fecha_estimada,
-                plan_item_id, cita_id, documentos_json, trabajo_padre_id,
-                cantidad, costo_unitario, costo, notas, creado_por
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'enviado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            numeroOrden, original.paciente_id, original.laboratorio_id, original.doctor_id,
-            original.tipo_trabajo, original.descripcion, original.piezas, original.color,
-            (datos.indicaciones || '').trim() || original.indicaciones,
-            fechaEnvio, datos.fecha_estimada || null,
-            original.plan_item_id, datos.cita_id || null, original.documentos_json, original.id,
-            1, Number(datos.costo) || 0, Number(datos.costo) || 0,
-            (datos.notas || '').trim() || null,
-            req.session.usuario.id
-        );
-        return { id: resultado.lastInsertRowid, numeroOrden };
-    });
+    const numero = db.transaction(() => {
+        const n = registrarEnvio(req.params.id, {
+            motivo,
+            fecha_envio: fechaEnvio,
+            fecha_estimada: datos.fecha_estimada || null,
+            costo_adicional: costoAdicional,
+            notas: datos.notas,
+            usuarioId: req.session.usuario.id
+        });
+        db.prepare(`
+            UPDATE trabajos_laboratorio
+            SET estado = 'enviado', fecha_envio = ?, fecha_estimada = ?, fecha_recepcion = NULL
+            WHERE id = ?
+        `).run(fechaEnvio, datos.fecha_estimada || null, req.params.id);
+        // Si el laboratorio cobra el reenvio, sube el total de la orden.
+        if (costoAdicional > 0) recalcularCostoTrabajo(req.params.id);
+        return n;
+    })();
 
-    const creado = transaccion();
-    res.json({ ok: true, id: creado.id, numero_orden: creado.numeroOrden });
+    res.json({ ok: true, numero_envio: numero, numero_orden: trabajo.numero_orden });
 });
 
 router.put('/trabajos/:id/cancelar', requiereAdmin, (req, res) => {
