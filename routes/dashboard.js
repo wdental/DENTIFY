@@ -47,13 +47,34 @@ router.get('/resumen', (req, res) => {
     // Fase 4B: saldos pendientes, ingresos del mes y cuotas vencidas
     const finanzas = calcularIndicadores();
 
+    // Fase 4C: trabajos en laboratorio (con cuantos van atrasados) y lo que
+    // la clinica le debe a los laboratorios. Es un EGRESO: no se mezcla con
+    // los ingresos de `finanzas`.
+    const trabajosEnLaboratorio = db.prepare(
+        "SELECT COUNT(*) AS total FROM trabajos_laboratorio WHERE estado = 'enviado'"
+    ).get().total;
+    const trabajosAtrasados = db.prepare(
+        "SELECT COUNT(*) AS total FROM trabajos_laboratorio WHERE estado = 'enviado' AND fecha_estimada IS NOT NULL AND fecha_estimada < date('now', 'localtime')"
+    ).get().total;
+    const deudaLaboratorios = db.prepare(
+        "SELECT COALESCE(SUM(costo), 0) AS total, COUNT(*) AS cantidad FROM trabajos_laboratorio WHERE pagado = 0 AND estado != 'cancelado' AND costo > 0"
+    ).get();
+
+    const laboratorio = {
+        en_laboratorio: trabajosEnLaboratorio,
+        atrasados: trabajosAtrasados,
+        por_pagar_total: deudaLaboratorios.total,
+        por_pagar_cantidad: deudaLaboratorios.cantidad
+    };
+
     res.json({
         totalActivos,
         nuevosMes,
         distribucionOrigen,
         citasHoy,
         noShowsMes,
-        finanzas
+        finanzas,
+        laboratorio
     });
 });
 

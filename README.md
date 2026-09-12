@@ -302,6 +302,70 @@ Pagos, abonos y caja. Especificación completa y decisiones de implementación e
 
 La tabla `pagos` era un stub de la Fase 1 sin interfaz (0 filas en producción). La migración de `db/migraciones.js` la **reconstruye copiando** cualquier fila que pudiera existir (`fecha` → `fecha_pago`, `notas` → `concepto`, método normalizado, número de recibo asignado con el contador del año) y crea `planes_pago` y `contador_recibos`. `presupuestos` se conserva intacta como stub (el "presupuesto" real de Dentify es el plan de tratamiento aceptado de la Fase 4A). Ninguna tabla existente pierde datos. El servidor admite además `--puerto=NNNN` (o la variable `PUERTO`) para levantar una segunda instancia de pruebas sin tocar la de la clínica.
 
+## Contenido de la Fase 4C
+
+Trabajos enviados a laboratorio, con sus cuentas por pagar. Especificación completa en
+`docs/fase-4c.md`.
+
+### Dos cuentas que no se mezclan
+
+Lo que paga el **paciente** por una corona vive en el plan de tratamiento y se cobra en **Pagos**
+(recibo `REC-AAAA-####`). Lo que la clínica le paga al **laboratorio** es un **egreso interno** y
+vive aquí: no genera recibo, no consume numeración y **no entra en los totales de Caja**. Cruzar
+ambas cuentas (margen por tratamiento) queda para la Fase 5.
+
+### Pantalla Laboratorio (`/laboratorio.html`, admin y asistencial)
+
+- **Bandeja de trabajos**: cada trabajo recorre `Por enviar → En laboratorio → Recibido →
+  Instalado` (o `Cancelado`), con su fecha en cada paso. Filtros por estado, laboratorio y
+  búsqueda por paciente, n.º de orden o tipo de trabajo. Un trabajo aparece **en rojo** si pasó la
+  fecha de entrega prometida o si su cita de instalación es en 2 días o menos y todavía no ha
+  llegado.
+- **Cuentas por pagar**: pendientes agrupados por laboratorio, con subtotal, total general y los
+  datos de transferencia del laboratorio a la vista. Se pueden marcar **varios trabajos a la vez**
+  con una misma fecha, método y número de factura — que es como factura un laboratorio en la
+  práctica. Debajo, los pagos ya realizados del mes.
+- **Laboratorios** (solo admin): catálogo con contacto, teléfono, email, dirección y datos de
+  transferencia. Se siembra la primera vez con los laboratorios de la clínica.
+
+### Reenvío por ajuste
+
+Si un trabajo vuelve al laboratorio, **no se edita el original**: se crea una orden nueva vinculada
+a él (`ajuste de LAB-2026-####`), con sus propias fechas y su propio costo — normalmente 0 si el
+laboratorio no cobra el ajuste. El original conserva intacta su historia, igual que una revocación
+de consentimiento o una nueva versión de plan.
+
+### Qué se puede corregir y qué no
+
+Un trabajo de laboratorio es **logística, no un documento legal**: se edita mientras no esté
+pagado. Una vez marcado pagado queda conciliado con la factura del laboratorio, y solo un `admin`
+puede revertir el pago indicando el motivo (que queda escrito en el registro). Ninguna fecha del
+módulo puede ser futura.
+
+### Orden de trabajo imprimible
+
+`imprimir-orden-laboratorio.html`: media hoja **A5** con el membrete World Dental, número
+secuencial **`LAB-AAAA-####`**, laboratorio, paciente, doctor, tipo de trabajo, piezas, color,
+fecha de envío, entrega solicitada, indicaciones y dos líneas de firma (entrega y recepción). Va
+físicamente con la impresión o el modelo, y el número sirve para reclamar por teléfono. **No lleva
+datos sensibles del paciente** (sin cédula, teléfono ni notas clínicas): la orden sale de la
+clínica, así que se le aplica la misma regla que a los eventos de Google Calendar.
+
+### En la ficha del paciente y en el panel principal
+
+- Pestaña **"Laboratorio"** en la ficha: los trabajos de ese paciente en solo lectura, con estado,
+  fechas y alerta de atraso. "+ Nuevo trabajo" salta a la pantalla Laboratorio con el paciente ya
+  seleccionado.
+- Tarjetas **"En laboratorio"** (enviados pendientes de recibir, indicando cuántos van atrasados) y
+  **"Por pagar a laboratorios"** (total adeudado y número de trabajos), enlazadas a
+  `/laboratorio.html`.
+
+### Fotos y escaneos
+
+No hay mecanismo de subida propio: se suben en la pestaña **Documentos** del paciente y el trabajo
+los referencia. Al registrar un trabajo se marcan con una casilla los documentos que le
+corresponden.
+
 ## Requisitos
 
 - **Node.js** versión LTS (18 o superior). Descargar de [https://nodejs.org](https://nodejs.org)
@@ -404,15 +468,18 @@ Dentify/
 │   ├── conexion.js            Conexion a SQLite, migraciones y siembra inicial
 │   ├── migraciones.js         Migraciones ligeras entre versiones del esquema
 │   ├── semillaDoctores.js     Datos iniciales de los doctores (solo se usa una vez)
+│   ├── semillaLaboratorios.js  Laboratorios iniciales de la clinica (solo se usa una vez)
 │   ├── semillaCie10.js         Catalogo CIE-10 odontologico precargado (solo se usa una vez)
 │   ├── schema.sql              Esquema de base de datos
 │   └── dentify.db              Base de datos (se crea automaticamente)
 ├── routes/                     Rutas de la API (auth, pacientes, usuarios, importador, dashboard,
 │                                doctores, citas, sync, ficha-clinica, odontograma, cie10,
 │                                diagnosticos, evoluciones, plantillas, consentimientos,
-│                                tratamientos, planes-tratamiento, pagos, planes-pago)
+│                                tratamientos, planes-tratamiento, pagos, planes-pago,
+│                                laboratorio)
 ├── middleware/                 Middlewares de autenticacion y roles
-├── utils/                      Utilidades (respaldo, numero de historia, numero de recibo, monto en letras,
+├── utils/                      Utilidades (respaldo, numero de historia, numero de recibo,
+│                                numero de orden de laboratorio, monto en letras,
 │                                finanzas, googleCalendar, sincronizacion)
 ├── public/                     Frontend (HTML, CSS, JS, sin frameworks)
 ├── uploads/pacientes/          Documentos adjuntos de cada paciente
@@ -426,6 +493,6 @@ Dentify/
 - Todo el sistema está en español.
 - El servidor escucha en `0.0.0.0:3000` para ser accesible desde la red local.
 - La sesión de usuario dura 12 horas de inactividad.
-- Solo el rol `admin` puede eliminar pacientes, gestionar usuarios, importar pacientes desde archivo, gestionar doctores, eliminar citas, anular pagos y cancelar planes de cuotas.
+- Solo el rol `admin` puede eliminar pacientes, gestionar usuarios, importar pacientes desde archivo, gestionar doctores y laboratorios, eliminar citas, anular pagos, cancelar planes de cuotas, pagar o revertir pagos a laboratorios y cancelar trabajos de laboratorio.
 - Los doctores viven en la tabla `doctores` de la base de datos (ya no en `public/assets/doctores.js`, que fue eliminado en la Fase 2.5).
 - `google-credentials.json` nunca debe compartirse ni subirse a un repositorio: está en `.gitignore` y fuera del alcance de los respaldos automáticos (que solo copian `dentify.db`).

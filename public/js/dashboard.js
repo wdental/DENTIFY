@@ -43,12 +43,28 @@ async function cargarResumenDashboard() {
         document.getElementById('valor-noshows-mes').textContent = resumen.noShowsMes;
         document.getElementById('fecha-hoy-dashboard').textContent = formatearFechaConDia(new Date().toISOString().slice(0, 10));
         dibujarIndicadoresFinancieros(resumen.finanzas);
+        dibujarIndicadoresLaboratorio(resumen.laboratorio);
 
         dibujarGraficoOrigen(resumen.distribucionOrigen);
         dibujarCitasHoy(resumen.citasHoy);
     } catch (error) {
         console.error('Error al cargar el resumen del panel:', error);
     }
+}
+
+// Fase 4C: trabajos en laboratorio y deuda con los laboratorios. La
+// deuda es un EGRESO de la clinica, no se mezcla con los ingresos.
+function dibujarIndicadoresLaboratorio(laboratorio) {
+    if (!laboratorio) return;
+
+    document.getElementById('valor-en-laboratorio-dash').textContent = laboratorio.en_laboratorio;
+    document.getElementById('nota-en-laboratorio-dash').textContent = laboratorio.atrasados > 0
+        ? `${laboratorio.atrasados} atrasado(s) · ver bandeja →`
+        : 'Trabajos enviados, pendientes de recibir';
+
+    document.getElementById('valor-deuda-laboratorios').textContent = '$' + Number(laboratorio.por_pagar_total || 0).toFixed(2);
+    document.getElementById('nota-deuda-laboratorios').textContent =
+        `${laboratorio.por_pagar_cantidad} trabajo(s) sin pagar · ver cuentas →`;
 }
 
 function dibujarCitasHoy(citas) {

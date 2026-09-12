@@ -2614,3 +2614,75 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 .pieza-hallazgo__detalle {
     opacity: 0.85;
 }
+
+/* ---------------------------------------------------------------
+   Laboratorio (Fase 4C): bandeja de trabajos y cuentas por pagar
+   --------------------------------------------------------------- */
+.fila-anulada td {
+    text-decoration: line-through;
+    color: var(--texto-secundario);
+    opacity: 0.75;
+}
+
+.fila-anulada td .btn-texto {
+    text-decoration: none;
+}
+
+.celda-acciones {
+    white-space: nowrap;
+}
+
+.celda-acciones .btn-texto {
+    display: block;
+    margin-bottom: 2px;
+}
+
+/* Atraso del laboratorio o cita de instalacion encima: es la alerta que
+   evita que el paciente llegue y el trabajo no haya llegado. */
+.trabajo-alerta {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--rojo-alerta);
+}
+
+.total-cuentas {
+    text-align: right;
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+
+.documentos-seleccionables {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--gris-claro);
+    border-radius: 6px;
+}
+
+.documento-seleccionable {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+.documento-seleccionable input {
+    width: auto;
+    margin: 0;
+}
+
+/* Orden de laboratorio imprimible: bloque de indicaciones */
+.orden-lab-indicaciones {
+    margin-top: 14px;
+}
+
+.orden-lab-indicaciones p {
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin: 4px 0 0 0;
+}

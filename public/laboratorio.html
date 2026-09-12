@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dentify - Laboratorio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+<div class="app-layout">
+    <div id="sidebar-contenedor"></div>
+
+    <main class="contenido">
+        <div class="contenido__encabezado">
+            <div>
+                <h1>Laboratorio</h1>
+                <p>Trabajos enviados a laboratorio y cuentas por pagar</p>
+            </div>
+            <button class="btn btn-primario" id="btn-nuevo-trabajo">+ Nuevo trabajo</button>
+        </div>
+
+        <div id="mensaje-laboratorio"></div>
+
+        <div class="tarjetas-fila">
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">En laboratorio</div>
+                <div class="tarjeta-stat__valor" id="valor-en-laboratorio">-</div>
+                <div class="tarjeta-stat__nota" id="nota-en-laboratorio">Enviados, pendientes de recibir</div>
+            </div>
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">Atrasados</div>
+                <div class="tarjeta-stat__valor" id="valor-atrasados">-</div>
+                <div class="tarjeta-stat__nota">Pasó la fecha prometida por el laboratorio</div>
+            </div>
+            <div class="tarjeta tarjeta-stat">
+                <div class="tarjeta-stat__etiqueta">Por pagar a laboratorios</div>
+                <div class="tarjeta-stat__valor" id="valor-por-pagar">-</div>
+                <div class="tarjeta-stat__nota" id="nota-por-pagar">Trabajos recibidos sin pagar</div>
+            </div>
+        </div>
+
+        <div class="pestanas">
+            <button class="pestana activa" data-panel="panel-trabajos">Bandeja de trabajos</button>
+            <button class="pestana" data-panel="panel-cuentas">Cuentas por pagar</button>
+            <button class="pestana oculto" data-panel="panel-laboratorios" id="pestana-laboratorios">Laboratorios</button>
+        </div>
+
+        <!-- ------------------------------------------------------- -->
+        <div class="panel-pestana activo" id="panel-trabajos">
+            <div class="form-grid" style="margin-bottom:16px;">
+                <div class="campo">
+                    <label for="filtro-estado-trabajo">Estado</label>
+                    <select id="filtro-estado-trabajo">
+                        <option value="vivos">En curso (por enviar, en laboratorio, recibidos)</option>
+                        <option value="">Todos</option>
+                        <option value="por_enviar">Por enviar</option>
+                        <option value="enviado">En laboratorio</option>
+                        <option value="recibido">Recibido</option>
+                        <option value="instalado">Instalado</option>
+                        <option value="cancelado">Cancelado</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="filtro-laboratorio-trabajo">Laboratorio</label>
+                    <select id="filtro-laboratorio-trabajo"><option value="">Todos</option></select>
+                </div>
+                <div class="campo">
+                    <label for="filtro-busqueda-trabajo">Buscar</label>
+                    <input type="text" id="filtro-busqueda-trabajo" placeholder="Paciente, N° de orden o tipo de trabajo...">
+                </div>
+            </div>
+            <div id="lista-trabajos"><p class="texto-secundario">Cargando...</p></div>
+        </div>
+
+        <!-- ------------------------------------------------------- -->
+        <div class="panel-pestana" id="panel-cuentas">
+            <div class="flex-entre" style="margin-bottom:14px;">
+                <p class="texto-secundario mb-0">Trabajos con costo registrado que aún no se le han pagado al laboratorio. Puede marcar varios a la vez con un mismo número de factura.</p>
+                <button class="btn btn-primario btn-sm oculto" id="btn-marcar-pagados">Marcar como pagados</button>
+            </div>
+            <div id="lista-cuentas"><p class="texto-secundario">Cargando...</p></div>
+
+            <h3 style="margin-top:30px;">Pagos realizados</h3>
+            <div class="campo" style="max-width:220px;">
+                <label for="filtro-mes-pagos-lab">Mes</label>
+                <input type="month" id="filtro-mes-pagos-lab">
+            </div>
+            <div id="lista-pagos-realizados"></div>
+        </div>
+
+        <!-- ------------------------------------------------------- -->
+        <div class="panel-pestana" id="panel-laboratorios">
+            <div class="flex-entre" style="margin-bottom:14px;">
+                <p class="texto-secundario mb-0">Catálogo de laboratorios. Solo un administrador puede editarlo.</p>
+                <button class="btn btn-primario btn-sm" id="btn-nuevo-laboratorio">+ Nuevo laboratorio</button>
+            </div>
+            <div id="lista-laboratorios"><p class="texto-secundario">Cargando...</p></div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: nuevo / editar trabajo -->
+<div class="modal-fondo" id="modal-trabajo">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-trabajo">&times;</button>
+        <h2 id="titulo-modal-trabajo">Nuevo trabajo de laboratorio</h2>
+        <p class="seccion-clinica__ayuda">Las fotos y escaneos se suben en la pestaña <strong>Documentos</strong> del paciente; aquí solo se referencian.</p>
+        <div id="error-modal-trabajo"></div>
+
+        <form id="form-trabajo">
+            <input type="hidden" id="tl-id">
+            <input type="hidden" id="tl-paciente-id">
+
+            <div class="campo" id="tl-envoltura-paciente">
+                <label for="tl-buscar-paciente">Paciente</label>
+                <div class="selector-paciente">
+                    <input type="text" id="tl-buscar-paciente" placeholder="Buscar por nombre, apellido o cédula..." autocomplete="off">
+                    <div class="selector-paciente__resultados oculto" id="tl-resultados-paciente"></div>
+                </div>
+                <div class="selector-paciente__seleccionado" id="tl-paciente-texto"></div>
+            </div>
+
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="tl-laboratorio">Laboratorio *</label>
+                    <select id="tl-laboratorio" required></select>
+                </div>
+                <div class="campo">
+                    <label for="tl-doctor">Doctor</label>
+                    <select id="tl-doctor"><option value="">Sin especificar</option></select>
+                </div>
+                <div class="campo">
+                    <label for="tl-tipo">Tipo de trabajo *</label>
+                    <input type="text" id="tl-tipo" list="tl-tipos-sugeridos" required placeholder="Ej. Corona de zirconio">
+                    <datalist id="tl-tipos-sugeridos"></datalist>
+                </div>
+                <div class="campo">
+                    <label for="tl-piezas">Piezas (FDI separadas por coma)</label>
+                    <input type="text" id="tl-piezas" placeholder="Ej. 16, 26">
+                </div>
+                <div class="campo">
+                    <label for="tl-color">Color / tono</label>
+                    <input type="text" id="tl-color" placeholder="Ej. A2">
+                </div>
+                <div class="campo">
+                    <label for="tl-costo">Costo del laboratorio (USD)</label>
+                    <input type="number" id="tl-costo" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="campo">
+                    <label for="tl-fecha-envio">Fecha de envío</label>
+                    <input type="date" id="tl-fecha-envio">
+                    <span class="fecha-legible" id="tl-fecha-envio-legible"></span>
+                </div>
+                <div class="campo">
+                    <label for="tl-fecha-estimada">Fecha de entrega prometida</label>
+                    <input type="date" id="tl-fecha-estimada">
+                    <span class="fecha-legible" id="tl-fecha-estimada-legible"></span>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="tl-cita">Cita de instalación prevista</label>
+                    <select id="tl-cita"><option value="">Sin vincular</option></select>
+                    <span class="seccion-clinica__ayuda">Si el trabajo sigue en el laboratorio y la cita es en 2 días o menos, aparece marcado en la bandeja.</span>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="tl-descripcion">Descripción</label>
+                    <input type="text" id="tl-descripcion" placeholder="Ej. Corona sobre implante, pieza 36">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="tl-indicaciones">Indicaciones para el laboratorio</label>
+                    <textarea id="tl-indicaciones" placeholder="Lo que se le pide al laboratorio (va impreso en la orden)"></textarea>
+                </div>
+                <div class="campo campo--ancho">
+                    <label>Documentos del paciente (fotos / escaneos)</label>
+                    <div id="tl-documentos" class="documentos-seleccionables"><p class="texto-secundario mb-0">Seleccione un paciente.</p></div>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="tl-notas">Notas internas</label>
+                    <input type="text" id="tl-notas">
+                </div>
+            </div>
+
+            <div class="flex-entre" style="margin-top: 22px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-trabajo">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar trabajo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: avanzar estado (enviar / recibir / instalar) -->
+<div class="modal-fondo" id="modal-estado-trabajo">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-estado">&times;</button>
+        <h2 id="titulo-modal-estado">Registrar</h2>
+        <p class="texto-secundario" id="subtitulo-modal-estado"></p>
+        <div id="error-modal-estado"></div>
+        <form id="form-estado-trabajo">
+            <div class="campo">
+                <label for="te-fecha" id="te-fecha-etiqueta">Fecha</label>
+                <input type="date" id="te-fecha" required>
+                <span class="fecha-legible" id="te-fecha-legible"></span>
+            </div>
+            <div class="campo oculto" id="te-envoltura-estimada">
+                <label for="te-fecha-estimada">Fecha de entrega prometida</label>
+                <input type="date" id="te-fecha-estimada">
+                <span class="fecha-legible" id="te-fecha-estimada-legible"></span>
+            </div>
+            <div class="flex-entre" style="margin-top: 22px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-estado">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Confirmar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: reenvio por ajuste -->
+<div class="modal-fondo" id="modal-reenvio">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-reenvio">&times;</button>
+        <h2>Reenviar al laboratorio por ajuste</h2>
+        <p class="seccion-clinica__ayuda">Se crea una <strong>orden nueva</strong> vinculada a la original, que queda intacta con su historial. Si el laboratorio no cobra el ajuste, deje el costo en 0.</p>
+        <div id="error-modal-reenvio"></div>
+        <form id="form-reenvio">
+            <input type="hidden" id="tr-trabajo-id">
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="tr-fecha-envio">Fecha de reenvío</label>
+                    <input type="date" id="tr-fecha-envio" required>
+                    <span class="fecha-legible" id="tr-fecha-envio-legible"></span>
+                </div>
+                <div class="campo">
+                    <label for="tr-fecha-estimada">Fecha de entrega prometida</label>
+                    <input type="date" id="tr-fecha-estimada">
+                    <span class="fecha-legible" id="tr-fecha-estimada-legible"></span>
+                </div>
+                <div class="campo">
+                    <label for="tr-costo">Costo del ajuste (USD)</label>
+                    <input type="number" id="tr-costo" step="0.01" min="0" value="0">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="tr-indicaciones">Motivo del ajuste / indicaciones</label>
+                    <textarea id="tr-indicaciones" required></textarea>
+                </div>
+            </div>
+            <div class="flex-entre" style="margin-top: 22px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-reenvio">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Registrar reenvío</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: pago al laboratorio -->
+<div class="modal-fondo" id="modal-pago-laboratorio">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-pago-lab">&times;</button>
+        <h2>Pagar al laboratorio</h2>
+        <p class="seccion-clinica__ayuda">Este es un <strong>egreso de la clínica</strong>: no genera recibo ni entra en los totales de Caja (que son los ingresos de los pacientes).</p>
+        <div id="error-modal-pago-lab"></div>
+        <div id="resumen-pago-lab" class="alerta" style="margin-bottom:14px;"></div>
+        <form id="form-pago-laboratorio">
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="pl-fecha">Fecha del pago</label>
+                    <input type="date" id="pl-fecha" required>
+                    <span class="fecha-legible" id="pl-fecha-legible"></span>
+                </div>
+                <div class="campo">
+                    <label for="pl-metodo">Método</label>
+                    <select id="pl-metodo">
+                        <option value="transferencia">Transferencia</option>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="tarjeta">Tarjeta</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="pl-referencia">N° de factura / comprobante</label>
+                    <input type="text" id="pl-referencia" placeholder="Agrupa los trabajos de una misma factura">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="pl-notas">Notas</label>
+                    <input type="text" id="pl-notas">
+                </div>
+            </div>
+            <div class="flex-entre" style="margin-top: 22px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-pago-lab">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Registrar pago</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: alta / edicion de laboratorio -->
+<div class="modal-fondo" id="modal-laboratorio">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-laboratorio">&times;</button>
+        <h2 id="titulo-modal-laboratorio">Nuevo laboratorio</h2>
+        <div id="error-modal-laboratorio"></div>
+        <form id="form-laboratorio">
+            <input type="hidden" id="lb-id">
+            <div class="form-grid">
+                <div class="campo campo--ancho">
+                    <label for="lb-nombre">Nombre *</label>
+                    <input type="text" id="lb-nombre" required>
+                </div>
+                <div class="campo">
+                    <label for="lb-contacto">Persona de contacto</label>
+                    <input type="text" id="lb-contacto">
+                </div>
+                <div class="campo">
+                    <label for="lb-telefono">Teléfono</label>
+                    <input type="text" id="lb-telefono">
+                </div>
+                <div class="campo">
+                    <label for="lb-email">Email</label>
+                    <input type="text" id="lb-email">
+                </div>
+                <div class="campo">
+                    <label for="lb-direccion">Dirección</label>
+                    <input type="text" id="lb-direccion">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="lb-transferencia">Datos para transferencia</label>
+                    <input type="text" id="lb-transferencia" placeholder="Banco · tipo de cuenta · titular · número">
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="lb-notas">Notas</label>
+                    <input type="text" id="lb-notas">
+                </div>
+                <div class="campo">
+                    <label for="lb-activo">Estado</label>
+                    <select id="lb-activo">
+                        <option value="1">Activo</option>
+                        <option value="0">Inactivo</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex-entre" style="margin-top: 22px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-laboratorio">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: motivo (cancelar trabajo / revertir pago) -->
+<div class="modal-fondo" id="modal-motivo-lab">
+    <div class="modal">
+        <h2 id="titulo-modal-motivo-lab">Indique el motivo</h2>
+        <p class="texto-secundario" id="subtitulo-modal-motivo-lab"></p>
+        <div id="error-modal-motivo-lab"></div>
+        <div class="campo">
+            <label for="motivo-lab">Motivo *</label>
+            <textarea id="motivo-lab" required></textarea>
+        </div>
+        <div class="flex-entre" style="margin-top: 22px;">
+            <button type="button" class="btn btn-secundario" id="cancelar-modal-motivo-lab">Cancelar</button>
+            <button type="button" class="btn btn-peligro" id="confirmar-modal-motivo-lab">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/fechas.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/laboratorio.js"></script>
+</body>
+</html>

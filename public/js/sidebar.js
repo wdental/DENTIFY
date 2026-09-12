@@ -7,6 +7,7 @@ const ENLACES_NAV = [
     { href: '/agenda.html', texto: 'Agenda', paginas: ['agenda.html'] },
     { href: '/pacientes.html', texto: 'Pacientes', paginas: ['pacientes.html', 'paciente.html'] },
     { href: '/caja.html', texto: 'Caja', paginas: ['caja.html', 'cuotas-vencidas.html'] },
+    { href: '/laboratorio.html', texto: 'Laboratorio', paginas: ['laboratorio.html'] },
     { href: '/doctores.html', texto: 'Doctores', paginas: ['doctores.html'], soloAdmin: true },
     { href: '/plantillas.html', texto: 'Plantillas', paginas: ['plantillas.html'], soloAdmin: true },
     { href: '/tratamientos.html', texto: 'Tratamientos', paginas: ['tratamientos.html'], soloAdmin: true },

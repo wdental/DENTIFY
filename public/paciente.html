@@ -48,6 +48,7 @@
             <button class="pestana" data-panel="panel-plan-tratamiento">Plan de tratamiento</button>
             <button class="pestana" data-panel="panel-evolucion-tratamiento">Evolución de tratamiento</button>
             <button class="pestana" data-panel="panel-pagos">Pagos</button>
+            <button class="pestana" data-panel="panel-laboratorio">Laboratorio</button>
         </div>
 
         <div class="panel-pestana activo" id="panel-datos">
@@ -506,6 +507,17 @@
             <div class="tarjeta" style="margin-top:20px;">
                 <h3>Historial de pagos</h3>
                 <div id="lista-pagos"><p class="texto-secundario mb-0">Cargando pagos...</p></div>
+            </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-laboratorio">
+            <div class="tarjeta">
+                <div class="flex-entre" style="margin-bottom:16px; gap:12px; flex-wrap:wrap;">
+                    <h3 class="mb-0">Trabajos de laboratorio</h3>
+                    <button class="btn btn-primario btn-sm" id="btn-nuevo-trabajo-paciente">+ Nuevo trabajo</button>
+                </div>
+                <p class="texto-secundario">El costo del laboratorio es un gasto interno de la clínica: no es lo que paga el paciente (eso vive en el plan de tratamiento y en Pagos). Las fotos y escaneos se suben en la pestaña <strong>Documentos</strong> y se referencian desde el trabajo.</p>
+                <div id="lista-trabajos-paciente"><p class="texto-secundario mb-0">Cargando...</p></div>
             </div>
         </div>
 
@@ -1166,5 +1178,6 @@
 <script src="/js/planes-tratamiento.js"></script>
 <script src="/js/seguimiento.js"></script>
 <script src="/js/pagos.js"></script>
+<script src="/js/laboratorio-paciente.js"></script>
 </body>
 </html>

@@ -496,3 +496,98 @@ CREATE TABLE IF NOT EXISTS pagos (
 
 CREATE INDEX IF NOT EXISTS idx_pagos_paciente ON pagos (paciente_id);
 CREATE INDEX IF NOT EXISTS idx_pagos_fecha ON pagos (fecha_pago);
+
+-- ---------------------------------------------------------------------
+-- TRABAJOS ENVIADOS A LABORATORIO (Fase 4C). Ver docs/fase-4c.md.
+--
+-- El COSTO del laboratorio es un EGRESO interno de la clinica y no tiene
+-- relacion con el precio que paga el paciente (ese vive en plan_items y
+-- se cobra via `pagos`). Por eso estas tablas son independientes de
+-- `pagos`/caja: un pago al laboratorio nunca consume un numero de recibo
+-- ni entra en los totales de ingresos del dia.
+--
+-- Las fotos/escaneos NO tienen mecanismo propio: se suben en la pestaña
+-- Documentos del paciente (documentos_pacientes) y el trabajo las
+-- referencia por id en documentos_json, igual que la seccion M del F033.
+-- ---------------------------------------------------------------------
+
+-- Catalogo de laboratorios con los que trabaja la clinica.
+CREATE TABLE IF NOT EXISTS laboratorios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    contacto TEXT,
+    telefono TEXT,
+    email TEXT,
+    direccion TEXT,
+    datos_transferencia TEXT,               -- banco/cuenta para pagarle (texto libre)
+    notas TEXT,
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    creado_por INTEGER REFERENCES usuarios(id)
+);
+
+-- Numeracion secuencial de ordenes de trabajo por anio (LAB-AAAA-####),
+-- mismo patron que contador_recibos/contador_historias. Sirve para
+-- identificar el trabajo con el laboratorio (va impreso en la orden).
+CREATE TABLE IF NOT EXISTS contador_ordenes_laboratorio (
+    anio INTEGER PRIMARY KEY,
+    ultimo_numero INTEGER NOT NULL DEFAULT 0
+);
+
+-- Un trabajo enviado a laboratorio. A diferencia de un pago (documento
+-- legal inmutable), esto es logistica: se puede corregir mientras no este
+-- pagado. Una vez marcado pagado, solo un admin revierte el pago.
+--
+-- Un reenvio por ajuste NO edita el trabajo original: crea una fila hija
+-- con trabajo_padre_id, con sus propias fechas y su propio costo (a menudo
+-- 0 si el laboratorio no cobra el ajuste), igual que una revocacion de
+-- consentimiento o una nueva version de plan.
+CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_orden TEXT NOT NULL UNIQUE,
+    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+    laboratorio_id INTEGER NOT NULL REFERENCES laboratorios(id),
+    doctor_id INTEGER REFERENCES doctores(id),
+
+    tipo_trabajo TEXT NOT NULL,             -- ej. 'Corona de zirconio' (texto libre con sugerencias)
+    descripcion TEXT,
+    piezas TEXT,                            -- FDI separadas por coma, mismo formato que plan_items.piezas
+    color TEXT,                             -- tono / guia de color
+    indicaciones TEXT,                      -- lo que se le pide al laboratorio
+
+    estado TEXT NOT NULL DEFAULT 'por_enviar' CHECK (estado IN
+        ('por_enviar', 'enviado', 'recibido', 'instalado', 'cancelado')),
+    fecha_envio TEXT,
+    fecha_estimada TEXT,                    -- fecha de entrega prometida por el laboratorio
+    fecha_recepcion TEXT,
+    fecha_instalacion TEXT,
+
+    plan_item_id INTEGER REFERENCES plan_items(id),   -- linea del plan que paga el paciente
+    cita_id INTEGER REFERENCES citas(id) ON DELETE SET NULL,  -- cita de instalacion prevista
+    evolucion_id INTEGER REFERENCES evoluciones(id),  -- sesion en la que se instalo
+    documentos_json TEXT,                   -- ids de documentos_pacientes (fotos/escaneos)
+    trabajo_padre_id INTEGER REFERENCES trabajos_laboratorio(id), -- reenvio por ajuste
+
+    costo REAL NOT NULL DEFAULT 0,          -- lo que cobra el laboratorio a la clinica
+    pagado INTEGER NOT NULL DEFAULT 0,
+    fecha_pago_laboratorio TEXT,
+    metodo_pago TEXT CHECK (metodo_pago IS NULL OR metodo_pago IN
+        ('efectivo', 'transferencia', 'tarjeta', 'otro')),
+    referencia_pago TEXT,                   -- numero de factura del laboratorio (agrupa un pago por lote)
+    notas_pago TEXT,
+    pagado_por INTEGER REFERENCES usuarios(id),
+    pagado_en TEXT,
+
+    motivo_cancelacion TEXT,
+    cancelado_por INTEGER REFERENCES usuarios(id),
+    cancelado_en TEXT,
+
+    notas TEXT,
+    creado_por INTEGER REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_trabajoslab_paciente ON trabajos_laboratorio (paciente_id);
+CREATE INDEX IF NOT EXISTS idx_trabajoslab_laboratorio ON trabajos_laboratorio (laboratorio_id);
+CREATE INDEX IF NOT EXISTS idx_trabajoslab_estado ON trabajos_laboratorio (estado);
+CREATE INDEX IF NOT EXISTS idx_trabajoslab_pagado ON trabajos_laboratorio (pagado);
