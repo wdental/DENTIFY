@@ -366,6 +366,28 @@ No hay mecanismo de subida propio: se suben en la pestaña **Documentos** del pa
 los referencia. Al registrar un trabajo se marcan con una casilla los documentos que le
 corresponden.
 
+## Plantillas de la nota de evolución
+
+Al registrar una evolución (sección P del F033), cada campo libre muestra arriba sus **plantillas
+guía** como botones: *Anestesia*, *Restauración con resina*, *Exodoncia simple*, *Analgésico
+(ibuprofeno)*, *Sin complicaciones*… Un clic **agrega** el texto al campo; no reemplaza lo que ya
+esté escrito, así que se pueden encadenar varias y ajustarlas a mano. Lo que se guarda es siempre
+lo que quede escrito en el campo.
+
+El texto de una plantilla puede llevar los marcadores **{piezas}**, **{doctor}** y **{fecha}**, que
+se completan solos al insertarla (`Exodoncia simple de pieza(s) {piezas}...` → `Exodoncia simple de
+pieza(s) 16, 26...`). Por eso el campo "Piezas tratadas" está arriba de los campos de texto: al
+llenarlo primero, el marcador ya tiene con qué resolverse.
+
+Las plantillas se administran en **Plantillas → pestaña "Notas de evolución"** (solo administrador):
+texto del botón, en qué campo aparece, el texto que inserta, el orden y si está activa. Editar o
+borrar una plantilla **no altera ninguna evolución ya guardada** — cada una conserva su texto,
+inmutable.
+
+> Las plantillas de **prescripción** vienen con dosis de referencia para un adulto sano. Hay que
+> revisarlas y ajustarlas al criterio de la clínica antes de usarlas; en cada paciente sigue
+> decidiendo el profesional.
+
 ## Avisos y confirmaciones
 
 Dentify no usa las ventanas de aviso del navegador. Todas las confirmaciones aparecen **centradas en
@@ -500,6 +522,7 @@ Dentify/
 │   ├── migraciones.js         Migraciones ligeras entre versiones del esquema
 │   ├── semillaDoctores.js     Datos iniciales de los doctores (solo se usa una vez)
 │   ├── semillaLaboratorios.js  Laboratorios iniciales de la clinica (solo se usa una vez)
+│   ├── semillaPlantillasEvolucion.js  Plantillas guia de la nota de evolucion (solo una vez)
 │   ├── semillaCie10.js         Catalogo CIE-10 odontologico precargado (solo se usa una vez)
 │   ├── schema.sql              Esquema de base de datos
 │   └── dentify.db              Base de datos (se crea automaticamente)
@@ -507,7 +530,7 @@ Dentify/
 │                                doctores, citas, sync, ficha-clinica, odontograma, cie10,
 │                                diagnosticos, evoluciones, plantillas, consentimientos,
 │                                tratamientos, planes-tratamiento, pagos, planes-pago,
-│                                laboratorio)
+│                                laboratorio, plantillas-evolucion)
 ├── middleware/                 Middlewares de autenticacion y roles
 ├── scripts/                    Utilidades de mantenimiento (purga de datos de prueba)
 ├── utils/                      Utilidades (respaldo, numero de historia, numero de recibo,

@@ -2727,3 +2727,53 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
 .dialogo__botones .btn {
     min-width: 120px;
 }
+
+/* ---------------------------------------------------------------
+   Plantillas guia de la nota de evolucion: una fila de botones
+   sobre cada campo libre del modal (ver public/js/evoluciones.js).
+   --------------------------------------------------------------- */
+.plantillas-fila {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    margin: 2px 0 7px 0;
+}
+
+.plantillas-fila:empty {
+    display: none;
+}
+
+.plantillas-fila__titulo {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--texto-secundario);
+    margin-right: 2px;
+}
+
+.plantilla-chip {
+    padding: 4px 10px;
+    border: 1px solid rgba(156, 122, 48, 0.4);
+    border-radius: 20px;
+    background-color: rgba(156, 122, 48, 0.07);
+    color: var(--dorado);
+    font-family: var(--fuente-cuerpo);
+    font-size: 0.72rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+.plantilla-chip:hover {
+    background-color: rgba(156, 122, 48, 0.18);
+    border-color: var(--dorado);
+}
+
+/* Celda de texto largo en el panel de administracion de plantillas */
+.celda-texto-plantilla {
+    max-width: 420px;
+    font-size: 0.76rem;
+    color: var(--texto-secundario);
+}

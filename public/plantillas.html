@@ -15,15 +15,24 @@
     <main class="contenido">
         <div class="contenido__encabezado">
             <div>
-                <h1>Plantillas de documento</h1>
-                <p>Panel exclusivo de administrador &middot; consentimientos informados y otros documentos generables</p>
+                <h1>Plantillas</h1>
+                <p>Panel exclusivo de administrador &middot; documentos generables y textos guía de la nota de evolución</p>
             </div>
-            <button class="btn btn-primario" id="btn-nueva-plantilla">+ Nueva plantilla</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-primario" id="btn-nueva-plantilla">+ Nueva plantilla</button>
+                <button class="btn btn-primario oculto" id="btn-nueva-plantilla-evolucion">+ Nueva plantilla de evolución</button>
+            </div>
         </div>
 
-        <p class="seccion-clinica__ayuda">Editar una plantilla nunca altera los consentimientos ya firmados — cada uno guarda su propio texto final, resuelto e inmutable.</p>
-
         <div id="mensaje-plantillas"></div>
+
+        <div class="pestanas">
+            <button class="pestana activa" data-panel="panel-plantillas-documento">Documentos</button>
+            <button class="pestana" data-panel="panel-plantillas-evolucion">Notas de evolución</button>
+        </div>
+
+        <div class="panel-pestana activo" id="panel-plantillas-documento">
+        <p class="seccion-clinica__ayuda">Editar una plantilla nunca altera los consentimientos ya firmados — cada uno guarda su propio texto final, resuelto e inmutable.</p>
 
         <div class="tabla-envoltorio">
             <table>
@@ -41,7 +50,86 @@
                 </tbody>
             </table>
         </div>
+        </div>
+
+        <div class="panel-pestana" id="panel-plantillas-evolucion">
+            <p class="seccion-clinica__ayuda">
+                Textos guía que el doctor inserta con un clic al registrar una evolución (sección P del F033). Insertar una plantilla
+                nunca reemplaza lo ya escrito: se agrega debajo, para poder encadenar varias y ajustarlas a mano.
+                En el texto se pueden usar los marcadores <strong>{piezas}</strong>, <strong>{doctor}</strong> y <strong>{fecha}</strong>,
+                que se completan solos al insertarla. Editar o borrar una plantilla no altera ninguna evolución ya guardada.
+            </p>
+            <div class="alerta" style="margin-bottom:14px;">
+                Las plantillas de <strong>prescripción</strong> vienen con dosis de referencia para un adulto sano:
+                <strong>revíselas y ajústelas</strong> al criterio de la clínica antes de usarlas. En cada paciente sigue decidiendo el profesional.
+            </div>
+            <div class="tabla-envoltorio">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Botón</th>
+                            <th>Aparece en</th>
+                            <th>Texto</th>
+                            <th>Orden</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cuerpo-tabla-plantillas-evolucion">
+                        <tr><td colspan="6" class="tabla-vacia">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </main>
+</div>
+
+<!-- Modal: nueva / editar plantilla de nota de evolucion -->
+<div class="modal-fondo" id="modal-plantilla-evolucion">
+    <div class="modal">
+        <button class="modal__cerrar" id="cerrar-modal-plantilla-evolucion">&times;</button>
+        <h2 id="titulo-modal-plantilla-evolucion">Nueva plantilla de evolución</h2>
+        <div id="error-modal-plantilla-evolucion"></div>
+
+        <form id="form-plantilla-evolucion">
+            <input type="hidden" id="pe-id">
+            <div class="form-grid">
+                <div class="campo">
+                    <label for="pe-nombre">Texto del botón *</label>
+                    <input type="text" id="pe-nombre" required placeholder="Ej. Exodoncia simple">
+                </div>
+                <div class="campo">
+                    <label for="pe-campo">Aparece en *</label>
+                    <select id="pe-campo" required>
+                        <option value="procedimientos">Procedimientos realizados</option>
+                        <option value="diagnostico">Diagnóstico / complicaciones</option>
+                        <option value="prescripciones">Prescripciones</option>
+                    </select>
+                </div>
+                <div class="campo campo--ancho">
+                    <label for="pe-texto">Texto que se inserta *</label>
+                    <textarea id="pe-texto" required rows="5" placeholder="Ej. Exodoncia simple de pieza(s) {piezas}: sindesmotomía, luxación y avulsión..."></textarea>
+                    <span class="seccion-clinica__ayuda">Marcadores disponibles: {piezas}, {doctor}, {fecha}.</span>
+                </div>
+                <div class="campo">
+                    <label for="pe-orden">Orden</label>
+                    <input type="number" id="pe-orden" step="10" min="0" placeholder="Al final">
+                    <span class="seccion-clinica__ayuda">Menor número, más a la izquierda.</span>
+                </div>
+                <div class="campo">
+                    <label for="pe-activo">Estado</label>
+                    <select id="pe-activo">
+                        <option value="1">Activa</option>
+                        <option value="0">Oculta</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex-entre" style="margin-top: 22px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-plantilla-evolucion">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar plantilla</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Modal: nueva / editar plantilla -->
@@ -103,5 +191,6 @@
 <script src="/js/dialogos.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/plantillas.js"></script>
+<script src="/js/plantillas-evolucion.js"></script>
 </body>
 </html>

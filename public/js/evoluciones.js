@@ -17,9 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cerrar-modal-evolucion').addEventListener('click', cerrarModalEvolucion);
     document.getElementById('cancelar-modal-evolucion').addEventListener('click', cerrarModalEvolucion);
     document.getElementById('form-evolucion').addEventListener('submit', guardarEvolucion);
-    document.getElementById('btn-sin-complicaciones').addEventListener('click', () => {
-        document.getElementById('ev-diagnostico-complicaciones').value = 'No presenta complicaciones';
-    });
     document.getElementById('ev-fecha').addEventListener('change', () => {
         avisarSiFechaFutura();
         revisarCitaDelDia();
@@ -162,6 +159,7 @@ async function abrirModalEvolucion(esAlta) {
 
     await revisarCitaDelDia();
     renderizarPiezasConHallazgos();
+    await renderizarPlantillasEvolucion();
 
     inicializarFirmaCanvas('ev-firma-paciente');
     inicializarFirmaCanvas('ev-firma-doctor');
@@ -260,6 +258,92 @@ async function guardarEvolucion(evento) {
     } catch (error) {
         errorDiv.innerHTML = `<div class="alerta alerta--error">${error.message}</div>`;
     }
+}
+
+// -----------------------------------------------------------------
+// Plantillas guia de la nota de evolucion.
+//
+// Textos cortos que se insertan con un clic en los campos libres, para no
+// redactar lo mismo cada sesion (antes solo existia el atajo fijo "Sin
+// complicaciones", que ahora es una plantilla mas). Se administran en
+// /plantillas.html, pestaña "Notas de evolución".
+//
+// Insertar NUNCA borra lo que ya habia escrito: si el campo tiene texto,
+// la plantilla se agrega en un parrafo nuevo, de modo que se puedan
+// encadenar varias ("Anestesia" + "Restauración con resina") y despues
+// ajustarlas a mano. La nota guardada es siempre lo que quede escrito.
+// -----------------------------------------------------------------
+const CAMPOS_PLANTILLA_EVOLUCION = {
+    diagnostico: 'ev-diagnostico-complicaciones',
+    procedimientos: 'ev-procedimientos',
+    prescripciones: 'ev-prescripciones'
+};
+
+let plantillasEvolucion = null;   // se cachea: el catalogo cambia poco
+
+async function cargarPlantillasEvolucion() {
+    if (plantillasEvolucion) return plantillasEvolucion;
+    try {
+        plantillasEvolucion = await api.get('/api/plantillas-evolucion');
+    } catch (error) {
+        plantillasEvolucion = [];
+    }
+    return plantillasEvolucion;
+}
+
+async function renderizarPlantillasEvolucion() {
+    const plantillas = await cargarPlantillasEvolucion();
+
+    Object.keys(CAMPOS_PLANTILLA_EVOLUCION).forEach((campo) => {
+        const contenedor = document.getElementById('plantillas-' + campo);
+        if (!contenedor) return;
+
+        const delCampo = plantillas.filter((p) => p.campo === campo);
+        if (delCampo.length === 0) {
+            contenedor.innerHTML = '';
+            return;
+        }
+
+        contenedor.innerHTML = `
+            <span class="plantillas-fila__titulo">Plantillas:</span>
+            ${delCampo.map((p) => `
+                <button type="button" class="plantilla-chip" onclick="insertarPlantillaEvolucion(${p.id})"
+                        title="${escaparHtmlEvolucion(p.texto)}">${escaparHtmlEvolucion(p.nombre)}</button>
+            `).join('')}
+        `;
+    });
+}
+
+// {piezas} sale del campo "Piezas tratadas" tal como este en ese momento;
+// si aun no se lleno, queda un hueco visible para completarlo a mano.
+function resolverMarcadoresPlantilla(texto) {
+    const piezas = document.getElementById('ev-piezas').value.trim();
+    const doctorSelect = document.getElementById('ev-doctor');
+    const doctor = doctorSelect.selectedIndex > 0 ? doctorSelect.options[doctorSelect.selectedIndex].text : '';
+    const fecha = document.getElementById('ev-fecha').value;
+
+    return String(texto)
+        .replace(/\{piezas\}/g, piezas || '____')
+        .replace(/\{doctor\}/g, doctor || '____')
+        .replace(/\{fecha\}/g, fecha ? formatearFecha(fecha) : '____');
+}
+
+function insertarPlantillaEvolucion(plantillaId) {
+    const plantilla = (plantillasEvolucion || []).find((p) => p.id === plantillaId);
+    if (!plantilla) return;
+
+    const campo = document.getElementById(CAMPOS_PLANTILLA_EVOLUCION[plantilla.campo]);
+    if (!campo) return;
+
+    const texto = resolverMarcadoresPlantilla(plantilla.texto);
+    const actual = campo.value.trim();
+    campo.value = actual ? `${actual}\n${texto}` : texto;
+
+    // El cursor queda al final para seguir escribiendo, y se marca el
+    // cambio para que el aviso de salida sin guardar lo tenga en cuenta.
+    campo.focus();
+    campo.setSelectionRange(campo.value.length, campo.value.length);
+    campo.scrollTop = campo.scrollHeight;
 }
 
 // -----------------------------------------------------------------

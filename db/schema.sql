@@ -591,3 +591,31 @@ CREATE INDEX IF NOT EXISTS idx_trabajoslab_paciente ON trabajos_laboratorio (pac
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_laboratorio ON trabajos_laboratorio (laboratorio_id);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_estado ON trabajos_laboratorio (estado);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_pagado ON trabajos_laboratorio (pagado);
+
+-- ---------------------------------------------------------------------
+-- PLANTILLAS DE NOTA DE EVOLUCION (ajuste post-Fase 4C, a pedido de uso
+-- real: el doctor escribia cada sesion a mano).
+--
+-- Son textos GUIA cortos, en texto plano, que se insertan con un clic en
+-- los campos libres del modal de "Nueva evolucion" (seccion P del F033),
+-- igual que el atajo "Sin complicaciones" que ya existia. No son
+-- documentos como `plantillas_documento` (que guarda HTML de
+-- consentimientos): aqui el contenido es el texto tal cual va a la nota.
+--
+-- `campo` decide en que cuadro aparece cada plantilla. `texto` admite los
+-- marcadores {piezas}, {doctor} y {fecha}, que se resuelven al insertar.
+-- Editar o borrar una plantilla NO altera ninguna evolucion ya guardada:
+-- la evolucion conserva su propio texto, inmutable.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS plantillas_evolucion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,                   -- etiqueta del boton, ej. 'Exodoncia simple'
+    campo TEXT NOT NULL CHECK (campo IN ('diagnostico', 'procedimientos', 'prescripciones')),
+    texto TEXT NOT NULL,
+    orden INTEGER NOT NULL DEFAULT 0,
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    creado_por INTEGER REFERENCES usuarios(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_plantillasevol_campo ON plantillas_evolucion (campo, orden);

@@ -664,24 +664,24 @@
                 </div>
             </div>
             <div class="campo campo--ancho">
-                <div class="flex-entre">
-                    <label for="ev-diagnostico-complicaciones" class="mb-0">Diagnóstico / complicaciones</label>
-                    <button type="button" class="btn-texto" id="btn-sin-complicaciones">Sin complicaciones</button>
-                </div>
+                <label for="ev-piezas">Piezas tratadas (opcional, FDI separadas por coma)</label>
+                <input type="text" id="ev-piezas" placeholder="Ej. 16, 25, 36">
+                <div id="ev-piezas-hallazgos" class="piezas-hallazgos"></div>
+            </div>
+            <div class="campo campo--ancho">
+                <label for="ev-diagnostico-complicaciones">Diagnóstico / complicaciones</label>
+                <div class="plantillas-fila" id="plantillas-diagnostico"></div>
                 <textarea id="ev-diagnostico-complicaciones" placeholder="Ej. Sin complicaciones"></textarea>
             </div>
             <div class="campo campo--ancho">
                 <label for="ev-procedimientos">Procedimientos realizados *</label>
-                <textarea id="ev-procedimientos" required></textarea>
+                <div class="plantillas-fila" id="plantillas-procedimientos"></div>
+                <textarea id="ev-procedimientos" required placeholder="Escriba lo realizado, o use las plantillas de arriba y ajústelas"></textarea>
             </div>
             <div class="campo campo--ancho">
                 <label for="ev-prescripciones">Prescripciones</label>
+                <div class="plantillas-fila" id="plantillas-prescripciones"></div>
                 <textarea id="ev-prescripciones"></textarea>
-            </div>
-            <div class="campo campo--ancho">
-                <label for="ev-piezas">Piezas tratadas (opcional, FDI separadas por coma)</label>
-                <input type="text" id="ev-piezas" placeholder="Ej. 16, 25, 36">
-                <div id="ev-piezas-hallazgos" class="piezas-hallazgos"></div>
             </div>
             <input type="hidden" id="ev-cita-id">
             <input type="hidden" id="ev-es-alta" value="0">

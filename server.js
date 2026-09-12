@@ -34,6 +34,7 @@ const rutasPlanesTratamiento = require('./routes/planes-tratamiento');
 const rutasPagos = require('./routes/pagos');
 const rutasPlanesPago = require('./routes/planes-pago');
 const rutasLaboratorio = require('./routes/laboratorio');
+const rutasPlantillasEvolucion = require('./routes/plantillas-evolucion');
 const { protegerPagina, requiereSesion } = require('./middleware/auth');
 const { iniciarProgramador } = require('./utils/sincronizacion');
 
@@ -79,6 +80,7 @@ app.use('/api/planes-tratamiento', rutasPlanesTratamiento);
 app.use('/api/pagos', rutasPagos);
 app.use('/api/planes-pago', rutasPlanesPago);
 app.use('/api/laboratorio', rutasLaboratorio);
+app.use('/api/plantillas-evolucion', rutasPlantillasEvolucion);
 
 // Manejo de errores de multer / subida de archivos
 app.use((err, req, res, next) => {

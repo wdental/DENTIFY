@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const { migrar, sembrarDoctores, sembrarCie10 } = require('./migraciones');
 const { sembrarPlantillas } = require('./semillaPlantillas');
 const { sembrarLaboratorios } = require('./semillaLaboratorios');
+const { sembrarPlantillasEvolucion } = require('./semillaPlantillasEvolucion');
 
 const RUTA_DB = path.join(__dirname, 'dentify.db');
 const RUTA_SCHEMA = path.join(__dirname, 'schema.sql');
@@ -45,5 +46,8 @@ sembrarPlantillas(db);
 
 // Poblar los laboratorios con los que trabaja la clinica si la tabla esta vacia (Fase 4C)
 sembrarLaboratorios(db);
+
+// Poblar las plantillas guia de la nota de evolucion si la tabla esta vacia
+sembrarPlantillasEvolucion(db);
 
 module.exports = db;
