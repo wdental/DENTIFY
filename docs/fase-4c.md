@@ -123,6 +123,18 @@ un caso: dos impresiones digitales a $6 más una estructura a $75) no se puede d
 como una orden con el total y el desglose escrito en la descripción, o como órdenes separadas. Si
 hace falta el detalle por líneas, es una tabla hija más.
 
+### Decisiones tomadas sobre el registro manual
+
+- **La numeración se queda en `LAB-AAAA-####`**, no se adopta el `OT-####` del Excel: la serie nueva
+  arranca limpia y con el año incluido, y el Excel conserva la suya para consulta.
+- **El historial del Excel no se importa.** De sus 25 filas, 6 estaban cerradas (entregadas y sin
+  saldo) y 19 seguían abiertas cuando se cerró: 14 pendientes de entregar al paciente y 10 con saldo
+  al laboratorio (5 con las dos cosas), por $823.50 en total. Esas 19 se transcriben a mano al
+  empezar y el Excel se archiva. No se hizo un importador porque la columna `Paciente` es texto
+  libre y no todas las filas corresponden a un paciente de la ficha (hay una entidad que no es
+  paciente y otra abreviada como "PCTE."), así que el emparejamiento habría sido manual de todos
+  modos.
+
 ## 6. Fuera de alcance (anotado para después)
 - Estado intermedio "en prueba" (prueba en boca antes del terminado): el reenvío por ajuste ya
   cubre el caso; si en el uso real hace falta, es un valor más en el `CHECK` de `estado`.
