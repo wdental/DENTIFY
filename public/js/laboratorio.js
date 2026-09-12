@@ -43,7 +43,12 @@ const ETIQUETAS_METODO_LAB = {
     document.getElementById('cancelar-modal-trabajo').addEventListener('click', cerrarModalTrabajo);
     document.getElementById('form-trabajo').addEventListener('submit', guardarTrabajo);
     document.getElementById('tl-buscar-paciente').addEventListener('input', buscarPacientesLaboratorio);
+    ['tl-cantidad', 'tl-costo-unitario'].forEach((id) => {
+        document.getElementById(id).addEventListener('input', actualizarTotalTrabajo);
+    });
 
+    document.getElementById('cerrar-modal-abonos').addEventListener('click', () => cerrarModal('modal-abonos'));
+    document.getElementById('cerrar-modal-abonos-pie').addEventListener('click', () => cerrarModal('modal-abonos'));
     document.getElementById('cerrar-modal-estado').addEventListener('click', cerrarModalEstado);
     document.getElementById('cancelar-modal-estado').addEventListener('click', cerrarModalEstado);
     document.getElementById('form-estado-trabajo').addEventListener('submit', confirmarCambioEstado);
@@ -213,11 +218,7 @@ function filaTrabajo(t) {
         t.fecha_instalacion ? `Instalado: ${formatearFecha(t.fecha_instalacion)}` : null
     ].filter(Boolean).join('<br>') || '<span class="texto-secundario">—</span>';
 
-    const pago = t.pagado
-        ? `<span class="insignia insignia--verde">Pagado ${formatearFecha(t.fecha_pago_laboratorio)}</span>`
-        : Number(t.costo) > 0 && t.estado !== 'cancelado'
-            ? '<span class="insignia insignia--dorado">Por pagar</span>'
-            : '';
+    const pago = insigniaPago(t);
 
     return `
         <tr class="${t.estado === 'cancelado' ? 'fila-anulada' : ''}">
@@ -231,10 +232,22 @@ function filaTrabajo(t) {
             <td>${escaparLab(t.laboratorio_nombre)}</td>
             <td>${insigniaEstado(t)}${alerta}</td>
             <td class="texto-secundario">${fechas}</td>
-            <td>${Number(t.costo) > 0 ? dineroLab(t.costo) : '<span class="texto-secundario">—</span>'}<div>${pago}</div></td>
+            <td>
+                ${Number(t.costo) > 0 ? `<strong>${dineroLab(t.costo)}</strong>` : '<span class="texto-secundario">—</span>'}
+                ${t.cantidad > 1 ? `<div class="dinero-detalle">${t.cantidad} × ${dineroLab(t.costo_unitario)}</div>` : ''}
+                ${t.abonado > 0 ? `<div class="dinero-detalle">abonado ${dineroLab(t.abonado)} · saldo ${dineroLab(t.saldo)}</div>` : ''}
+                <div>${pago}</div>
+            </td>
             <td class="celda-acciones">${accionesTrabajo(t)}</td>
         </tr>
     `;
+}
+
+function insigniaPago(t) {
+    if (t.estado === 'cancelado' || Number(t.costo) <= 0) return '';
+    if (t.estado_pago === 'pagado') return '<span class="insignia insignia--verde">Pagado</span>';
+    if (t.estado_pago === 'parcial') return '<span class="insignia insignia--dorado">Abonado en parte</span>';
+    return '<span class="insignia insignia--dorado">Por pagar</span>';
 }
 
 function accionesTrabajo(t) {
@@ -247,12 +260,10 @@ function accionesTrabajo(t) {
         acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'instalado')">Instalar</button>`);
         acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalReenvio(${t.id})">Reenviar por ajuste</button>`);
     }
-    if (t.estado !== 'cancelado' && !t.pagado) acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalTrabajo(${t.id})">Editar</button>`);
-    if (usuarioLaboratorio.rol === 'admin' && t.estado !== 'cancelado' && !t.pagado) {
+    if (t.estado !== 'cancelado') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalTrabajo(${t.id})">Editar</button>`);
+    if (t.abonado > 0) acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalAbonos(${t.id})">Ver abonos</button>`);
+    if (usuarioLaboratorio.rol === 'admin' && t.estado !== 'cancelado' && t.abonado === 0) {
         acciones.push(`<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('cancelar', ${t.id})">Cancelar</button>`);
-    }
-    if (usuarioLaboratorio.rol === 'admin' && t.pagado) {
-        acciones.push(`<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('revertir', ${t.id})">Revertir pago</button>`);
     }
     return acciones.join(' ');
 }
@@ -292,7 +303,8 @@ async function abrirModalTrabajo(id, prefijo) {
             document.getElementById('tl-piezas').value = t.piezas || '';
             document.getElementById('tl-color').value = t.color || '';
             document.getElementById('tl-indicaciones').value = t.indicaciones || '';
-            document.getElementById('tl-costo').value = Number(t.costo) > 0 ? t.costo : '';
+            document.getElementById('tl-cantidad').value = t.cantidad || 1;
+            document.getElementById('tl-costo-unitario').value = Number(t.costo_unitario) > 0 ? t.costo_unitario : '';
             document.getElementById('tl-fecha-envio').value = t.fecha_envio || '';
             document.getElementById('tl-fecha-estimada').value = t.fecha_estimada || '';
             document.getElementById('tl-notas').value = t.notas || '';
@@ -312,11 +324,20 @@ async function abrirModalTrabajo(id, prefijo) {
     }
 
     ['tl-fecha-envio', 'tl-fecha-estimada'].forEach((campo) => sincronizarFechaLegible(campo, campo + '-legible'));
+    actualizarTotalTrabajo();
     document.getElementById('modal-trabajo').classList.add('abierto');
 }
 
 function cerrarModalTrabajo() {
     cerrarModal('modal-trabajo');
+}
+
+// El total no se escribe: es cantidad x costo unitario (el servidor lo
+// recalcula igual, este es solo el reflejo en pantalla).
+function actualizarTotalTrabajo() {
+    const cantidad = Number(document.getElementById('tl-cantidad').value) || 1;
+    const unitario = Number(document.getElementById('tl-costo-unitario').value) || 0;
+    document.getElementById('tl-costo-total').textContent = dineroLab(cantidad * unitario);
 }
 
 function buscarPacientesLaboratorio() {
@@ -414,7 +435,8 @@ async function guardarTrabajo(evento) {
         fecha_estimada: document.getElementById('tl-fecha-estimada').value || null,
         cita_id: document.getElementById('tl-cita').value || null,
         documentos_ids: Array.from(documentosSeleccionados),
-        costo: document.getElementById('tl-costo').value || 0,
+        cantidad: document.getElementById('tl-cantidad').value || 1,
+        costo_unitario: document.getElementById('tl-costo-unitario').value || 0,
         notas: document.getElementById('tl-notas').value.trim()
     };
 
@@ -581,7 +603,8 @@ function grupoCuentaHtml(grupo) {
                 <table>
                     <thead><tr>
                         ${puedePagar ? '<th></th>' : ''}
-                        <th>N° orden</th><th>Paciente</th><th>Trabajo</th><th>Recibido</th><th>Costo</th>
+                        <th>N° orden</th><th>Paciente</th><th>Trabajo</th><th>Recibido</th>
+                        <th>Total</th><th>Abonado</th><th>Saldo</th>
                     </tr></thead>
                     <tbody>
                         ${grupo.trabajos.map((t) => `
@@ -591,7 +614,9 @@ function grupoCuentaHtml(grupo) {
                                 <td>${escaparLab(t.paciente_apellidos)} ${escaparLab(t.paciente_nombres)}</td>
                                 <td>${escaparLab(t.tipo_trabajo)}${t.piezas ? ` <span class="texto-secundario">(${escaparLab(t.piezas)})</span>` : ''}</td>
                                 <td class="texto-secundario">${t.fecha_recepcion ? formatearFecha(t.fecha_recepcion) : '—'}</td>
-                                <td>${dineroLab(t.costo)}</td>
+                                <td>${dineroLab(t.costo)}${t.cantidad > 1 ? `<div class="dinero-detalle">${t.cantidad} × ${dineroLab(t.costo_unitario)}</div>` : ''}</td>
+                                <td>${t.abonado > 0 ? dineroLab(t.abonado) : '<span class="texto-secundario">—</span>'}</td>
+                                <td><strong>${dineroLab(t.saldo)}</strong></td>
                             </tr>`).join('')}
                     </tbody>
                 </table>
@@ -610,7 +635,7 @@ function actualizarBotonPagar() {
     const puedePagar = usuarioLaboratorio.rol === 'admin' && seleccionCuentas.size > 0;
     boton.classList.toggle('oculto', !puedePagar);
     if (puedePagar) {
-        boton.textContent = `Marcar ${seleccionCuentas.size} trabajo(s) como pagados`;
+        boton.textContent = seleccionCuentas.size === 1 ? 'Registrar abono' : `Abonar a ${seleccionCuentas.size} trabajos`;
     }
 }
 
@@ -627,12 +652,25 @@ function abrirModalPagoLaboratorio() {
         return;
     }
 
-    const total = seleccionados.reduce((suma, t) => suma + Number(t.costo), 0);
+    const total = seleccionados.reduce((suma, t) => suma + t.saldo, 0);
     document.getElementById('resumen-pago-lab').innerHTML =
-        `${escaparLab(seleccionados[0].laboratorio_nombre)} · ${seleccionados.length} trabajo(s) · <strong>${dineroLab(total)}</strong>`;
+        `${escaparLab(seleccionados[0].laboratorio_nombre)} · ${seleccionados.length} trabajo(s) · saldo <strong>${dineroLab(total)}</strong>`;
 
     document.getElementById('error-modal-pago-lab').innerHTML = '';
     document.getElementById('form-pago-laboratorio').reset();
+
+    // Un abono parcial solo tiene sentido sobre un trabajo concreto; con
+    // varios seleccionados se abona el saldo completo de cada uno (el caso
+    // de la factura mensual del laboratorio).
+    const unico = seleccionados.length === 1 ? seleccionados[0] : null;
+    document.getElementById('pl-envoltura-monto').classList.toggle('oculto', !unico);
+    if (unico) {
+        const campoMonto = document.getElementById('pl-monto');
+        campoMonto.value = unico.saldo.toFixed(2);
+        campoMonto.max = unico.saldo;
+        document.getElementById('pl-monto-ayuda').textContent =
+            `Saldo pendiente: ${dineroLab(unico.saldo)}. Puede abonar menos.`;
+    }
     document.getElementById('pl-metodo').value = 'transferencia';
     const hoy = fechaHoyIso();
     document.getElementById('pl-fecha').max = hoy;
@@ -648,15 +686,22 @@ async function guardarPagoLaboratorio(evento) {
     errorDiv.innerHTML = '';
 
     try {
-        const resultado = await api.post('/api/laboratorio/pagos', {
-            trabajo_ids: Array.from(seleccionCuentas),
+        const ids = Array.from(seleccionCuentas);
+        const cuerpo = {
+            trabajo_ids: ids,
             fecha: document.getElementById('pl-fecha').value,
             metodo: document.getElementById('pl-metodo').value,
             referencia: document.getElementById('pl-referencia').value.trim(),
             notas: document.getElementById('pl-notas').value.trim()
-        });
+        };
+        // Monto explicito solo en el caso de un unico trabajo (abono parcial).
+        if (ids.length === 1 && !document.getElementById('pl-envoltura-monto').classList.contains('oculto')) {
+            cuerpo.montos = { [ids[0]]: document.getElementById('pl-monto').value };
+        }
+
+        const resultado = await api.post('/api/laboratorio/pagos', cuerpo);
         cerrarModal('modal-pago-laboratorio');
-        mostrarMensajeLab(`Pago registrado: ${resultado.cantidad} trabajo(s) por ${dineroLab(resultado.total)}.`);
+        mostrarMensajeLab(`Abono registrado: ${resultado.cantidad} trabajo(s) por ${dineroLab(resultado.total)}.`);
         await refrescarTodo();
     } catch (error) {
         errorDiv.innerHTML = `<div class="alerta alerta--error">${escaparLab(error.message)}</div>`;
@@ -674,21 +719,66 @@ async function cargarPagosRealizados() {
         }
         contenedor.innerHTML = `
             <div class="tabla-envoltorio"><table>
-                <thead><tr><th>Fecha</th><th>Laboratorio</th><th>N° orden</th><th>Trabajo</th><th>Método</th><th>Factura</th><th>Monto</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Laboratorio</th><th>N° orden</th><th>Trabajo</th><th>Método</th><th>Factura</th><th>Abono</th><th></th></tr></thead>
                 <tbody>
-                    ${datos.pagos.map((t) => `
-                        <tr>
-                            <td>${formatearFecha(t.fecha_pago_laboratorio)}</td>
-                            <td>${escaparLab(t.laboratorio_nombre)}</td>
-                            <td>${escaparLab(t.numero_orden)}</td>
-                            <td>${escaparLab(t.tipo_trabajo)}</td>
-                            <td>${escaparLab(ETIQUETAS_METODO_LAB[t.metodo_pago] || t.metodo_pago || '')}</td>
-                            <td class="texto-secundario">${escaparLab(t.referencia_pago || '—')}</td>
-                            <td>${dineroLab(t.costo)}</td>
+                    ${datos.pagos.map((p) => `
+                        <tr class="${p.anulado ? 'fila-anulada' : ''}">
+                            <td>${formatearFecha(p.fecha)}</td>
+                            <td>${escaparLab(p.laboratorio_nombre)}</td>
+                            <td>${escaparLab(p.numero_orden)}</td>
+                            <td>${escaparLab(p.tipo_trabajo)}</td>
+                            <td>${escaparLab(ETIQUETAS_METODO_LAB[p.metodo] || p.metodo || '')}</td>
+                            <td class="texto-secundario">${escaparLab(p.referencia || '—')}</td>
+                            <td>${dineroLab(p.monto)}</td>
+                            <td>${!p.anulado && usuarioLaboratorio.rol === 'admin'
+                                ? `<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('anular-abono', ${p.id})">Anular</button>`
+                                : p.anulado ? `<span class="texto-secundario">anulado</span>` : ''}</td>
                         </tr>`).join('')}
                 </tbody>
             </table></div>
-            <p class="total-cuentas">Total pagado en el mes: <strong>${dineroLab(datos.total)}</strong></p>`;
+            <p class="total-cuentas">Total abonado en el mes: <strong>${dineroLab(datos.total)}</strong></p>`;
+    } catch (error) {
+        contenedor.innerHTML = `<p class="texto-secundario">Error al cargar: ${escaparLab(error.message)}</p>`;
+    }
+}
+
+// -----------------------------------------------------------------
+// Abonos de un trabajo: detalle de lo pagado y anulacion (solo admin)
+// -----------------------------------------------------------------
+async function abrirModalAbonos(trabajoId) {
+    const contenedor = document.getElementById('lista-abonos');
+    document.getElementById('resumen-abonos').innerHTML = '';
+    contenedor.innerHTML = '<p class="texto-secundario">Cargando...</p>';
+    document.getElementById('modal-abonos').classList.add('abierto');
+
+    try {
+        const t = await api.get(`/api/laboratorio/trabajos/${trabajoId}`);
+        document.getElementById('titulo-modal-abonos').textContent = `Abonos de ${t.numero_orden}`;
+        document.getElementById('resumen-abonos').innerHTML = `
+            <div class="alerta" style="margin-bottom:12px;">
+                ${escaparLab(t.laboratorio_nombre)} · ${escaparLab(t.tipo_trabajo)}<br>
+                Total <strong>${dineroLab(t.costo)}</strong> · abonado <strong>${dineroLab(t.abonado)}</strong> ·
+                saldo <strong>${dineroLab(t.saldo)}</strong> (${escaparLab(t.estado_pago_etiqueta)})
+            </div>`;
+
+        contenedor.innerHTML = (t.abonos || []).length === 0
+            ? '<p class="texto-secundario">Todavía no hay abonos registrados.</p>'
+            : `<div class="tabla-envoltorio"><table>
+                    <thead><tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Factura</th><th>Registró</th><th></th></tr></thead>
+                    <tbody>
+                        ${t.abonos.map((a) => `
+                            <tr class="${a.anulado ? 'fila-anulada' : ''}">
+                                <td>${formatearFecha(a.fecha)}</td>
+                                <td>${dineroLab(a.monto)}</td>
+                                <td>${escaparLab(ETIQUETAS_METODO_LAB[a.metodo] || a.metodo)}</td>
+                                <td class="texto-secundario">${escaparLab(a.referencia || '—')}</td>
+                                <td class="texto-secundario">${escaparLab(a.registrado_por_nombre || '—')}</td>
+                                <td>${!a.anulado && usuarioLaboratorio.rol === 'admin'
+                                    ? `<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('anular-abono', ${a.id})">Anular</button>`
+                                    : a.anulado ? `<span class="texto-secundario">${escaparLab(a.motivo_anulacion || 'anulado')}</span>` : ''}</td>
+                            </tr>`).join('')}
+                    </tbody>
+               </table></div>`;
     } catch (error) {
         contenedor.innerHTML = `<p class="texto-secundario">Error al cargar: ${escaparLab(error.message)}</p>`;
     }
@@ -781,17 +871,17 @@ async function guardarLaboratorio(evento) {
 }
 
 // -----------------------------------------------------------------
-// Motivo (cancelar trabajo / revertir pago) - ambas acciones son de admin
+// Motivo (cancelar trabajo / anular abono) - ambas acciones son de admin
 // -----------------------------------------------------------------
 function pedirMotivo(accion, trabajoId) {
     accionMotivoPendiente = { accion, trabajoId };
     document.getElementById('motivo-lab').value = '';
     document.getElementById('error-modal-motivo-lab').innerHTML = '';
     document.getElementById('titulo-modal-motivo-lab').textContent =
-        accion === 'cancelar' ? 'Cancelar trabajo' : 'Revertir el pago al laboratorio';
+        accion === 'cancelar' ? 'Cancelar trabajo' : 'Anular abono';
     document.getElementById('subtitulo-modal-motivo-lab').textContent = accion === 'cancelar'
         ? 'El trabajo queda registrado como cancelado, con su número de orden y su motivo.'
-        : 'El trabajo vuelve a contar como pendiente de pago. Queda constancia de quién revirtió el pago y por qué.';
+        : 'El abono queda tachado y fuera del saldo, conservando su registro. El trabajo vuelve a contar lo que se le debe al laboratorio.';
     document.getElementById('modal-motivo-lab').classList.add('abierto');
 }
 
@@ -807,13 +897,14 @@ async function confirmarMotivo() {
     const { accion, trabajoId } = accionMotivoPendiente;
     const ruta = accion === 'cancelar'
         ? `/api/laboratorio/trabajos/${trabajoId}/cancelar`
-        : `/api/laboratorio/trabajos/${trabajoId}/revertir-pago`;
+        : `/api/laboratorio/pagos/${trabajoId}/anular`;
 
     try {
         await api.put(ruta, { motivo });
         cerrarModal('modal-motivo-lab');
         accionMotivoPendiente = null;
-        mostrarMensajeLab(accion === 'cancelar' ? 'Trabajo cancelado.' : 'Pago revertido.');
+        mostrarMensajeLab(accion === 'cancelar' ? 'Trabajo cancelado.' : 'Abono anulado.');
+        cerrarModal('modal-abonos');
         await refrescarTodo();
     } catch (error) {
         errorDiv.innerHTML = `<div class="alerta alerta--error">${escaparLab(error.message)}</div>`;

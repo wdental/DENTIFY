@@ -2777,3 +2777,22 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     font-size: 0.76rem;
     color: var(--texto-secundario);
 }
+
+/* Total calculado (cantidad x costo unitario) en el formulario de laboratorio */
+.total-calculado {
+    padding: 9px 12px;
+    border: 1px solid var(--gris-claro);
+    border-radius: 6px;
+    background-color: var(--marfil);
+    font-family: var(--fuente-cuerpo);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--negro);
+}
+
+/* Columna compacta de dinero en la bandeja de laboratorio */
+.dinero-detalle {
+    font-size: 0.72rem;
+    color: var(--texto-secundario);
+    white-space: nowrap;
+}

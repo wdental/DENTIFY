@@ -145,8 +145,17 @@
                     <input type="text" id="tl-color" placeholder="Ej. A2">
                 </div>
                 <div class="campo">
-                    <label for="tl-costo">Costo del laboratorio (USD)</label>
-                    <input type="number" id="tl-costo" step="0.01" min="0" placeholder="0.00">
+                    <label for="tl-cantidad">Cantidad</label>
+                    <input type="number" id="tl-cantidad" step="1" min="1" value="1">
+                </div>
+                <div class="campo">
+                    <label for="tl-costo-unitario">Costo unitario (USD)</label>
+                    <input type="number" id="tl-costo-unitario" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="campo">
+                    <label>Costo total</label>
+                    <div class="total-calculado" id="tl-costo-total">$0.00</div>
+                    <span class="seccion-clinica__ayuda">Cantidad × costo unitario. Es lo que se le paga al laboratorio.</span>
                 </div>
                 <div class="campo">
                     <label for="tl-fecha-envio">Fecha de envío</label>
@@ -256,8 +265,8 @@
 <div class="modal-fondo" id="modal-pago-laboratorio">
     <div class="modal">
         <button class="modal__cerrar" id="cerrar-modal-pago-lab">&times;</button>
-        <h2>Pagar al laboratorio</h2>
-        <p class="seccion-clinica__ayuda">Este es un <strong>egreso de la clínica</strong>: no genera recibo ni entra en los totales de Caja (que son los ingresos de los pacientes).</p>
+        <h2>Abonar al laboratorio</h2>
+        <p class="seccion-clinica__ayuda">Este es un <strong>egreso de la clínica</strong>: no genera recibo ni entra en los totales de Caja (que son los ingresos de los pacientes). Se puede abonar el saldo completo o una parte.</p>
         <div id="error-modal-pago-lab"></div>
         <div id="resumen-pago-lab" class="alerta" style="margin-bottom:14px;"></div>
         <form id="form-pago-laboratorio">
@@ -276,6 +285,11 @@
                         <option value="otro">Otro</option>
                     </select>
                 </div>
+                <div class="campo oculto" id="pl-envoltura-monto">
+                    <label for="pl-monto">Monto a abonar (USD)</label>
+                    <input type="number" id="pl-monto" step="0.01" min="0.01">
+                    <span class="seccion-clinica__ayuda" id="pl-monto-ayuda"></span>
+                </div>
                 <div class="campo campo--ancho">
                     <label for="pl-referencia">N° de factura / comprobante</label>
                     <input type="text" id="pl-referencia" placeholder="Agrupa los trabajos de una misma factura">
@@ -287,9 +301,23 @@
             </div>
             <div class="flex-entre" style="margin-top: 22px;">
                 <button type="button" class="btn btn-secundario" id="cancelar-modal-pago-lab">Cancelar</button>
-                <button type="submit" class="btn btn-primario">Registrar pago</button>
+                <button type="submit" class="btn btn-primario">Registrar abono</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Modal: abonos registrados de un trabajo -->
+<div class="modal-fondo" id="modal-abonos">
+    <div class="modal modal--ancho">
+        <button class="modal__cerrar" id="cerrar-modal-abonos">&times;</button>
+        <h2 id="titulo-modal-abonos">Abonos del trabajo</h2>
+        <p class="seccion-clinica__ayuda">Un abono no se edita. Solo un administrador puede anularlo con motivo: queda visible tachado y fuera del saldo.</p>
+        <div id="resumen-abonos"></div>
+        <div id="lista-abonos"></div>
+        <div class="flex-entre" style="margin-top: 20px;">
+            <button type="button" class="btn btn-secundario" id="cerrar-modal-abonos-pie">Cerrar</button>
+        </div>
     </div>
 </div>
 

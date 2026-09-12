@@ -91,9 +91,39 @@ mismo patrón que la sección M del F033 con los informes de exámenes.
 - `admin` en exclusiva: catálogo de laboratorios, marcar y revertir pagos al laboratorio, cancelar
   trabajos.
 
-## 6. Fuera de alcance (anotado para después)
+## 5-bis. Ajuste tras ver el registro manual de la clínica
 
-- Pagos parciales a un laboratorio (hoy un trabajo se marca pagado entero).
+La clínica compartió el Excel con el que llevaba esto a mano (`N° Orden`, `Fecha envío`,
+`Laboratorio`, `Trabajo solicitado`, `Paciente`, `Piezas`, `Color/Tono`, `Cant.`, `Costo unit.`,
+`Costo total`, `Abonado`, `Saldo`, `Entrega prevista`, `Entrega real`, `Estado trabajo`,
+`Estado pago`, `Observaciones`). Comparándolo con lo implementado aparecieron tres diferencias
+reales, ya corregidas:
+
+1. **Cantidad y costo unitario.** Un trabajo puede ser por varias unidades (5 coronas a $100, 4
+   carillas a $90, 2 modelos a $6). Se agregaron `cantidad` y `costo_unitario`; el total es siempre
+   `cantidad × costo_unitario`, nunca se escribe a mano.
+2. **El pago al laboratorio se hace por abonos.** En el registro manual hay trabajos con
+   `Abonado` parcial y `Saldo` vivo, y un `Estado pago` de Pendiente / Parcial / Pagado. El `pagado`
+   0/1 original no podía representarlo. Tabla nueva `pagos_laboratorio`: el estado y el saldo se
+   calculan sumando los abonos válidos contra el costo total, igual que `utils/finanzas.js` con los
+   pagos de los pacientes. Un abono no se edita; solo admin lo anula con motivo (queda tachado y
+   fuera del saldo). Con abonos registrados no se puede cambiar el costo ni cancelar el trabajo:
+   primero se anulan los abonos.
+3. **Vocabulario.** El estado `instalado` se muestra como **"Entregado al paciente"**, que es como
+   lo nombra la clínica. `Entrega real` del Excel corresponde a `fecha_recepcion` (cuando el
+   laboratorio entrega a la clínica); `En proceso` y `Enviada` caen ambos en `enviado`
+   ("En laboratorio").
+
+La migración de `db/migraciones.js` reconstruye `trabajos_laboratorio` con el esquema nuevo y
+convierte cada trabajo que estuviera marcado como pagado en un abono por su costo total, con su
+fecha, método y referencia: no se pierde ningún dato.
+
+**Diferencia que queda**: una orden que agrupa varias líneas con precios distintos (el Excel tiene
+un caso: dos impresiones digitales a $6 más una estructura a $75) no se puede desglosar. Se registra
+como una orden con el total y el desglose escrito en la descripción, o como órdenes separadas. Si
+hace falta el detalle por líneas, es una tabla hija más.
+
+## 6. Fuera de alcance (anotado para después)
 - Estado intermedio "en prueba" (prueba en boca antes del terminado): el reenvío por ajuste ya
   cubre el caso; si en el uso real hace falta, es un valor más en el `CHECK` de `estado`.
 - Control de stock de materiales.

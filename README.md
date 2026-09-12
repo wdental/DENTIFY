@@ -321,10 +321,11 @@ ambas cuentas (margen por tratamiento) queda para la Fase 5.
   búsqueda por paciente, n.º de orden o tipo de trabajo. Un trabajo aparece **en rojo** si pasó la
   fecha de entrega prometida o si su cita de instalación es en 2 días o menos y todavía no ha
   llegado.
-- **Cuentas por pagar**: pendientes agrupados por laboratorio, con subtotal, total general y los
-  datos de transferencia del laboratorio a la vista. Se pueden marcar **varios trabajos a la vez**
-  con una misma fecha, método y número de factura — que es como factura un laboratorio en la
-  práctica. Debajo, los pagos ya realizados del mes.
+- **Cuentas por pagar**: pendientes agrupados por laboratorio, con **total, abonado y saldo** por
+  trabajo, subtotal por laboratorio y los datos de transferencia a la vista. Se puede **abonar el
+  saldo completo o una parte** (la clínica paga a los laboratorios en partes), y marcar **varios
+  trabajos a la vez** con una misma fecha, método y número de factura — que es como factura un
+  laboratorio en la práctica. Debajo, los abonos ya realizados del mes, con los anulados tachados.
 - **Laboratorios** (solo admin): catálogo con contacto, teléfono, email, dirección y datos de
   transferencia. Se siembra la primera vez con los laboratorios de la clínica.
 
@@ -335,12 +336,24 @@ a él (`ajuste de LAB-2026-####`), con sus propias fechas y su propio costo — 
 laboratorio no cobra el ajuste. El original conserva intacta su historia, igual que una revocación
 de consentimiento o una nueva versión de plan.
 
-### Qué se puede corregir y qué no
+### Costo: cantidad × precio unitario
 
-Un trabajo de laboratorio es **logística, no un documento legal**: se edita mientras no esté
-pagado. Una vez marcado pagado queda conciliado con la factura del laboratorio, y solo un `admin`
-puede revertir el pago indicando el motivo (que queda escrito en el registro). Ninguna fecha del
-módulo puede ser futura.
+Un trabajo puede ser por varias unidades (5 coronas a $100, 2 modelos de estudio a $6). Se registra
+la **cantidad** y el **costo unitario**, y el total se calcula solo — no se escribe a mano. Una
+orden que agrupe líneas con precios distintos se registra con el total y el desglose en la
+descripción, o como órdenes separadas.
+
+### Pago por abonos
+
+Lo que se le debe a un laboratorio **no es un sí/no**: cada trabajo lleva su **total, lo abonado y
+el saldo**, y su estado es *Pendiente*, *Abonado en parte* o *Pagado* — calculado sumando los abonos
+válidos, igual que el saldo de un paciente. El total adeudado que aparece en la pantalla y en el
+panel principal es la suma de **saldos**, no de costos.
+
+Un abono **no se edita**: solo un administrador lo anula con motivo, y queda tachado y fuera del
+saldo. Mientras un trabajo tenga abonos, su costo no se puede cambiar ni el trabajo cancelar — hay
+que anular los abonos primero. El resto (fechas, indicaciones, notas) se sigue corrigiendo
+libremente: es logística, no un documento legal. Ninguna fecha del módulo puede ser futura.
 
 ### Orden de trabajo imprimible
 

@@ -25,10 +25,24 @@ const ETIQUETAS_ESTADO = {
     por_enviar: 'Por enviar',
     enviado: 'En laboratorio',
     recibido: 'Recibido',
-    instalado: 'Instalado',
+    instalado: 'Entregado al paciente',
     cancelado: 'Cancelado'
 };
 const METODOS_PAGO = ['efectivo', 'transferencia', 'tarjeta', 'otro'];
+const ETIQUETAS_ESTADO_PAGO = {
+    sin_costo: 'Sin costo registrado',
+    pendiente: 'Pendiente',
+    parcial: 'Abonado en parte',
+    pagado: 'Pagado'
+};
+
+// El total nunca se escribe a mano: es cantidad x costo unitario, como en
+// el registro manual de la clinica.
+function totalDelTrabajo(datos) {
+    const cantidad = Number(datos.cantidad) > 0 ? Math.trunc(Number(datos.cantidad)) : 1;
+    const unitario = Number(datos.costo_unitario) || 0;
+    return { cantidad, unitario, total: Math.round(cantidad * unitario * 100) / 100 };
+}
 
 // Sugerencias para el campo "tipo de trabajo" (texto libre: la lista solo
 // alimenta el datalist del formulario, nunca bloquea lo que se escriba).
@@ -104,15 +118,16 @@ const SQL_TRABAJO = `
            p.nombres AS paciente_nombres, p.apellidos AS paciente_apellidos,
            p.numero_historia AS paciente_historia,
            doc.nombre_completo AS doctor_nombre,
-           u.nombre AS creado_por_nombre, up.nombre AS pagado_por_nombre,
+           u.nombre AS creado_por_nombre,
            c.fecha AS cita_fecha, c.hora_inicio AS cita_hora_inicio,
-           padre.numero_orden AS trabajo_padre_numero
+           padre.numero_orden AS trabajo_padre_numero,
+           (SELECT COALESCE(SUM(pl.monto), 0) FROM pagos_laboratorio pl
+             WHERE pl.trabajo_id = t.id AND pl.anulado = 0) AS abonado
     FROM trabajos_laboratorio t
     JOIN laboratorios l ON l.id = t.laboratorio_id
     JOIN pacientes p ON p.id = t.paciente_id
     LEFT JOIN doctores doc ON doc.id = t.doctor_id
     LEFT JOIN usuarios u ON u.id = t.creado_por
-    LEFT JOIN usuarios up ON up.id = t.pagado_por
     LEFT JOIN citas c ON c.id = t.cita_id
     LEFT JOIN trabajos_laboratorio padre ON padre.id = t.trabajo_padre_id
 `;
@@ -120,10 +135,24 @@ const SQL_TRABAJO = `
 // Marca de atraso: el trabajo sigue en el laboratorio y o bien paso la
 // fecha prometida, o la cita de instalacion es en 2 dias o menos. Es la
 // alerta que evita que el paciente llegue y el trabajo no haya llegado.
+function redondear(valor) {
+    return Math.round((Number(valor) || 0) * 100) / 100;
+}
+
 function decorarTrabajo(fila) {
     const hoy = hoyLocal();
     let documentos = [];
     try { documentos = fila.documentos_json ? JSON.parse(fila.documentos_json) : []; } catch (e) { documentos = []; }
+
+    // El pago al laboratorio no es un si/no: se suma lo abonado contra el
+    // costo total, igual que el saldo de un paciente en utils/finanzas.js.
+    const costo = redondear(fila.costo);
+    const abonado = redondear(fila.abonado);
+    const saldo = redondear(costo - abonado);
+    const cancelado = fila.estado === 'cancelado';
+    const estadoPago = costo <= 0 ? 'sin_costo'
+        : abonado <= 0 ? 'pendiente'
+        : saldo > 0 ? 'parcial' : 'pagado';
 
     const enLaboratorio = fila.estado === 'enviado';
     const atrasado = enLaboratorio && !!fila.fecha_estimada && fila.fecha_estimada < hoy;
@@ -132,12 +161,18 @@ function decorarTrabajo(fila) {
 
     return {
         ...fila,
+        costo,
+        abonado,
+        saldo,
+        estado_pago: estadoPago,
+        estado_pago_etiqueta: ETIQUETAS_ESTADO_PAGO[estadoPago],
+        pagado: estadoPago === 'pagado',
         documentos_ids: documentos,
         estado_etiqueta: ETIQUETAS_ESTADO[fila.estado] || fila.estado,
         atrasado,
         cita_en_riesgo: citaEnRiesgo,
         // Un trabajo cancelado no se le debe al laboratorio.
-        por_pagar: !fila.pagado && fila.estado !== 'cancelado' && Number(fila.costo) > 0
+        por_pagar: !cancelado && saldo > 0
     };
 }
 
@@ -150,7 +185,11 @@ router.get('/trabajos', (req, res) => {
     if (req.query.vivos === '1') { condiciones.push("t.estado IN ('por_enviar', 'enviado', 'recibido')"); }
     if (req.query.laboratorio_id) { condiciones.push('t.laboratorio_id = ?'); parametros.push(req.query.laboratorio_id); }
     if (req.query.paciente_id) { condiciones.push('t.paciente_id = ?'); parametros.push(req.query.paciente_id); }
-    if (req.query.por_pagar === '1') { condiciones.push("t.pagado = 0 AND t.estado != 'cancelado' AND t.costo > 0"); }
+    if (req.query.por_pagar === '1') {
+        condiciones.push(`t.estado != 'cancelado' AND t.costo > (
+            SELECT COALESCE(SUM(pl.monto), 0) FROM pagos_laboratorio pl WHERE pl.trabajo_id = t.id AND pl.anulado = 0
+        )`);
+    }
     if (req.query.busqueda) {
         condiciones.push('(p.nombres LIKE ? OR p.apellidos LIKE ? OR t.numero_orden LIKE ? OR t.tipo_trabajo LIKE ?)');
         const like = `%${req.query.busqueda}%`;
@@ -170,6 +209,14 @@ router.get('/trabajos/:id', (req, res) => {
     if (!fila) return res.status(404).json({ error: 'Trabajo no encontrado' });
 
     const decorado = decorarTrabajo(fila);
+    decorado.abonos = db.prepare(`
+        SELECT pl.*, u.nombre AS registrado_por_nombre, ua.nombre AS anulado_por_nombre
+        FROM pagos_laboratorio pl
+        LEFT JOIN usuarios u ON u.id = pl.registrado_por
+        LEFT JOIN usuarios ua ON ua.id = pl.anulado_por
+        WHERE pl.trabajo_id = ?
+        ORDER BY pl.fecha, pl.id
+    `).all(fila.id);
     decorado.reenvios = db.prepare(
         'SELECT id, numero_orden, estado, fecha_envio, fecha_recepcion, costo FROM trabajos_laboratorio WHERE trabajo_padre_id = ? ORDER BY id'
     ).all(fila.id);
@@ -192,12 +239,19 @@ router.get('/resumen', (req, res) => {
     const atrasados = db.prepare(
         "SELECT COUNT(*) AS total FROM trabajos_laboratorio WHERE estado = 'enviado' AND fecha_estimada IS NOT NULL AND fecha_estimada < ?"
     ).get(hoy).total;
-    const porPagar = db.prepare(
-        "SELECT COALESCE(SUM(costo), 0) AS total, COUNT(*) AS cantidad FROM trabajos_laboratorio WHERE pagado = 0 AND estado != 'cancelado' AND costo > 0"
-    ).get();
-    const laboratoriosConDeuda = db.prepare(
-        "SELECT COUNT(DISTINCT laboratorio_id) AS total FROM trabajos_laboratorio WHERE pagado = 0 AND estado != 'cancelado' AND costo > 0"
-    ).get().total;
+    const porPagar = db.prepare(`
+        SELECT COALESCE(SUM(saldo), 0) AS total, COUNT(*) AS cantidad FROM (
+            SELECT t.costo - COALESCE((SELECT SUM(pl.monto) FROM pagos_laboratorio pl
+                                        WHERE pl.trabajo_id = t.id AND pl.anulado = 0), 0) AS saldo
+            FROM trabajos_laboratorio t
+            WHERE t.estado != 'cancelado'
+        ) WHERE saldo > 0
+    `).get();
+    const laboratoriosConDeuda = db.prepare(`
+        SELECT COUNT(DISTINCT laboratorio_id) AS total FROM trabajos_laboratorio t
+        WHERE t.estado != 'cancelado' AND t.costo > COALESCE(
+            (SELECT SUM(pl.monto) FROM pagos_laboratorio pl WHERE pl.trabajo_id = t.id AND pl.anulado = 0), 0)
+    `).get().total;
 
     res.json({
         en_laboratorio: enLaboratorio,
@@ -211,7 +265,8 @@ router.get('/resumen', (req, res) => {
 // Cuentas por pagar agrupadas por laboratorio.
 router.get('/cuentas-por-pagar', (req, res) => {
     const filas = db.prepare(`${SQL_TRABAJO}
-        WHERE t.pagado = 0 AND t.estado != 'cancelado' AND t.costo > 0
+        WHERE t.estado != 'cancelado' AND t.costo > COALESCE(
+            (SELECT SUM(pl.monto) FROM pagos_laboratorio pl WHERE pl.trabajo_id = t.id AND pl.anulado = 0), 0)
         ORDER BY l.nombre, COALESCE(t.fecha_recepcion, t.fecha_envio, t.fecha_creacion)`).all().map(decorarTrabajo);
 
     const porLaboratorio = {};
@@ -226,7 +281,7 @@ router.get('/cuentas-por-pagar', (req, res) => {
                 trabajos: []
             };
         }
-        porLaboratorio[t.laboratorio_id].total += Number(t.costo);
+        porLaboratorio[t.laboratorio_id].total += t.saldo;
         porLaboratorio[t.laboratorio_id].trabajos.push(t);
     });
 
@@ -237,14 +292,24 @@ router.get('/cuentas-por-pagar', (req, res) => {
 // Historial de pagos ya hechos a laboratorios, agrupados por factura.
 router.get('/pagos-realizados', (req, res) => {
     const mes = req.query.mes || hoyLocal().slice(0, 7);
-    const filas = db.prepare(`${SQL_TRABAJO}
-        WHERE t.pagado = 1 AND substr(t.fecha_pago_laboratorio, 1, 7) = ?
-        ORDER BY t.fecha_pago_laboratorio DESC, l.nombre`).all(mes).map(decorarTrabajo);
+    const filas = db.prepare(`
+        SELECT pl.*, t.numero_orden, t.tipo_trabajo, t.costo AS costo_trabajo,
+               l.nombre AS laboratorio_nombre,
+               p.nombres AS paciente_nombres, p.apellidos AS paciente_apellidos,
+               u.nombre AS registrado_por_nombre
+        FROM pagos_laboratorio pl
+        JOIN trabajos_laboratorio t ON t.id = pl.trabajo_id
+        JOIN laboratorios l ON l.id = t.laboratorio_id
+        JOIN pacientes p ON p.id = t.paciente_id
+        LEFT JOIN usuarios u ON u.id = pl.registrado_por
+        WHERE substr(pl.fecha, 1, 7) = ?
+        ORDER BY pl.fecha DESC, l.nombre
+    `).all(mes);
 
     res.json({
         mes,
         pagos: filas,
-        total: filas.reduce((suma, t) => suma + Number(t.costo), 0)
+        total: filas.filter((p) => !p.anulado).reduce((suma, p) => suma + Number(p.monto), 0)
     });
 });
 
@@ -259,9 +324,13 @@ function validarDatosTrabajo(req, res, datos) {
     if (!datos.tipo_trabajo || !String(datos.tipo_trabajo).trim()) {
         res.status(400).json({ error: 'Indique el tipo de trabajo' }); return false;
     }
-    if (datos.costo !== undefined && datos.costo !== null && datos.costo !== '') {
-        const costo = Number(datos.costo);
-        if (!Number.isFinite(costo) || costo < 0) { res.status(400).json({ error: 'El costo no es válido' }); return false; }
+    if (datos.cantidad !== undefined && datos.cantidad !== null && datos.cantidad !== '') {
+        const cantidad = Number(datos.cantidad);
+        if (!Number.isInteger(cantidad) || cantidad < 1) { res.status(400).json({ error: 'La cantidad debe ser un número entero de 1 o más' }); return false; }
+    }
+    if (datos.costo_unitario !== undefined && datos.costo_unitario !== null && datos.costo_unitario !== '') {
+        const unitario = Number(datos.costo_unitario);
+        if (!Number.isFinite(unitario) || unitario < 0) { res.status(400).json({ error: 'El costo unitario no es válido' }); return false; }
     }
     if (datos.fecha_estimada && datos.fecha_envio && datos.fecha_estimada < datos.fecha_envio) {
         res.status(400).json({ error: 'La fecha estimada de entrega no puede ser anterior al envío' }); return false;
@@ -279,14 +348,17 @@ router.post('/trabajos', (req, res) => {
     // Si ya se indico fecha de envio, el trabajo nace "enviado".
     const estado = datos.fecha_envio ? 'enviado' : 'por_enviar';
 
+    const importe = totalDelTrabajo(datos);
+
     const transaccion = db.transaction(() => {
         const numeroOrden = generarNumeroOrdenLaboratorio(datos.fecha_envio || hoyLocal());
         const resultado = db.prepare(`
             INSERT INTO trabajos_laboratorio (
                 numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
                 piezas, color, indicaciones, estado, fecha_envio, fecha_estimada,
-                plan_item_id, cita_id, documentos_json, trabajo_padre_id, costo, notas, creado_por
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                plan_item_id, cita_id, documentos_json, trabajo_padre_id,
+                cantidad, costo_unitario, costo, notas, creado_por
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             numeroOrden, datos.paciente_id, datos.laboratorio_id, datos.doctor_id || null,
             String(datos.tipo_trabajo).trim(), (datos.descripcion || '').trim() || null,
@@ -296,7 +368,8 @@ router.post('/trabajos', (req, res) => {
             datos.plan_item_id || null, datos.cita_id || null,
             Array.isArray(datos.documentos_ids) && datos.documentos_ids.length ? JSON.stringify(datos.documentos_ids) : null,
             datos.trabajo_padre_id || null,
-            Number(datos.costo) || 0, (datos.notas || '').trim() || null,
+            importe.cantidad, importe.unitario, importe.total,
+            (datos.notas || '').trim() || null,
             req.session.usuario.id
         );
         return { id: resultado.lastInsertRowid, numeroOrden };
@@ -312,19 +385,28 @@ router.post('/trabajos', (req, res) => {
 router.put('/trabajos/:id', (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
-    if (trabajo.pagado) {
-        return res.status(400).json({ error: 'Este trabajo ya fue pagado al laboratorio. Un administrador debe revertir el pago antes de editarlo.' });
-    }
     if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
 
     const datos = req.body;
     if (!validarDatosTrabajo(req, res, datos)) return;
 
+    // Con abonos ya registrados, el costo queda conciliado con lo que se le
+    // pago al laboratorio: cambiarlo dejaria el saldo mintiendo. El resto
+    // del trabajo (fechas, indicaciones, notas) se sigue pudiendo corregir.
+    const abonado = db.prepare(
+        'SELECT COALESCE(SUM(monto), 0) AS total FROM pagos_laboratorio WHERE trabajo_id = ? AND anulado = 0'
+    ).get(req.params.id).total;
+    const importe = totalDelTrabajo(datos);
+    if (abonado > 0 && importe.total !== Math.round(Number(trabajo.costo) * 100) / 100) {
+        return res.status(400).json({ error: 'Este trabajo ya tiene abonos registrados: para cambiar el costo, un administrador debe anular los abonos primero.' });
+    }
+
     db.prepare(`
         UPDATE trabajos_laboratorio
         SET laboratorio_id = ?, doctor_id = ?, tipo_trabajo = ?, descripcion = ?, piezas = ?,
             color = ?, indicaciones = ?, fecha_envio = ?, fecha_estimada = ?, fecha_recepcion = ?,
-            fecha_instalacion = ?, plan_item_id = ?, cita_id = ?, documentos_json = ?, costo = ?, notas = ?
+            fecha_instalacion = ?, plan_item_id = ?, cita_id = ?, documentos_json = ?,
+            cantidad = ?, costo_unitario = ?, costo = ?, notas = ?
         WHERE id = ?
     `).run(
         datos.laboratorio_id, datos.doctor_id || null, String(datos.tipo_trabajo).trim(),
@@ -334,7 +416,8 @@ router.put('/trabajos/:id', (req, res) => {
         datos.fecha_recepcion || null, datos.fecha_instalacion || null,
         datos.plan_item_id || null, datos.cita_id || null,
         Array.isArray(datos.documentos_ids) && datos.documentos_ids.length ? JSON.stringify(datos.documentos_ids) : null,
-        Number(datos.costo) || 0, (datos.notas || '').trim() || null,
+        importe.cantidad, importe.unitario, importe.total,
+        (datos.notas || '').trim() || null,
         req.params.id
     );
     res.json({ ok: true });
@@ -400,15 +483,17 @@ router.post('/trabajos/:id/reenvio', (req, res) => {
             INSERT INTO trabajos_laboratorio (
                 numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
                 piezas, color, indicaciones, estado, fecha_envio, fecha_estimada,
-                plan_item_id, cita_id, documentos_json, trabajo_padre_id, costo, notas, creado_por
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'enviado', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                plan_item_id, cita_id, documentos_json, trabajo_padre_id,
+                cantidad, costo_unitario, costo, notas, creado_por
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'enviado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             numeroOrden, original.paciente_id, original.laboratorio_id, original.doctor_id,
             original.tipo_trabajo, original.descripcion, original.piezas, original.color,
             (datos.indicaciones || '').trim() || original.indicaciones,
             fechaEnvio, datos.fecha_estimada || null,
             original.plan_item_id, datos.cita_id || null, original.documentos_json, original.id,
-            Number(datos.costo) || 0, (datos.notas || '').trim() || null,
+            1, Number(datos.costo) || 0, Number(datos.costo) || 0,
+            (datos.notas || '').trim() || null,
             req.session.usuario.id
         );
         return { id: resultado.lastInsertRowid, numeroOrden };
@@ -421,7 +506,10 @@ router.post('/trabajos/:id/reenvio', (req, res) => {
 router.put('/trabajos/:id/cancelar', requiereAdmin, (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
-    if (trabajo.pagado) return res.status(400).json({ error: 'No se puede cancelar un trabajo ya pagado al laboratorio' });
+    const abonadoCancelar = db.prepare(
+        'SELECT COALESCE(SUM(monto), 0) AS total FROM pagos_laboratorio WHERE trabajo_id = ? AND anulado = 0'
+    ).get(req.params.id).total;
+    if (abonadoCancelar > 0) return res.status(400).json({ error: 'No se puede cancelar un trabajo con abonos registrados: anúlelos primero.' });
 
     const motivo = (req.body.motivo || '').trim();
     if (!motivo) return res.status(400).json({ error: 'Debe indicar el motivo de la cancelación' });
@@ -435,12 +523,29 @@ router.put('/trabajos/:id/cancelar', requiereAdmin, (req, res) => {
 });
 
 // -----------------------------------------------------------------
-// Pago al laboratorio (solo admin). Acepta varios trabajos a la vez: es
-// el caso real de la factura mensual del laboratorio, y la referencia
-// compartida (numero de factura) es lo que los agrupa. No toca `pagos`.
+// Abonos al laboratorio (solo admin).
+//
+// La clinica paga en partes, asi que un pago es un ABONO contra el costo
+// del trabajo, no un si/no. Se pueden registrar varios trabajos del mismo
+// laboratorio en una sola operacion (el caso de la factura mensual): la
+// referencia compartida es lo que los agrupa, y para cada trabajo se
+// abona lo que se indique -por defecto su saldo completo-.
+//
+// Sigue siendo un EGRESO: no genera recibo ni entra en los totales de
+// Caja. Un abono no se edita; solo un admin lo anula con motivo.
 // -----------------------------------------------------------------
+function saldoDelTrabajo(trabajoId) {
+    const fila = db.prepare(`
+        SELECT t.costo, COALESCE((SELECT SUM(pl.monto) FROM pagos_laboratorio pl
+                                   WHERE pl.trabajo_id = t.id AND pl.anulado = 0), 0) AS abonado
+        FROM trabajos_laboratorio t WHERE t.id = ?
+    `).get(trabajoId);
+    if (!fila) return null;
+    return redondear(Number(fila.costo) - Number(fila.abonado));
+}
+
 router.post('/pagos', requiereAdmin, (req, res) => {
-    const { trabajo_ids, fecha, metodo, referencia, notas } = req.body;
+    const { trabajo_ids, fecha, metodo, referencia, notas, montos } = req.body;
 
     if (!Array.isArray(trabajo_ids) || trabajo_ids.length === 0) {
         return res.status(400).json({ error: 'Seleccione al menos un trabajo' });
@@ -454,51 +559,62 @@ router.post('/pagos', requiereAdmin, (req, res) => {
     const trabajos = db.prepare(`SELECT * FROM trabajos_laboratorio WHERE id IN (${marcadores})`).all(...trabajo_ids);
     if (trabajos.length !== trabajo_ids.length) return res.status(400).json({ error: 'Algún trabajo no existe' });
 
-    const yaPagado = trabajos.find((t) => t.pagado);
-    if (yaPagado) return res.status(400).json({ error: `El trabajo ${yaPagado.numero_orden} ya está marcado como pagado` });
-    const cancelado = trabajos.find((t) => t.estado === 'cancelado');
+    const cancelado = trabajos.find((tr) => tr.estado === 'cancelado');
     if (cancelado) return res.status(400).json({ error: `El trabajo ${cancelado.numero_orden} está cancelado` });
-    const sinCosto = trabajos.find((t) => Number(t.costo) <= 0);
-    if (sinCosto) return res.status(400).json({ error: `El trabajo ${sinCosto.numero_orden} no tiene costo registrado` });
 
-    const actualizar = db.prepare(`
-        UPDATE trabajos_laboratorio
-        SET pagado = 1, fecha_pago_laboratorio = ?, metodo_pago = ?, referencia_pago = ?,
-            notas_pago = ?, pagado_por = ?, pagado_en = datetime('now', 'localtime')
-        WHERE id = ?
+    // `montos` es opcional: {trabajoId: monto}. Sin el, se abona el saldo
+    // completo de cada trabajo seleccionado.
+    const porTrabajo = [];
+    for (const trabajo of trabajos) {
+        const saldo = saldoDelTrabajo(trabajo.id);
+        if (saldo <= 0) {
+            return res.status(400).json({ error: `El trabajo ${trabajo.numero_orden} no tiene saldo pendiente` });
+        }
+        const solicitado = montos && montos[trabajo.id] !== undefined && montos[trabajo.id] !== null && montos[trabajo.id] !== ''
+            ? redondear(montos[trabajo.id])
+            : saldo;
+        if (!Number.isFinite(solicitado) || solicitado <= 0) {
+            return res.status(400).json({ error: `El monto del abono a ${trabajo.numero_orden} no es válido` });
+        }
+        if (solicitado > saldo) {
+            return res.status(400).json({ error: `El abono a ${trabajo.numero_orden} ($${solicitado.toFixed(2)}) supera su saldo pendiente ($${saldo.toFixed(2)})` });
+        }
+        porTrabajo.push({ trabajo, monto: solicitado });
+    }
+
+    const insertar = db.prepare(`
+        INSERT INTO pagos_laboratorio (trabajo_id, monto, fecha, metodo, referencia, notas, registrado_por)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    const transaccion = db.transaction(() => {
-        trabajos.forEach((t) => actualizar.run(
-            fechaPago, metodo, (referencia || '').trim() || null,
-            (notas || '').trim() || null, req.session.usuario.id, t.id
+    db.transaction(() => {
+        porTrabajo.forEach(({ trabajo, monto }) => insertar.run(
+            trabajo.id, monto, fechaPago, metodo,
+            (referencia || '').trim() || null, (notas || '').trim() || null,
+            req.session.usuario.id
         ));
-    });
-    transaccion();
+    })();
 
     res.json({
         ok: true,
-        cantidad: trabajos.length,
-        total: trabajos.reduce((suma, t) => suma + Number(t.costo), 0)
+        cantidad: porTrabajo.length,
+        total: redondear(porTrabajo.reduce((suma, p) => suma + p.monto, 0))
     });
 });
 
-router.put('/trabajos/:id/revertir-pago', requiereAdmin, (req, res) => {
-    const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
-    if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
-    if (!trabajo.pagado) return res.status(400).json({ error: 'El trabajo no está marcado como pagado' });
+router.put('/pagos/:id/anular', requiereAdmin, (req, res) => {
+    const abono = db.prepare('SELECT * FROM pagos_laboratorio WHERE id = ?').get(req.params.id);
+    if (!abono) return res.status(404).json({ error: 'Abono no encontrado' });
+    if (abono.anulado) return res.status(400).json({ error: 'Este abono ya está anulado' });
 
     const motivo = (req.body.motivo || '').trim();
-    if (!motivo) return res.status(400).json({ error: 'Debe indicar el motivo para revertir el pago' });
+    if (!motivo) return res.status(400).json({ error: 'Debe indicar el motivo de la anulación' });
 
-    // Queda constancia en las notas de pago de quien lo revirtio y por que.
-    const rastro = `[Pago revertido el ${hoyLocal()} por ${req.session.usuario.nombre}: ${motivo}]`;
     db.prepare(`
-        UPDATE trabajos_laboratorio
-        SET pagado = 0, fecha_pago_laboratorio = NULL, metodo_pago = NULL, referencia_pago = NULL,
-            pagado_por = NULL, pagado_en = NULL,
-            notas_pago = TRIM(COALESCE(notas_pago || ' ', '') || ?)
+        UPDATE pagos_laboratorio
+        SET anulado = 1, motivo_anulacion = ?, anulado_por = ?, anulado_en = datetime('now', 'localtime')
         WHERE id = ?
-    `).run(rastro, req.params.id);
+    `).run(motivo, req.session.usuario.id, req.params.id);
+
     res.json({ ok: true });
 });
 

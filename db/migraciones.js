@@ -304,6 +304,116 @@ function migrar(db) {
         const migrados = reconstruirPagos();
         console.log(`Migracion: tabla "pagos" reconstruida con el esquema de la Fase 4B (${migrados} fila(s) previa(s) conservada(s))`);
     }
+
+    // -----------------------------------------------------------------
+    // Trabajos de laboratorio: cantidad + costo unitario, y pagos al
+    // laboratorio por ABONOS en vez de un si/no.
+    //
+    // El registro manual de la clinica lleva "Cant.", "Costo unit.",
+    // "Abonado" y "Saldo", con trabajos pagados a medias. El esquema
+    // original de la Fase 4C tenia un solo `costo` y un `pagado` 0/1, que
+    // no podia representar eso. Se reconstruye la tabla (SQLite no permite
+    // quitar columnas con CHECK de forma simple) y cada trabajo que
+    // estuviera marcado como pagado se convierte en un abono por su costo
+    // total, con su fecha, metodo y referencia: no se pierde ningun dato.
+    // -----------------------------------------------------------------
+    const columnasTrabajosLab = db.prepare("PRAGMA table_info(trabajos_laboratorio)").all().map((c) => c.name);
+
+    if (columnasTrabajosLab.length > 0 && !columnasTrabajosLab.includes('cantidad')) {
+        const reconstruirTrabajos = db.transaction(() => {
+            db.exec(`
+                CREATE TABLE pagos_laboratorio (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trabajo_id INTEGER NOT NULL REFERENCES trabajos_laboratorio(id) ON DELETE CASCADE,
+                    monto REAL NOT NULL CHECK (monto > 0),
+                    fecha TEXT NOT NULL,
+                    metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia', 'tarjeta', 'otro')),
+                    referencia TEXT,
+                    notas TEXT,
+                    anulado INTEGER NOT NULL DEFAULT 0,
+                    motivo_anulacion TEXT,
+                    anulado_por INTEGER REFERENCES usuarios(id),
+                    anulado_en TEXT,
+                    registrado_por INTEGER REFERENCES usuarios(id),
+                    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            `);
+
+            // Los pagos ya marcados pasan a ser abonos por el costo total.
+            const pagados = db.prepare(
+                'SELECT id, costo, fecha_pago_laboratorio, metodo_pago, referencia_pago, notas_pago, pagado_por FROM trabajos_laboratorio WHERE pagado = 1 AND costo > 0'
+            ).all();
+            const insertarAbono = db.prepare(`
+                INSERT INTO pagos_laboratorio (trabajo_id, monto, fecha, metodo, referencia, notas, registrado_por)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `);
+            pagados.forEach((p) => insertarAbono.run(
+                p.id, p.costo,
+                p.fecha_pago_laboratorio || db.prepare("SELECT date('now','localtime') AS f").get().f,
+                p.metodo_pago || 'otro', p.referencia_pago, p.notas_pago, p.pagado_por
+            ));
+
+            db.exec(`
+                CREATE TABLE trabajos_laboratorio_nueva (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    numero_orden TEXT NOT NULL UNIQUE,
+                    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                    laboratorio_id INTEGER NOT NULL REFERENCES laboratorios(id),
+                    doctor_id INTEGER REFERENCES doctores(id),
+                    tipo_trabajo TEXT NOT NULL,
+                    descripcion TEXT,
+                    piezas TEXT,
+                    color TEXT,
+                    indicaciones TEXT,
+                    estado TEXT NOT NULL DEFAULT 'por_enviar' CHECK (estado IN
+                        ('por_enviar', 'enviado', 'recibido', 'instalado', 'cancelado')),
+                    fecha_envio TEXT,
+                    fecha_estimada TEXT,
+                    fecha_recepcion TEXT,
+                    fecha_instalacion TEXT,
+                    plan_item_id INTEGER REFERENCES plan_items(id),
+                    cita_id INTEGER REFERENCES citas(id) ON DELETE SET NULL,
+                    evolucion_id INTEGER REFERENCES evoluciones(id),
+                    documentos_json TEXT,
+                    trabajo_padre_id INTEGER REFERENCES trabajos_laboratorio(id),
+                    cantidad INTEGER NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+                    costo_unitario REAL NOT NULL DEFAULT 0,
+                    costo REAL NOT NULL DEFAULT 0,
+                    motivo_cancelacion TEXT,
+                    cancelado_por INTEGER REFERENCES usuarios(id),
+                    cancelado_en TEXT,
+                    notas TEXT,
+                    creado_por INTEGER REFERENCES usuarios(id),
+                    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            `);
+            db.exec(`
+                INSERT INTO trabajos_laboratorio_nueva (
+                    id, numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
+                    piezas, color, indicaciones, estado, fecha_envio, fecha_estimada, fecha_recepcion,
+                    fecha_instalacion, plan_item_id, cita_id, evolucion_id, documentos_json,
+                    trabajo_padre_id, cantidad, costo_unitario, costo, motivo_cancelacion,
+                    cancelado_por, cancelado_en, notas, creado_por, fecha_creacion
+                )
+                SELECT id, numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
+                       piezas, color, indicaciones, estado, fecha_envio, fecha_estimada, fecha_recepcion,
+                       fecha_instalacion, plan_item_id, cita_id, evolucion_id, documentos_json,
+                       trabajo_padre_id, 1, costo, costo, motivo_cancelacion,
+                       cancelado_por, cancelado_en, notas, creado_por, fecha_creacion
+                FROM trabajos_laboratorio
+            `);
+            db.exec('DROP TABLE trabajos_laboratorio');
+            db.exec('ALTER TABLE trabajos_laboratorio_nueva RENAME TO trabajos_laboratorio');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_trabajoslab_paciente ON trabajos_laboratorio (paciente_id)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_trabajoslab_laboratorio ON trabajos_laboratorio (laboratorio_id)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_trabajoslab_estado ON trabajos_laboratorio (estado)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_pagoslab_trabajo ON pagos_laboratorio (trabajo_id)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_pagoslab_fecha ON pagos_laboratorio (fecha)');
+            return pagados.length;
+        });
+        const abonosCreados = reconstruirTrabajos();
+        console.log(`Migracion: "trabajos_laboratorio" ahora lleva cantidad/costo unitario y los pagos se registran como abonos (${abonosCreados} pago(s) previo(s) convertido(s) en abono)`);
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)

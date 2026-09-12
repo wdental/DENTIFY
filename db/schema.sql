@@ -568,15 +568,12 @@ CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
     documentos_json TEXT,                   -- ids de documentos_pacientes (fotos/escaneos)
     trabajo_padre_id INTEGER REFERENCES trabajos_laboratorio(id), -- reenvio por ajuste
 
-    costo REAL NOT NULL DEFAULT 0,          -- lo que cobra el laboratorio a la clinica
-    pagado INTEGER NOT NULL DEFAULT 0,
-    fecha_pago_laboratorio TEXT,
-    metodo_pago TEXT CHECK (metodo_pago IS NULL OR metodo_pago IN
-        ('efectivo', 'transferencia', 'tarjeta', 'otro')),
-    referencia_pago TEXT,                   -- numero de factura del laboratorio (agrupa un pago por lote)
-    notas_pago TEXT,
-    pagado_por INTEGER REFERENCES usuarios(id),
-    pagado_en TEXT,
+    -- Un trabajo puede ser por varias unidades (ej. 5 coronas a $100):
+    -- el costo total es cantidad x costo_unitario, como en el registro
+    -- manual que llevaba la clinica en Excel.
+    cantidad INTEGER NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+    costo_unitario REAL NOT NULL DEFAULT 0,
+    costo REAL NOT NULL DEFAULT 0,          -- total: cantidad x costo_unitario
 
     motivo_cancelacion TEXT,
     cancelado_por INTEGER REFERENCES usuarios(id),
@@ -590,7 +587,33 @@ CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_paciente ON trabajos_laboratorio (paciente_id);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_laboratorio ON trabajos_laboratorio (laboratorio_id);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_estado ON trabajos_laboratorio (estado);
-CREATE INDEX IF NOT EXISTS idx_trabajoslab_pagado ON trabajos_laboratorio (pagado);
+
+-- Abonos a un trabajo de laboratorio. La clinica paga a los laboratorios
+-- en partes ("Abonado" y "Saldo" de su registro manual), asi que el pago
+-- NO es un si/no: el estado (pendiente / parcial / pagado) y el saldo se
+-- calculan sumando los abonos validos contra el costo total, igual que
+-- `utils/finanzas.js` hace con los pagos de los pacientes.
+--
+-- Sigue siendo un EGRESO: no genera recibo ni entra en los totales de
+-- Caja. Un abono no se edita; solo un admin lo anula con motivo.
+CREATE TABLE IF NOT EXISTS pagos_laboratorio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trabajo_id INTEGER NOT NULL REFERENCES trabajos_laboratorio(id) ON DELETE CASCADE,
+    monto REAL NOT NULL CHECK (monto > 0),
+    fecha TEXT NOT NULL,
+    metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia', 'tarjeta', 'otro')),
+    referencia TEXT,                        -- numero de factura del laboratorio
+    notas TEXT,
+    anulado INTEGER NOT NULL DEFAULT 0,
+    motivo_anulacion TEXT,
+    anulado_por INTEGER REFERENCES usuarios(id),
+    anulado_en TEXT,
+    registrado_por INTEGER REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pagoslab_trabajo ON pagos_laboratorio (trabajo_id);
+CREATE INDEX IF NOT EXISTS idx_pagoslab_fecha ON pagos_laboratorio (fecha);
 
 -- ---------------------------------------------------------------------
 -- PLANTILLAS DE NOTA DE EVOLUCION (ajuste post-Fase 4C, a pedido de uso
