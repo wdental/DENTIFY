@@ -7,19 +7,21 @@
 const MESES_ABREV_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const DIAS_SEMANA_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
-// dd/mmm/yyyy en minusculas, ej. 09/sep/2026
+// dd/mm/aaaa, ej. 12/09/2026. Es el UNICO formato de fecha del sistema:
+// el mismo que muestran los campos donde se escribe (ver campo-fecha.js),
+// para que nunca haya que adivinar si un 09/12 es septiembre o diciembre.
 function formatearFecha(fechaIso) {
     if (!fechaIso) return '';
     const d = new Date(String(fechaIso).slice(0, 10) + 'T00:00:00');
     if (isNaN(d.getTime())) return fechaIso;
 
     const dia = String(d.getDate()).padStart(2, '0');
-    const mes = MESES_ABREV_ES[d.getMonth()];
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
     const anio = d.getFullYear();
     return `${dia}/${mes}/${anio}`;
 }
 
-// dia de la semana en minusculas + fecha formateada, ej. "martes, 09/sep/2026"
+// dia de la semana en minusculas + fecha, ej. "sábado, 12/09/2026"
 function formatearFechaConDia(fechaIso) {
     if (!fechaIso) return '';
     const d = new Date(String(fechaIso).slice(0, 10) + 'T00:00:00');
@@ -55,30 +57,30 @@ function ahoraLocalIso() {
 }
 
 // -----------------------------------------------------------------
-// Los <input type="date"> nativos muestran el formato del navegador
-// (ej. "12/27/1989") y eso no se puede cambiar. Este par de funciones ata
-// un input de fecha a un <span class="fecha-legible"> que siempre muestra
-// dd/mmm/yyyy (o con dia de semana), actualizado en vivo. Mismo patron que
-// ya usaba la agenda (campo-fecha-agenda / fecha-seleccionada-legible).
+// Ata un input de fecha a un <span class="fecha-legible"> que muestra la
+// fecha con el DIA DE LA SEMANA, actualizado en vivo. El formato numerico
+// ya lo muestra el propio campo en dd/mm/aaaa (ver campo-fecha.js), asi
+// que este span aporta lo que el numero no dice: si cae domingo.
 // -----------------------------------------------------------------
 
 // Vuelve a pintar el span a partir del valor actual del input. Llamar
 // tambien manualmente despues de asignar input.value por JS (asignar
 // .value no dispara 'input'/'change').
-function sincronizarFechaLegible(idInput, idSpan, conDia) {
+function sincronizarFechaLegible(idInput, idSpan) {
     const input = document.getElementById(idInput);
     const span = document.getElementById(idSpan);
     if (!input || !span) return;
     if (!input.value) { span.textContent = ''; return; }
-    span.textContent = conDia ? formatearFechaConDia(input.value) : formatearFecha(input.value);
+    // Siempre con el dia de la semana: el numero ya lo muestra el campo.
+    span.textContent = formatearFechaConDia(input.value);
 }
 
 // Ata los listeners de actualizacion en vivo y pinta el valor inicial.
 // Llamar una vez al inicializar la pantalla.
-function vincularFechaLegible(idInput, idSpan, conDia) {
+function vincularFechaLegible(idInput, idSpan) {
     const input = document.getElementById(idInput);
     if (!input) return;
-    const actualizar = () => sincronizarFechaLegible(idInput, idSpan, conDia);
+    const actualizar = () => sincronizarFechaLegible(idInput, idSpan);
     input.addEventListener('input', actualizar);
     input.addEventListener('change', actualizar);
     actualizar();

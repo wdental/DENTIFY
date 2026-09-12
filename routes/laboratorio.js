@@ -379,9 +379,9 @@ router.post('/trabajos', (req, res) => {
     res.json({ ok: true, id: creado.id, numero_orden: creado.numeroOrden });
 });
 
-// Edicion: mientras el trabajo no este pagado. Un trabajo pagado quedo
+// Edicion: el costo queda fijo en cuanto hay abonos, porque quedo
 // conciliado con la factura del laboratorio; para corregirlo, un admin
-// revierte el pago primero.
+// anula los abonos primero.
 router.put('/trabajos/:id', (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });

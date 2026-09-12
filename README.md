@@ -401,6 +401,21 @@ inmutable.
 > revisarlas y ajustarlas al criterio de la clínica antes de usarlas; en cada paciente sigue
 > decidiendo el profesional.
 
+## Fechas: un solo formato
+
+Todo el sistema muestra y pide las fechas en **dd/mm/aaaa** (`12/09/2026`). Los campos donde se
+escribe una fecha **no dependen del idioma del navegador**: un `<input type="date">` normal se
+dibuja con el formato del navegador (con Brave o Chrome en inglés se ve `09/12/2026` para el 12 de
+septiembre), así que `public/js/campo-fecha.js` los reemplaza por un campo `dd/mm/aaaa` con botón de
+calendario. Por debajo la fecha sigue viajando en ISO (`YYYY-MM-DD`) a la base de datos.
+
+Se puede escribir la fecha de corrido (`25122026` se convierte en `25/12/2026`) y una fecha que no
+existe (31/02) se limpia al salir del campo. La línea bajo el campo muestra el día de la semana,
+que es lo que el número no dice.
+
+> Los selectores de **mes** (Caja y los pagos a laboratorios) siguen siendo los nativos del
+> navegador: si aparecen en inglés, se corrige poniendo Brave/Chrome en español.
+
 ## Avisos y confirmaciones
 
 Dentify no usa las ventanas de aviso del navegador. Todas las confirmaciones aparecen **centradas en

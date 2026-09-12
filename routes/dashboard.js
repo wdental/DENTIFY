@@ -58,9 +58,17 @@ router.get('/resumen', (req, res) => {
     const trabajosAtrasados = db.prepare(
         "SELECT COUNT(*) AS total FROM trabajos_laboratorio WHERE estado = 'enviado' AND fecha_estimada IS NOT NULL AND fecha_estimada < date('now', 'localtime')"
     ).get().total;
-    const deudaLaboratorios = db.prepare(
-        "SELECT COALESCE(SUM(costo), 0) AS total, COUNT(*) AS cantidad FROM trabajos_laboratorio WHERE pagado = 0 AND estado != 'cancelado' AND costo > 0"
-    ).get();
+    // Lo que se le debe a los laboratorios es la suma de SALDOS (costo menos
+    // los abonos validos), no de costos: un trabajo puede estar abonado en
+    // parte. Ver routes/laboratorio.js.
+    const deudaLaboratorios = db.prepare(`
+        SELECT COALESCE(SUM(saldo), 0) AS total, COUNT(*) AS cantidad FROM (
+            SELECT t.costo - COALESCE((SELECT SUM(pl.monto) FROM pagos_laboratorio pl
+                                        WHERE pl.trabajo_id = t.id AND pl.anulado = 0), 0) AS saldo
+            FROM trabajos_laboratorio t
+            WHERE t.estado != 'cancelado'
+        ) WHERE saldo > 0
+    `).get();
 
     const laboratorio = {
         en_laboratorio: trabajosEnLaboratorio,
