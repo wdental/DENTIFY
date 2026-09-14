@@ -7,8 +7,14 @@
 // y que ahora usan "doctor_id" (referencia a la tabla doctores).
 // Como ninguna de estas tablas tenia todavia interfaz de usuario en la
 // Fase 1, no existen datos reales que migrar: es seguro recrearlas.
+const { respaldarAntesDeActualizar } = require('../utils/respaldo');
+
 const TABLAS_CON_DOCTOR_REG = ['citas', 'odontogramas', 'evoluciones', 'presupuestos'];
 
+// IMPORTANTE: todo bloque que modifique la estructura debe empezar
+// llamando a respaldarAntesDeActualizar(db). Guarda una copia de la base
+// ANTES de tocar nada (una sola vez por arranque, aunque corran varias
+// migraciones) para que volver atras sea restaurar un archivo.
 function migrar(db) {
     for (const tabla of TABLAS_CON_DOCTOR_REG) {
         const columnas = db.prepare(`PRAGMA table_info(${tabla})`).all().map((c) => c.name);
@@ -26,6 +32,7 @@ function migrar(db) {
     // es_version_activa) y su tabla de hallazgos por pieza.
     const columnasOdontogramas = db.prepare("PRAGMA table_info(odontogramas)").all().map((c) => c.name);
     if (columnasOdontogramas.length > 0 && !columnasOdontogramas.includes('es_version_activa')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         db.exec('DROP TABLE odontogramas');
         console.log('Migracion: tabla "odontogramas" recreada con el esquema de version de Fase 3A');
     }
@@ -42,6 +49,7 @@ function migrar(db) {
     const admiteNeutro = tablaSql && /'neutro'/.test(tablaSql.sql);
 
     if (columnasOdontogramaPiezas.length > 0 && (!columnasOdontogramaPiezas.includes('fuera_simbologia_f033') || !admiteNeutro)) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         const reconstruir = db.transaction(() => {
             db.exec(`
                 CREATE TABLE odontograma_piezas_nueva (
@@ -75,6 +83,7 @@ function migrar(db) {
     // paciente (el resto queda como 'evolucion', el default de la columna).
     const columnasOdontogramas2 = db.prepare("PRAGMA table_info(odontogramas)").all().map((c) => c.name);
     if (columnasOdontogramas2.length > 0 && !columnasOdontogramas2.includes('tipo')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         const migrarTipos = db.transaction(() => {
             db.exec("ALTER TABLE odontogramas ADD COLUMN tipo TEXT NOT NULL DEFAULT 'evolucion' CHECK (tipo IN ('inicial', 'evolucion', 'alta'))");
             const primeros = db.prepare('SELECT MIN(id) AS id FROM odontogramas GROUP BY paciente_id').all();
@@ -90,34 +99,38 @@ function migrar(db) {
     // por item. Los items previamente marcados quedan en "si"; los demas
     // quedan sin registrar (no se infiere "no" para no inventar un dato
     // que el profesional nunca ingreso).
+    // Esta condicion (que la columna exista) es verdadera PARA SIEMPRE, asi
+    // que el bloque se evalua en cada arranque: por eso primero se calcula
+    // que filas hay que convertir y, si no hay ninguna, se sale sin tocar
+    // la base ni pedir respaldo.
     const columnasFichas = db.prepare("PRAGMA table_info(fichas_clinicas)").all().map((c) => c.name);
     if (columnasFichas.includes('antecedentes_personales_json')) {
-        const filas = db.prepare('SELECT id, antecedentes_personales_json, antecedentes_familiares_json FROM fichas_clinicas').all();
-        const actualizar = db.prepare('UPDATE fichas_clinicas SET antecedentes_personales_json = ?, antecedentes_familiares_json = ? WHERE id = ?');
-        let migradas = 0;
-        const transaccion = db.transaction(() => {
-            filas.forEach((fila) => {
-                const convertir = (json) => {
-                    if (!json) return { valor: json, cambio: false };
-                    let datos;
-                    try { datos = JSON.parse(json); } catch (e) { return { valor: json, cambio: false }; }
-                    if (!Array.isArray(datos.marcados)) return { valor: json, cambio: false };
-                    const estados = {};
-                    datos.marcados.forEach((codigo) => { estados[codigo] = 'si'; });
-                    const { marcados, ...resto } = datos;
-                    return { valor: JSON.stringify({ ...resto, estados }), cambio: true };
-                };
-                const personales = convertir(fila.antecedentes_personales_json);
-                const familiares = convertir(fila.antecedentes_familiares_json);
-                if (personales.cambio || familiares.cambio) {
-                    actualizar.run(personales.valor, familiares.valor, fila.id);
-                    migradas++;
-                }
-            });
-        });
-        transaccion();
-        if (migradas > 0) {
-            console.log(`Migracion: ${migradas} ficha(s) clinica(s) con antecedentes D/E convertidos de checkbox ("marcados") a estados explicitos si/no`);
+        const convertir = (json) => {
+            if (!json) return { valor: json, cambio: false };
+            let datos;
+            try { datos = JSON.parse(json); } catch (e) { return { valor: json, cambio: false }; }
+            if (!Array.isArray(datos.marcados)) return { valor: json, cambio: false };
+            const estados = {};
+            datos.marcados.forEach((codigo) => { estados[codigo] = 'si'; });
+            const { marcados, ...resto } = datos;
+            return { valor: JSON.stringify({ ...resto, estados }), cambio: true };
+        };
+
+        const pendientes = db.prepare('SELECT id, antecedentes_personales_json, antecedentes_familiares_json FROM fichas_clinicas').all()
+            .map((fila) => ({
+                id: fila.id,
+                personales: convertir(fila.antecedentes_personales_json),
+                familiares: convertir(fila.antecedentes_familiares_json)
+            }))
+            .filter((fila) => fila.personales.cambio || fila.familiares.cambio);
+
+        if (pendientes.length > 0) {
+            respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
+            const actualizar = db.prepare('UPDATE fichas_clinicas SET antecedentes_personales_json = ?, antecedentes_familiares_json = ? WHERE id = ?');
+            db.transaction(() => {
+                pendientes.forEach((fila) => actualizar.run(fila.personales.valor, fila.familiares.valor, fila.id));
+            })();
+            console.log(`Migracion: ${pendientes.length} ficha(s) clinica(s) con antecedentes D/E convertidos de checkbox ("marcados") a estados explicitos si/no`);
         }
     }
 
@@ -126,6 +139,7 @@ function migrar(db) {
     // nulas por defecto, no se pierde ningun dato existente.
     const columnasFichas2 = db.prepare("PRAGMA table_info(fichas_clinicas)").all().map((c) => c.name);
     if (columnasFichas2.length > 0 && !columnasFichas2.includes('examenes_solicitados_json')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         db.exec('ALTER TABLE fichas_clinicas ADD COLUMN examenes_solicitados_json TEXT');
         db.exec('ALTER TABLE fichas_clinicas ADD COLUMN examenes_informe_json TEXT');
         db.exec('ALTER TABLE fichas_clinicas ADD COLUMN profesional_responsable_json TEXT');
@@ -139,6 +153,7 @@ function migrar(db) {
     // inmutabilidad y anulacion logica por admin.
     const columnasEvoluciones = db.prepare("PRAGMA table_info(evoluciones)").all().map((c) => c.name);
     if (columnasEvoluciones.length > 0 && !columnasEvoluciones.includes('numero_sesion')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         db.exec('DROP TABLE evoluciones');
         console.log('Migracion: tabla "evoluciones" recreada con el esquema completo de la seccion P (Fase 3B)');
     }
@@ -152,6 +167,7 @@ function migrar(db) {
     // evoluciones existentes, solo cambia el comportamiento del vinculo.
     const tablaEvolucionesSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='evoluciones'").get();
     if (tablaEvolucionesSql && /cita_id INTEGER REFERENCES citas\(id\),/.test(tablaEvolucionesSql.sql)) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         const reconstruirEvoluciones = db.transaction(() => {
             db.exec(`
                 CREATE TABLE evoluciones_nueva (
@@ -197,6 +213,7 @@ function migrar(db) {
     // defecto: no afecta ninguna evolucion existente.
     const columnasEvoluciones2 = db.prepare("PRAGMA table_info(evoluciones)").all().map((c) => c.name);
     if (columnasEvoluciones2.length > 0 && !columnasEvoluciones2.includes('odontograma_id')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         db.exec('ALTER TABLE evoluciones ADD COLUMN odontograma_id INTEGER REFERENCES odontogramas(id)');
         console.log('Migracion: columna "odontograma_id" agregada a evoluciones (vinculo opcional con la version de odontograma registrada en la misma sesion)');
     }
@@ -207,6 +224,7 @@ function migrar(db) {
     // ficha). Columna nueva, nula por defecto: no afecta usuarios existentes.
     const columnasUsuarios = db.prepare("PRAGMA table_info(usuarios)").all().map((c) => c.name);
     if (columnasUsuarios.length > 0 && !columnasUsuarios.includes('doctor_id')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         db.exec('ALTER TABLE usuarios ADD COLUMN doctor_id INTEGER REFERENCES doctores(id)');
         console.log('Migracion: columna "doctor_id" agregada a usuarios (vinculo opcional con la tabla doctores)');
     }
@@ -222,6 +240,7 @@ function migrar(db) {
     // pantalla y se conserva intacta como stub).
     const columnasPagos = db.prepare("PRAGMA table_info(pagos)").all().map((c) => c.name);
     if (columnasPagos.length > 0 && !columnasPagos.includes('concepto')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         const reconstruirPagos = db.transaction(() => {
             db.exec(`
                 CREATE TABLE IF NOT EXISTS contador_recibos (
@@ -320,6 +339,7 @@ function migrar(db) {
     const columnasTrabajosLab = db.prepare("PRAGMA table_info(trabajos_laboratorio)").all().map((c) => c.name);
 
     if (columnasTrabajosLab.length > 0 && !columnasTrabajosLab.includes('cantidad')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         const reconstruirTrabajos = db.transaction(() => {
             db.exec(`
                 CREATE TABLE pagos_laboratorio (
@@ -433,6 +453,7 @@ function migrar(db) {
     const tablasLab = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('trabajos_laboratorio', 'envios_laboratorio')").all().map((f) => f.name);
 
     if (tablasLab.includes('trabajos_laboratorio') && !tablasLab.includes('envios_laboratorio')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         const migrarEnvios = db.transaction(() => {
             db.exec(`
                 CREATE TABLE envios_laboratorio (

@@ -6,13 +6,17 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 
-const { ejecutarRespaldo } = require('./utils/respaldo');
+const { respaldoDiario, iniciarRespaldoPeriodico } = require('./utils/respaldo');
 
-// Ejecutar respaldo automatico de la base de datos antes de iniciar
-ejecutarRespaldo();
+// Cargar conexion a la base de datos (crea el esquema si no existe). Las
+// migraciones corren aqui dentro y, si alguna va a cambiar la estructura,
+// guardan por su cuenta una copia previa (ver utils/respaldo.js).
+const db = require('./db/conexion');
 
-// Cargar conexion a la base de datos (crea el esquema si no existe)
-require('./db/conexion');
+// Respaldo del dia + uno cada 6 horas mientras el servidor siga corriendo,
+// para que dejar Dentify encendido varios dias no deje esos dias sin copia.
+respaldoDiario(db);
+iniciarRespaldoPeriodico(db);
 
 const rutasAuth = require('./routes/auth');
 const rutasPacientes = require('./routes/pacientes');

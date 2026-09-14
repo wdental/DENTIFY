@@ -70,9 +70,26 @@ Sistema de gestión **interno** de la clínica dental World Dental (Quito, Ecuad
 
 La base de datos (`db/schema.sql`) conserva el stub `presupuestos` de la Fase 1 (sin uso: el "presupuesto" real es el plan de tratamiento aceptado) y la tabla `firmas` genérica (en uso por evoluciones) para no requerir migraciones destructivas más adelante. Ver especificaciones completas en `docs/fase-4a.md`, `docs/fase-4b.md` y `docs/fase-4c.md`.
 
+## El sistema está EN PRODUCCIÓN
+
+Desde el 14/sep/2026 los doctores de la clínica trabajan con Dentify sobre **datos reales de
+pacientes**. Eso cambia cómo se entrega el trabajo:
+
+- **`main` = lo que está corriendo en la clínica.** El desarrollo va en una rama; `main` solo se
+  mueve cuando la usuaria lo aprueba, y ella actualiza de noche (ver `docs/actualizar-la-clinica.md`).
+- **Nada se despliega solo**: la clínica solo cambia cuando alguien corre `git pull` en esa máquina.
+- Antes de cada actualización, la usuaria corre `node scripts/probar-actualizacion.js`, que hace una
+  **copia** de la base, corre las migraciones sobre la copia y compara los registros tabla por tabla.
+  Si una migración mueve filas de una tabla a otra a propósito, hay que declararla en
+  `CONVERSIONES_ESPERADAS` dentro de ese script, o el ensayo la reportará como pérdida de datos.
+- **Respaldos** (`utils/respaldo.js`): uno antes de cualquier migración que cambie la estructura
+  (`respaldarAntesDeActualizar`, se llama una sola vez por arranque), uno por día y otro cada 6 horas
+  mientras el servidor corre. Todos viven en la misma máquina: la copia fuera del equipo la hace la
+  clínica a mano.
+
 ## Convenciones de trabajo
 
 - Código (variables, funciones, comentarios, mensajes de commit) **en español**, consistente con el resto del proyecto.
-- Cualquier cambio de esquema de base de datos debe hacerse **sin pérdida de datos** de las tablas existentes (ver patrón en `db/migraciones.js`: migraciones ligeras que corren antes de aplicar `schema.sql`, que a su vez usa `CREATE TABLE IF NOT EXISTS`).
+- Cualquier cambio de esquema de base de datos debe hacerse **sin pérdida de datos** de las tablas existentes (ver patrón en `db/migraciones.js`: migraciones ligeras que corren antes de aplicar `schema.sql`, que a su vez usa `CREATE TABLE IF NOT EXISTS`). **Todo bloque de migración que modifique la estructura debe empezar llamando a `respaldarAntesDeActualizar(db)`**, y su condición debe dejar de cumplirse una vez aplicada — una condición permanentemente verdadera hace que el bloque corra en cada arranque y dispare un respaldo innecesario.
 - Toda cita creada/editada/cancelada debe pasar por `routes/citas.js` para no saltarse la validación de horario/solapamiento ni el motor de sincronización — nunca escribir directamente en la tabla `citas` desde otra ruta o script salvo para limpieza puntual de datos de prueba.
 - Para cambios de UI/frontend: levantar el servidor y probar en navegador el camino feliz y los bordes (validaciones, roles, sincronización) antes de dar el cambio por terminado; limpiar cualquier dato de prueba (pacientes, citas, usuarios temporales) al finalizar.

@@ -503,9 +503,30 @@ Para volver a iniciar el sistema en el futuro, solo hay que hacer doble clic en 
    ```
    Por ejemplo: `http://192.168.1.50:3000`
 
+## Actualizar el sistema en la clínica
+
+El sistema está en producción con pacientes reales. El procedimiento completo —con el ensayo previo,
+la copia de seguridad y cómo volver atrás si algo falla— está en **`docs/actualizar-la-clinica.md`**.
+
+En resumen: cerrar Dentify, `git pull`, `node scripts/probar-actualizacion.js` (ensaya la
+actualización sobre una copia, sin tocar la base real), guardar una copia de `db/dentify.db` fuera
+del equipo, arrancar y hacer Ctrl+F5.
+
 ## Respaldo de la base de datos
 
-Cada vez que se inicia el servidor, se genera automáticamente una copia de seguridad de la base de datos en la carpeta `/backups`, con el formato `dentify-AAAA-MM-DD.db`. Se conservan los últimos 30 respaldos; los más antiguos se eliminan automáticamente.
+Dentify guarda copias de la base en la carpeta `/backups` en tres momentos:
+
+- **Antes de actualizar**: si al arrancar hay una migración que va a cambiar la estructura de alguna
+  tabla, primero guarda `dentify-antes-de-actualizar-AAAA-MM-DD-HHMM.db`. Si la actualización sale
+  mal, volver atrás es restaurar ese archivo. Se conservan los últimos 10.
+- **Una vez al día**: `dentify-AAAA-MM-DD.db`. Se conservan los últimos 30.
+- **Cada 6 horas mientras el servidor corre**. Antes la copia diaria solo se hacía *al arrancar*: si
+  se dejaba Dentify encendido toda la semana existía un único respaldo, el del día que se encendió,
+  y todo lo registrado después quedaba sin copia hasta el siguiente reinicio.
+
+> **Todos estos respaldos viven en la misma computadora que la base.** No protegen contra un disco
+> dañado ni contra un equipo robado. La clínica debe llevarse además una copia fuera del equipo —un
+> USB, un disco externo o una carpeta en la nube—, y ese es el respaldo que de verdad importa.
 
 ## Configuración de la sincronización con Google Calendar
 
