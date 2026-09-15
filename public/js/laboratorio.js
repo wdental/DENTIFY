@@ -50,10 +50,10 @@ const ETIQUETAS_MOTIVO_ENVIO = {
     document.getElementById('cerrar-modal-trabajo').addEventListener('click', cerrarModalTrabajo);
     document.getElementById('cancelar-modal-trabajo').addEventListener('click', cerrarModalTrabajo);
     document.getElementById('form-trabajo').addEventListener('submit', guardarTrabajo);
+    document.getElementById('tl-agregar-linea').addEventListener('click', agregarLineaTrabajo);
+    document.getElementById('tl-lineas').addEventListener('input', manejarCambioLinea);
+    document.getElementById('tl-lineas').addEventListener('click', manejarClicLineas);
     document.getElementById('tl-buscar-paciente').addEventListener('input', buscarPacientesLaboratorio);
-    ['tl-cantidad', 'tl-costo-unitario'].forEach((id) => {
-        document.getElementById(id).addEventListener('input', actualizarTotalTrabajo);
-    });
 
     document.getElementById('cerrar-modal-abonos').addEventListener('click', () => cerrarModal('modal-abonos'));
     document.getElementById('cerrar-modal-abonos-pie').addEventListener('click', () => cerrarModal('modal-abonos'));
@@ -242,7 +242,7 @@ function filaTrabajo(t) {
             <td class="texto-secundario">${fechas}</td>
             <td>
                 ${Number(t.costo) > 0 ? `<strong>${dineroLab(t.costo)}</strong>` : '<span class="texto-secundario">—</span>'}
-                ${t.cantidad > 1 ? `<div class="dinero-detalle">${t.cantidad} × ${dineroLab(t.costo_unitario)}</div>` : ''}
+                ${detalleLineas(t)}
                 ${t.abonado > 0 ? `<div class="dinero-detalle">abonado ${dineroLab(t.abonado)} · saldo ${dineroLab(t.saldo)}</div>` : ''}
                 <div>${pago}</div>
             </td>
@@ -256,6 +256,14 @@ function insigniaPago(t) {
     if (t.estado_pago === 'pagado') return '<span class="insignia insignia--verde">Pagado</span>';
     if (t.estado_pago === 'parcial') return '<span class="insignia insignia--dorado">Abonado en parte</span>';
     return '<span class="insignia insignia--dorado">Por pagar</span>';
+}
+
+// "3 líneas" si la orden tiene desglose; "2 × $90.00" si es una sola
+// linea por varias unidades (el caso simple de siempre).
+function detalleLineas(t) {
+    if (t.total_lineas > 1) return `<div class="dinero-detalle">${t.total_lineas} líneas</div>`;
+    if (t.linea1_cantidad > 1) return `<div class="dinero-detalle">${t.linea1_cantidad} × ${dineroLab(t.linea1_costo_unitario)}</div>`;
+    return '';
 }
 
 function accionesTrabajo(t) {
@@ -318,8 +326,8 @@ async function abrirModalTrabajo(id, prefijo) {
             document.getElementById('tl-piezas').value = t.piezas || '';
             document.getElementById('tl-color').value = t.color || '';
             document.getElementById('tl-indicaciones').value = t.indicaciones || '';
-            document.getElementById('tl-cantidad').value = t.cantidad || 1;
-            document.getElementById('tl-costo-unitario').value = Number(t.costo_unitario) > 0 ? t.costo_unitario : '';
+            lineasTrabajo = (t.lineas && t.lineas.length ? t.lineas : [{ descripcion: t.tipo_trabajo, cantidad: 1, costo_unitario: 0 }])
+                .map((l) => ({ descripcion: l.descripcion, cantidad: l.cantidad, costo_unitario: Number(l.costo_unitario) > 0 ? l.costo_unitario : '' }));
             document.getElementById('tl-fecha-envio').value = t.fecha_envio || '';
             document.getElementById('tl-fecha-estimada').value = t.fecha_estimada || '';
             document.getElementById('tl-notas').value = t.notas || '';
@@ -332,6 +340,7 @@ async function abrirModalTrabajo(id, prefijo) {
     } else {
         document.getElementById('titulo-modal-trabajo').textContent = 'Nuevo trabajo de laboratorio';
         document.getElementById('tl-fecha-envio').value = hoy;
+        lineasTrabajo = [{ descripcion: '', cantidad: 1, costo_unitario: '' }];
         if (prefijo && prefijo.pacienteId) {
             document.getElementById('tl-envoltura-paciente').classList.add('oculto');
             await seleccionarPacienteLaboratorio(prefijo.pacienteId, prefijo.pacienteNombre || '', null);
@@ -339,7 +348,7 @@ async function abrirModalTrabajo(id, prefijo) {
     }
 
     ['tl-fecha-envio', 'tl-fecha-estimada'].forEach((campo) => sincronizarFechaLegible(campo, campo + '-legible'));
-    actualizarTotalTrabajo();
+    renderizarLineasTrabajo();
     document.getElementById('modal-trabajo').classList.add('abierto');
 }
 
@@ -347,12 +356,65 @@ function cerrarModalTrabajo() {
     cerrarModal('modal-trabajo');
 }
 
-// El total no se escribe: es cantidad x costo unitario (el servidor lo
-// recalcula igual, este es solo el reflejo en pantalla).
+// -----------------------------------------------------------------
+// Editor de lineas de la orden: una misma orden puede llevar trabajos
+// con precios distintos. El total no se escribe: es la suma de las
+// lineas (el servidor lo recalcula igual, esto es solo el reflejo).
+// -----------------------------------------------------------------
+let lineasTrabajo = [];
+
+function renderizarLineasTrabajo() {
+    const contenedor = document.getElementById('tl-lineas');
+    contenedor.innerHTML = `
+        <div class="lineas-editor__fila lineas-editor__fila--titulos">
+            <span>Descripción</span><span>Cant.</span><span>Costo unit.</span><span>Subtotal</span><span></span>
+        </div>
+        ${lineasTrabajo.map((l, i) => `
+            <div class="lineas-editor__fila">
+                <input type="text" data-linea="${i}" data-campo="descripcion" value="${escaparLab(l.descripcion || '')}"
+                       placeholder="${i === 0 ? 'Si se deja vacía, usa el tipo de trabajo' : 'Ej. Provisional'}">
+                <input type="number" data-linea="${i}" data-campo="cantidad" step="1" min="1" value="${l.cantidad || 1}">
+                <input type="number" data-linea="${i}" data-campo="costo_unitario" step="0.01" min="0" placeholder="0.00" value="${l.costo_unitario === '' ? '' : l.costo_unitario}">
+                <span class="lineas-editor__subtotal">${dineroLab((Number(l.cantidad) || 1) * (Number(l.costo_unitario) || 0))}</span>
+                <button type="button" class="btn-texto lineas-editor__quitar" data-quitar="${i}" title="Quitar línea"
+                        ${lineasTrabajo.length === 1 ? 'disabled' : ''}>&times;</button>
+            </div>`).join('')}
+    `;
+    actualizarTotalTrabajo();
+}
+
 function actualizarTotalTrabajo() {
-    const cantidad = Number(document.getElementById('tl-cantidad').value) || 1;
-    const unitario = Number(document.getElementById('tl-costo-unitario').value) || 0;
-    document.getElementById('tl-costo-total').textContent = dineroLab(cantidad * unitario);
+    const total = lineasTrabajo.reduce((suma, l) => suma + (Number(l.cantidad) || 1) * (Number(l.costo_unitario) || 0), 0);
+    document.getElementById('tl-costo-total').textContent = dineroLab(total);
+}
+
+function agregarLineaTrabajo() {
+    lineasTrabajo.push({ descripcion: '', cantidad: 1, costo_unitario: '' });
+    renderizarLineasTrabajo();
+    const filas = document.querySelectorAll('#tl-lineas .lineas-editor__fila:not(.lineas-editor__fila--titulos)');
+    const ultima = filas[filas.length - 1];
+    if (ultima) ultima.querySelector('input').focus();
+}
+
+// Los inputs actualizan el estado sin re-dibujar (para no perder el foco);
+// solo se refrescan el subtotal de la fila y el total.
+function manejarCambioLinea(evento) {
+    const input = evento.target;
+    if (input.dataset.linea === undefined) return;
+    const i = Number(input.dataset.linea);
+    if (!lineasTrabajo[i]) return;
+    lineasTrabajo[i][input.dataset.campo] = input.value;
+    const fila = input.closest('.lineas-editor__fila');
+    fila.querySelector('.lineas-editor__subtotal').textContent =
+        dineroLab((Number(lineasTrabajo[i].cantidad) || 1) * (Number(lineasTrabajo[i].costo_unitario) || 0));
+    actualizarTotalTrabajo();
+}
+
+function manejarClicLineas(evento) {
+    const boton = evento.target.closest('button[data-quitar]');
+    if (!boton || boton.disabled) return;
+    lineasTrabajo.splice(Number(boton.dataset.quitar), 1);
+    renderizarLineasTrabajo();
 }
 
 function buscarPacientesLaboratorio() {
@@ -450,8 +512,13 @@ async function guardarTrabajo(evento) {
         fecha_estimada: document.getElementById('tl-fecha-estimada').value || null,
         cita_id: document.getElementById('tl-cita').value || null,
         documentos_ids: Array.from(documentosSeleccionados),
-        cantidad: document.getElementById('tl-cantidad').value || 1,
-        costo_unitario: document.getElementById('tl-costo-unitario').value || 0,
+        // La linea 1 sin descripcion usa el tipo de trabajo (el caso simple
+        // de siempre: una sola linea, sin escribir nada dos veces).
+        lineas: lineasTrabajo.map((l, i) => ({
+            descripcion: String(l.descripcion || '').trim() || (i === 0 ? document.getElementById('tl-tipo').value.trim() : ''),
+            cantidad: l.cantidad === '' ? 1 : l.cantidad,
+            costo_unitario: l.costo_unitario === '' ? 0 : l.costo_unitario
+        })),
         notas: document.getElementById('tl-notas').value.trim()
     };
 
@@ -632,7 +699,7 @@ function grupoCuentaHtml(grupo) {
                                 <td>${escaparLab(t.paciente_apellidos)} ${escaparLab(t.paciente_nombres)}</td>
                                 <td>${escaparLab(t.tipo_trabajo)}${t.piezas ? ` <span class="texto-secundario">(${escaparLab(t.piezas)})</span>` : ''}</td>
                                 <td class="texto-secundario">${t.fecha_recepcion ? formatearFecha(t.fecha_recepcion) : '—'}</td>
-                                <td>${dineroLab(t.costo)}${t.cantidad > 1 ? `<div class="dinero-detalle">${t.cantidad} × ${dineroLab(t.costo_unitario)}</div>` : ''}</td>
+                                <td>${dineroLab(t.costo)}${detalleLineas(t)}</td>
                                 <td>${t.abonado > 0 ? dineroLab(t.abonado) : '<span class="texto-secundario">—</span>'}</td>
                                 <td><strong>${dineroLab(t.saldo)}</strong></td>
                             </tr>`).join('')}
@@ -779,6 +846,23 @@ async function abrirModalAbonos(trabajoId) {
                 Total <strong>${dineroLab(t.costo)}</strong> · abonado <strong>${dineroLab(t.abonado)}</strong> ·
                 saldo <strong>${dineroLab(t.saldo)}</strong> (${escaparLab(t.estado_pago_etiqueta)})
             </div>`;
+
+        const lineasDiv = document.getElementById('lista-lineas-detalle');
+        if (lineasDiv) {
+            lineasDiv.innerHTML = (t.lineas || []).length === 0 ? '' : `
+                <div class="tabla-envoltorio"><table>
+                    <thead><tr><th>Línea</th><th>Cant.</th><th>Costo unit.</th><th>Subtotal</th></tr></thead>
+                    <tbody>
+                        ${t.lineas.map((l) => `
+                            <tr>
+                                <td>${escaparLab(l.descripcion)}</td>
+                                <td>${l.cantidad}</td>
+                                <td>${dineroLab(l.costo_unitario)}</td>
+                                <td>${dineroLab(l.cantidad * l.costo_unitario)}</td>
+                            </tr>`).join('')}
+                    </tbody>
+                </table></div>`;
+        }
 
         const envios = document.getElementById('lista-envios');
         envios.innerHTML = (t.envios || []).length === 0

@@ -338,7 +338,11 @@ function migrar(db) {
     // -----------------------------------------------------------------
     const columnasTrabajosLab = db.prepare("PRAGMA table_info(trabajos_laboratorio)").all().map((c) => c.name);
 
-    if (columnasTrabajosLab.length > 0 && !columnasTrabajosLab.includes('cantidad')) {
+    // La marca del esquema ORIGINAL de la Fase 4C es la columna `pagado`
+    // (un si/no): solo esas bases se reconstruyen aqui. No sirve preguntar
+    // por la ausencia de `cantidad`, porque la migracion de lineas de mas
+    // abajo tambien la elimina y este bloque volveria a correr.
+    if (columnasTrabajosLab.length > 0 && columnasTrabajosLab.includes('pagado') && !columnasTrabajosLab.includes('cantidad')) {
         respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
         const reconstruirTrabajos = db.transaction(() => {
             db.exec(`
@@ -563,6 +567,106 @@ function migrar(db) {
         });
         const usuariosSembrados = sembrarPermisos();
         console.log(`Migracion: tabla "permisos_usuario" creada; ${usuariosSembrados} usuario(s) asistencial(es) conserva(n) exactamente lo que podia(n) hacer hasta hoy`);
+    }
+
+    // -----------------------------------------------------------------
+    // Laboratorio: una orden puede llevar VARIAS LINEAS con precios
+    // distintos (ej. 4 coronas a $90 y 1 provisional a $15), como la
+    // factura real del laboratorio. El detalle pasa a la tabla nueva
+    // `lineas_laboratorio`; cada trabajo existente se convierte en una
+    // orden de una linea (descripcion = tipo de trabajo, con su cantidad
+    // y costo unitario actuales) y `trabajos_laboratorio` se reconstruye
+    // sin esas dos columnas. El `costo` total no cambia para nadie.
+    //
+    // IMPORTANTE: pagos_laboratorio y envios_laboratorio referencian a
+    // trabajos_laboratorio con ON DELETE CASCADE, asi que el DROP de la
+    // reconstruccion arrastraria sus filas si las FKs estan activas. Se
+    // apagan solo durante este bloque (fuera de la transaccion, como
+    // exige SQLite) y al final se verifica con foreign_key_check.
+    // -----------------------------------------------------------------
+    const columnasTrabajosLinea = db.prepare("PRAGMA table_info(trabajos_laboratorio)").all().map((c) => c.name);
+    if (columnasTrabajosLinea.length > 0 && columnasTrabajosLinea.includes('cantidad')) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
+        db.pragma('foreign_keys = OFF');
+        try {
+            const migrarLineas = db.transaction(() => {
+                db.exec(`
+                    CREATE TABLE IF NOT EXISTS lineas_laboratorio (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        trabajo_id INTEGER NOT NULL REFERENCES trabajos_laboratorio(id) ON DELETE CASCADE,
+                        orden INTEGER NOT NULL DEFAULT 1,
+                        descripcion TEXT NOT NULL,
+                        cantidad INTEGER NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+                        costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0)
+                    )
+                `);
+                db.exec('CREATE INDEX IF NOT EXISTS idx_lineaslab_trabajo ON lineas_laboratorio (trabajo_id, orden)');
+                db.exec(`
+                    INSERT INTO lineas_laboratorio (trabajo_id, orden, descripcion, cantidad, costo_unitario)
+                    SELECT id, 1, tipo_trabajo, cantidad, costo_unitario FROM trabajos_laboratorio
+                `);
+
+                db.exec(`
+                    CREATE TABLE trabajos_laboratorio_nueva (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        numero_orden TEXT NOT NULL UNIQUE,
+                        paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                        laboratorio_id INTEGER NOT NULL REFERENCES laboratorios(id),
+                        doctor_id INTEGER REFERENCES doctores(id),
+                        tipo_trabajo TEXT NOT NULL,
+                        descripcion TEXT,
+                        piezas TEXT,
+                        color TEXT,
+                        indicaciones TEXT,
+                        estado TEXT NOT NULL DEFAULT 'por_enviar' CHECK (estado IN
+                            ('por_enviar', 'enviado', 'recibido', 'instalado', 'cancelado')),
+                        fecha_envio TEXT,
+                        fecha_estimada TEXT,
+                        fecha_recepcion TEXT,
+                        fecha_instalacion TEXT,
+                        plan_item_id INTEGER REFERENCES plan_items(id),
+                        cita_id INTEGER REFERENCES citas(id) ON DELETE SET NULL,
+                        evolucion_id INTEGER REFERENCES evoluciones(id),
+                        documentos_json TEXT,
+                        costo REAL NOT NULL DEFAULT 0,
+                        motivo_cancelacion TEXT,
+                        cancelado_por INTEGER REFERENCES usuarios(id),
+                        cancelado_en TEXT,
+                        notas TEXT,
+                        creado_por INTEGER REFERENCES usuarios(id),
+                        fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                    )
+                `);
+                db.exec(`
+                    INSERT INTO trabajos_laboratorio_nueva (
+                        id, numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
+                        piezas, color, indicaciones, estado, fecha_envio, fecha_estimada, fecha_recepcion,
+                        fecha_instalacion, plan_item_id, cita_id, evolucion_id, documentos_json,
+                        costo, motivo_cancelacion, cancelado_por, cancelado_en, notas, creado_por, fecha_creacion
+                    )
+                    SELECT id, numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
+                           piezas, color, indicaciones, estado, fecha_envio, fecha_estimada, fecha_recepcion,
+                           fecha_instalacion, plan_item_id, cita_id, evolucion_id, documentos_json,
+                           costo, motivo_cancelacion, cancelado_por, cancelado_en, notas, creado_por, fecha_creacion
+                    FROM trabajos_laboratorio
+                `);
+                db.exec('DROP TABLE trabajos_laboratorio');
+                db.exec('ALTER TABLE trabajos_laboratorio_nueva RENAME TO trabajos_laboratorio');
+                db.exec('CREATE INDEX IF NOT EXISTS idx_trabajoslab_paciente ON trabajos_laboratorio (paciente_id)');
+                db.exec('CREATE INDEX IF NOT EXISTS idx_trabajoslab_laboratorio ON trabajos_laboratorio (laboratorio_id)');
+                db.exec('CREATE INDEX IF NOT EXISTS idx_trabajoslab_estado ON trabajos_laboratorio (estado)');
+                return db.prepare('SELECT COUNT(*) AS total FROM lineas_laboratorio').get().total;
+            });
+            const lineasCreadas = migrarLineas();
+
+            const violaciones = db.pragma('foreign_key_check');
+            if (violaciones.length > 0) {
+                throw new Error(`La migracion de lineas de laboratorio dejo ${violaciones.length} referencia(s) rota(s); restaure el respaldo de backups/ y avise`);
+            }
+            console.log(`Migracion: el detalle economico de las ordenes de laboratorio pasa a "lineas_laboratorio" (${lineasCreadas} orden(es) convertida(s) en orden de una linea, mismo costo total)`);
+        } finally {
+            db.pragma('foreign_keys = ON');
+        }
     }
 }
 

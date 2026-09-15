@@ -23,6 +23,18 @@
     }
 })();
 
+// Desglose de la orden ("4 × Corona de zirconio", "1 × Provisional").
+// Sin precios: la orden que sale hacia el laboratorio nunca los lleva.
+// Se omite cuando es una sola linea de una unidad que repite el tipo de
+// trabajo (el caso simple no necesita repetirse).
+function detalleLineasOrden(t) {
+    const lineas = t.lineas || [];
+    const esCasoSimple = lineas.length === 1 && lineas[0].cantidad === 1 && lineas[0].descripcion === t.tipo_trabajo;
+    if (lineas.length === 0 || esCasoSimple) return '';
+    return `<tr><th>Detalle</th><td>${lineas.map((l) =>
+        `${l.cantidad} × ${escaparHtmlImpresion(l.descripcion)}`).join('<br>')}</td></tr>`;
+}
+
 function renderizarOrden(t) {
     const fechaEnvio = t.fecha_envio ? formatearFecha(t.fecha_envio) : '—';
     const fechaEstimada = t.fecha_estimada ? formatearFecha(t.fecha_estimada) : '—';
@@ -45,6 +57,7 @@ function renderizarOrden(t) {
                 <tr><th>Paciente</th><td>${escaparHtmlImpresion(t.paciente_apellidos)} ${escaparHtmlImpresion(t.paciente_nombres)}</td></tr>
                 <tr><th>Doctor</th><td>${escaparHtmlImpresion(t.doctor_nombre || '—')}</td></tr>
                 <tr><th>Trabajo</th><td>${escaparHtmlImpresion(t.tipo_trabajo)}${t.descripcion ? `<div class="recibo-vinculo">${escaparHtmlImpresion(t.descripcion)}</div>` : ''}</td></tr>
+                ${detalleLineasOrden(t)}
                 <tr><th>Piezas</th><td>${escaparHtmlImpresion(t.piezas || '—')}</td></tr>
                 <tr><th>Color / tono</th><td>${escaparHtmlImpresion(t.color || '—')}</td></tr>
                 <tr><th>Fecha de envío</th><td>${fechaEnvio}</td></tr>

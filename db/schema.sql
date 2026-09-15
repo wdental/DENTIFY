@@ -581,13 +581,11 @@ CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
     evolucion_id INTEGER REFERENCES evoluciones(id),  -- sesion en la que se instalo
     documentos_json TEXT,                   -- ids de documentos_pacientes (fotos/escaneos)
 
-    -- Un trabajo puede ser por varias unidades (ej. 5 coronas a $100):
-    -- el costo total es cantidad x costo_unitario, como en el registro
-    -- manual que llevaba la clinica en Excel, mas lo que el laboratorio
-    -- cobre por un reenvio (normalmente 0).
-    cantidad INTEGER NOT NULL DEFAULT 1 CHECK (cantidad > 0),
-    costo_unitario REAL NOT NULL DEFAULT 0,
-    costo REAL NOT NULL DEFAULT 0,          -- cantidad x unitario + costos adicionales de los envios
+    -- El detalle economico de la orden vive en `lineas_laboratorio` (una
+    -- fila por linea, con cantidad y costo unitario propios). `costo` es
+    -- el total en cache: suma de las lineas mas los costos adicionales de
+    -- los envios; lo recalcula siempre el servidor, nunca se escribe a mano.
+    costo REAL NOT NULL DEFAULT 0,
 
     motivo_cancelacion TEXT,
     cancelado_por INTEGER REFERENCES usuarios(id),
@@ -601,6 +599,22 @@ CREATE TABLE IF NOT EXISTS trabajos_laboratorio (
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_paciente ON trabajos_laboratorio (paciente_id);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_laboratorio ON trabajos_laboratorio (laboratorio_id);
 CREATE INDEX IF NOT EXISTS idx_trabajoslab_estado ON trabajos_laboratorio (estado);
+
+-- Lineas de una orden de laboratorio: una misma orden puede llevar
+-- trabajos con precios distintos (ej. 4 coronas de zirconio a $90 y
+-- 1 provisional a $15), como en la factura real del laboratorio. Toda
+-- orden tiene al menos una linea; el costo total de la orden es la suma
+-- de sus lineas mas los costos adicionales de los envios.
+CREATE TABLE IF NOT EXISTS lineas_laboratorio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trabajo_id INTEGER NOT NULL REFERENCES trabajos_laboratorio(id) ON DELETE CASCADE,
+    orden INTEGER NOT NULL DEFAULT 1,       -- posicion de la linea en la orden
+    descripcion TEXT NOT NULL,              -- ej. 'Corona de zirconio piezas 11-12'
+    cantidad INTEGER NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+    costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lineaslab_trabajo ON lineas_laboratorio (trabajo_id, orden);
 
 -- Cada ida y vuelta del trabajo al laboratorio. El envio 1 es el inicial;
 -- los siguientes son la prueba en boca, un ajuste o una reparacion, sin
