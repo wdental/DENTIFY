@@ -5,7 +5,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { ahoraLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
@@ -16,7 +16,7 @@ const MAXIMO_DIAGNOSTICOS = 6;
 // -----------------------------------------------------------------
 // GET /api/diagnosticos/:pacienteId - diagnosticos activos del paciente
 // -----------------------------------------------------------------
-router.get('/:pacienteId', (req, res) => {
+router.get('/:pacienteId', requierePermiso('historia.ver'), (req, res) => {
     const diagnosticos = db.prepare(`
         SELECT d.*, doc.nombre_completo AS doctor_nombre
         FROM diagnosticos d
@@ -31,7 +31,7 @@ router.get('/:pacienteId', (req, res) => {
 // -----------------------------------------------------------------
 // POST /api/diagnosticos/:pacienteId - registra un nuevo diagnostico
 // -----------------------------------------------------------------
-router.post('/:pacienteId', (req, res) => {
+router.post('/:pacienteId', requierePermiso('historia.registrar'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
 
@@ -72,7 +72,7 @@ router.post('/:pacienteId', (req, res) => {
 // -----------------------------------------------------------------
 // PUT /api/diagnosticos/:id/promover - pasa un diagnostico de PRE a DEF
 // -----------------------------------------------------------------
-router.put('/:id/promover', (req, res) => {
+router.put('/:id/promover', requierePermiso('historia.registrar'), (req, res) => {
     const diagnostico = db.prepare('SELECT * FROM diagnosticos WHERE id = ? AND activo = 1').get(req.params.id);
     if (!diagnostico) return res.status(404).json({ error: 'Diagnostico no encontrado' });
     if (diagnostico.tipo === 'DEF') return res.status(400).json({ error: 'Este diagnostico ya es definitivo' });
@@ -87,7 +87,7 @@ router.put('/:id/promover', (req, res) => {
 // DELETE /api/diagnosticos/:id - corrige un error de registro (borrado
 // logico; no es un acto clinico como la evolucion, asi que se permite)
 // -----------------------------------------------------------------
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requierePermiso('historia.registrar'), (req, res) => {
     const diagnostico = db.prepare('SELECT id FROM diagnosticos WHERE id = ? AND activo = 1').get(req.params.id);
     if (!diagnostico) return res.status(404).json({ error: 'Diagnostico no encontrado' });
 

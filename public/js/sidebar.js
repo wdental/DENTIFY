@@ -4,16 +4,25 @@
 
 const ENLACES_NAV = [
     { href: '/index.html', texto: 'Panel principal', paginas: ['index.html', ''] },
-    { href: '/agenda.html', texto: 'Agenda', paginas: ['agenda.html'] },
-    { href: '/pacientes.html', texto: 'Pacientes', paginas: ['pacientes.html', 'paciente.html'] },
-    { href: '/caja.html', texto: 'Caja', paginas: ['caja.html', 'cuotas-vencidas.html'] },
-    { href: '/laboratorio.html', texto: 'Laboratorio', paginas: ['laboratorio.html'] },
-    { href: '/doctores.html', texto: 'Doctores', paginas: ['doctores.html'], soloAdmin: true },
-    { href: '/plantillas.html', texto: 'Plantillas', paginas: ['plantillas.html'], soloAdmin: true },
-    { href: '/tratamientos.html', texto: 'Tratamientos', paginas: ['tratamientos.html'], soloAdmin: true },
-    { href: '/importador.html', texto: 'Importar pacientes', paginas: ['importador.html'], soloAdmin: true },
-    { href: '/usuarios.html', texto: 'Usuarios', paginas: ['usuarios.html'], soloAdmin: true }
+    { href: '/agenda.html', texto: 'Agenda', paginas: ['agenda.html'], permiso: 'agenda.ver' },
+    { href: '/pacientes.html', texto: 'Pacientes', paginas: ['pacientes.html', 'paciente.html'], permiso: 'pacientes.ver' },
+    { href: '/caja.html', texto: 'Caja', paginas: ['caja.html', 'cuotas-vencidas.html'], permiso: 'caja.ver' },
+    { href: '/laboratorio.html', texto: 'Laboratorio', paginas: ['laboratorio.html'], permiso: 'laboratorio.ver' },
+    { href: '/doctores.html', texto: 'Doctores', paginas: ['doctores.html'], permiso: 'catalogos.doctores' },
+    { href: '/plantillas.html', texto: 'Plantillas', paginas: ['plantillas.html'], permiso: 'catalogos.plantillas' },
+    { href: '/tratamientos.html', texto: 'Tratamientos', paginas: ['tratamientos.html'], permiso: 'catalogos.tratamientos' },
+    { href: '/importador.html', texto: 'Importar pacientes', paginas: ['importador.html'], permiso: 'pacientes.importar' },
+    { href: '/usuarios.html', texto: 'Usuarios', paginas: ['usuarios.html'], permiso: 'sistema.usuarios' }
 ];
+
+// ¿El usuario tiene AL MENOS UNO de estos permisos? (admin: todos).
+// La lista de permisos viene de /api/auth/yo y es la vigente en la base.
+function tienePermiso(usuario, ...permisos) {
+    if (!usuario) return false;
+    if (usuario.rol === 'admin') return true;
+    const propios = usuario.permisos || [];
+    return permisos.some((p) => propios.includes(p));
+}
 
 async function inicializarSidebar() {
     let usuario = null;
@@ -32,7 +41,7 @@ async function inicializarSidebar() {
     const paginaActual = window.location.pathname.replace('/', '');
 
     const enlacesHtml = ENLACES_NAV
-        .filter((enlace) => !enlace.soloAdmin || usuario.rol === 'admin')
+        .filter((enlace) => !enlace.permiso || tienePermiso(usuario, enlace.permiso))
         .map((enlace) => {
             const activo = enlace.paginas.includes(paginaActual) ? 'activo' : '';
             return `<a class="sidebar__link ${activo}" href="${enlace.href}">${enlace.texto}</a>`;

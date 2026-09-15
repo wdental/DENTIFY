@@ -7,7 +7,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { ahoraLocal } = require('../utils/fechaLocal');
 const { generarNumeroRecibo } = require('../utils/numeroRecibo');
 const { montoEnLetras } = require('../utils/montoEnLetras');
@@ -73,7 +73,7 @@ router.get('/metodos', (req, res) => {
 // GET /api/pagos/caja/dia?fecha=YYYY-MM-DD - todos los pagos del dia
 // (incluidos los anulados, marcados) + totales por metodo sin anulados.
 // -----------------------------------------------------------------
-router.get('/caja/dia', (req, res) => {
+router.get('/caja/dia', requierePermiso('caja.ver'), (req, res) => {
     const fecha = esFechaIso(req.query.fecha) ? req.query.fecha : hoyIso();
     const pagos = db.prepare(`${SELECT_PAGO_BASE} WHERE pg.fecha_pago = ? ORDER BY pg.id`).all(fecha);
     res.json({ fecha, pagos, totales: totalesPorMetodo(pagos), etiquetas_metodo: ETIQUETAS_METODO });
@@ -82,7 +82,7 @@ router.get('/caja/dia', (req, res) => {
 // -----------------------------------------------------------------
 // GET /api/pagos/caja/mes?mes=YYYY-MM - totales por dia y por metodo
 // -----------------------------------------------------------------
-router.get('/caja/mes', (req, res) => {
+router.get('/caja/mes', requierePermiso('caja.ver'), (req, res) => {
     const mes = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? req.query.mes : hoyIso().slice(0, 7);
     const pagos = db.prepare('SELECT fecha_pago, metodo, monto, anulado FROM pagos WHERE substr(fecha_pago, 1, 7) = ? ORDER BY fecha_pago, id').all(mes);
 
@@ -105,14 +105,14 @@ router.get('/caja/mes', (req, res) => {
 // -----------------------------------------------------------------
 // GET /api/pagos/vencidas - cuotas vencidas de toda la clinica
 // -----------------------------------------------------------------
-router.get('/vencidas', (req, res) => {
+router.get('/vencidas', requierePermiso('caja.ver'), (req, res) => {
     res.json(cuotasVencidas());
 });
 
 // -----------------------------------------------------------------
 // GET /api/pagos/indicadores - tarjetas del dashboard
 // -----------------------------------------------------------------
-router.get('/indicadores', (req, res) => {
+router.get('/indicadores', requierePermiso('caja.ver'), (req, res) => {
     res.json(calcularIndicadores());
 });
 
@@ -134,7 +134,7 @@ function calcularIndicadores() {
 // GET /api/pagos/paciente/:pacienteId - historial completo + resumen
 // financiero (cuentas exigibles, saldo, planes de cuotas con cronograma).
 // -----------------------------------------------------------------
-router.get('/paciente/:pacienteId', (req, res) => {
+router.get('/paciente/:pacienteId', requierePermiso('caja.ver'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
 
@@ -144,7 +144,7 @@ router.get('/paciente/:pacienteId', (req, res) => {
 });
 
 // GET /api/pagos/paciente/:pacienteId/resumen - solo el resumen (panel derecho, modal)
-router.get('/paciente/:pacienteId/resumen', (req, res) => {
+router.get('/paciente/:pacienteId/resumen', requierePermiso('caja.ver'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
     res.json(resumenFinancieroPaciente(paciente.id));
@@ -152,7 +152,7 @@ router.get('/paciente/:pacienteId/resumen', (req, res) => {
 
 // GET /api/pagos/paciente/:pacienteId/conceptos-sugeridos - items pendientes
 // del plan aceptado/en_curso para autocompletar el concepto del pago.
-router.get('/paciente/:pacienteId/conceptos-sugeridos', (req, res) => {
+router.get('/paciente/:pacienteId/conceptos-sugeridos', requierePermiso('caja.ver'), (req, res) => {
     const plan = db.prepare(
         "SELECT id, estado, total FROM planes_tratamiento WHERE paciente_id = ? AND estado IN ('aceptado', 'en_curso') ORDER BY id DESC LIMIT 1"
     ).get(req.params.pacienteId);
@@ -168,7 +168,7 @@ router.get('/paciente/:pacienteId/conceptos-sugeridos', (req, res) => {
 // -----------------------------------------------------------------
 // GET /api/pagos/:id - un pago con todo lo necesario para el recibo
 // -----------------------------------------------------------------
-router.get('/:id', (req, res) => {
+router.get('/:id', requierePermiso('caja.ver'), (req, res) => {
     const pago = db.prepare(`${SELECT_PAGO_BASE} WHERE pg.id = ?`).get(req.params.id);
     if (!pago) return res.status(404).json({ error: 'Pago no encontrado' });
     pago.monto_en_letras = montoEnLetras(pago.monto);
@@ -181,7 +181,7 @@ router.get('/:id', (req, res) => {
 // body: { paciente_id, concepto, monto, metodo, referencia, fecha_pago,
 //         doctor_id, plan_id, plan_item_id, plan_pago_id }
 // -----------------------------------------------------------------
-router.post('/', (req, res) => {
+router.post('/', requierePermiso('caja.registrar'), (req, res) => {
     const b = req.body || {};
     const pacienteId = Number(b.paciente_id);
     const paciente = db.prepare('SELECT id, activo FROM pacientes WHERE id = ?').get(pacienteId);
@@ -265,7 +265,7 @@ router.post('/', (req, res) => {
 // el pago sigue existiendo (tachado) y conserva su numero de recibo.
 // Si abonaba un plan de cuotas ya completado, este vuelve a "activo".
 // -----------------------------------------------------------------
-router.put('/:id/anular', requiereAdmin, (req, res) => {
+router.put('/:id/anular', requierePermiso('caja.anular'), (req, res) => {
     const pago = db.prepare('SELECT id, anulado, plan_pago_id FROM pagos WHERE id = ?').get(req.params.id);
     if (!pago) return res.status(404).json({ error: 'Pago no encontrado' });
     if (pago.anulado) return res.status(400).json({ error: 'Este pago ya está anulado' });

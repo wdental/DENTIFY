@@ -13,7 +13,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { generarNumeroOrdenLaboratorio } = require('../utils/numeroOrdenLaboratorio');
 const { hoyLocal } = require('../utils/fechaLocal');
 
@@ -66,7 +66,7 @@ const TIPOS_SUGERIDOS = [
 // -----------------------------------------------------------------
 // Catalogo de laboratorios
 // -----------------------------------------------------------------
-router.get('/laboratorios', (req, res) => {
+router.get('/laboratorios', requierePermiso('laboratorio.ver'), (req, res) => {
     const soloActivos = req.query.activo === '1';
     const filas = db.prepare(`
         SELECT * FROM laboratorios
@@ -76,7 +76,7 @@ router.get('/laboratorios', (req, res) => {
     res.json(filas);
 });
 
-router.post('/laboratorios', requiereAdmin, (req, res) => {
+router.post('/laboratorios', requierePermiso('catalogos.laboratorios'), (req, res) => {
     const { nombre, contacto, telefono, email, direccion, datos_transferencia, notas } = req.body;
     if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre del laboratorio es obligatorio' });
 
@@ -92,7 +92,7 @@ router.post('/laboratorios', requiereAdmin, (req, res) => {
     res.json({ ok: true, id: resultado.lastInsertRowid });
 });
 
-router.put('/laboratorios/:id', requiereAdmin, (req, res) => {
+router.put('/laboratorios/:id', requierePermiso('catalogos.laboratorios'), (req, res) => {
     const lab = db.prepare('SELECT id FROM laboratorios WHERE id = ?').get(req.params.id);
     if (!lab) return res.status(404).json({ error: 'Laboratorio no encontrado' });
 
@@ -190,7 +190,7 @@ function decorarTrabajo(fila) {
 }
 
 // GET /api/laboratorio/trabajos?estado=&laboratorio_id=&paciente_id=&vivos=1&por_pagar=1&busqueda=
-router.get('/trabajos', (req, res) => {
+router.get('/trabajos', requierePermiso('laboratorio.ver'), (req, res) => {
     const condiciones = [];
     const parametros = [];
 
@@ -217,7 +217,7 @@ router.get('/trabajos', (req, res) => {
     res.json(db.prepare(sql).all(...parametros).map(decorarTrabajo));
 });
 
-router.get('/trabajos/:id', (req, res) => {
+router.get('/trabajos/:id', requierePermiso('laboratorio.ver'), (req, res) => {
     const fila = db.prepare(`${SQL_TRABAJO} WHERE t.id = ?`).get(req.params.id);
     if (!fila) return res.status(404).json({ error: 'Trabajo no encontrado' });
 
@@ -249,7 +249,7 @@ router.get('/trabajos/:id', (req, res) => {
 });
 
 // Indicadores para el panel principal y la cabecera de la pagina.
-router.get('/resumen', (req, res) => {
+router.get('/resumen', requierePermiso('laboratorio.ver'), (req, res) => {
     const hoy = hoyLocal();
 
     const enLaboratorio = db.prepare("SELECT COUNT(*) AS total FROM trabajos_laboratorio WHERE estado = 'enviado'").get().total;
@@ -280,7 +280,7 @@ router.get('/resumen', (req, res) => {
 });
 
 // Cuentas por pagar agrupadas por laboratorio.
-router.get('/cuentas-por-pagar', (req, res) => {
+router.get('/cuentas-por-pagar', requierePermiso('laboratorio.ver'), (req, res) => {
     const filas = db.prepare(`${SQL_TRABAJO}
         WHERE t.estado != 'cancelado' AND t.costo > COALESCE(
             (SELECT SUM(pl.monto) FROM pagos_laboratorio pl WHERE pl.trabajo_id = t.id AND pl.anulado = 0), 0)
@@ -307,7 +307,7 @@ router.get('/cuentas-por-pagar', (req, res) => {
 });
 
 // Historial de pagos ya hechos a laboratorios, agrupados por factura.
-router.get('/pagos-realizados', (req, res) => {
+router.get('/pagos-realizados', requierePermiso('laboratorio.ver'), (req, res) => {
     const mes = req.query.mes || hoyLocal().slice(0, 7);
     const filas = db.prepare(`
         SELECT pl.*, t.numero_orden, t.tipo_trabajo, t.costo AS costo_trabajo,
@@ -397,7 +397,7 @@ function recalcularCostoTrabajo(trabajoId) {
     db.prepare('UPDATE trabajos_laboratorio SET costo = ? WHERE id = ?').run(total, trabajoId);
 }
 
-router.post('/trabajos', (req, res) => {
+router.post('/trabajos', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const datos = req.body;
 
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(datos.paciente_id);
@@ -449,7 +449,7 @@ router.post('/trabajos', (req, res) => {
 // Edicion: el costo queda fijo en cuanto hay abonos, porque quedo
 // conciliado con la factura del laboratorio; para corregirlo, un admin
 // anula los abonos primero.
-router.put('/trabajos/:id', (req, res) => {
+router.put('/trabajos/:id', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
@@ -498,7 +498,7 @@ router.put('/trabajos/:id', (req, res) => {
 
 // Avance de estado: enviar / recibir / instalar. Cada paso registra su
 // fecha; nunca en el futuro (documenta algo que ya pasó).
-router.put('/trabajos/:id/estado', (req, res) => {
+router.put('/trabajos/:id/estado', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
@@ -564,7 +564,7 @@ router.put('/trabajos/:id/estado', (req, res) => {
 // deja el trabajo otra vez "en laboratorio". El numero de orden se
 // mantiene, que es el que el laboratorio tiene anotado: una protesis
 // total puede ir y volver varias veces y sigue siendo el mismo trabajo.
-router.post('/trabajos/:id/envios', (req, res) => {
+router.post('/trabajos/:id/envios', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
@@ -608,7 +608,7 @@ router.post('/trabajos/:id/envios', (req, res) => {
     res.json({ ok: true, numero_envio: numero, numero_orden: trabajo.numero_orden });
 });
 
-router.put('/trabajos/:id/cancelar', requiereAdmin, (req, res) => {
+router.put('/trabajos/:id/cancelar', requierePermiso('laboratorio.cancelar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     const abonadoCancelar = db.prepare(
@@ -649,7 +649,7 @@ function saldoDelTrabajo(trabajoId) {
     return redondear(Number(fila.costo) - Number(fila.abonado));
 }
 
-router.post('/pagos', requiereAdmin, (req, res) => {
+router.post('/pagos', requierePermiso('laboratorio.pagar'), (req, res) => {
     const { trabajo_ids, fecha, metodo, referencia, notas, montos } = req.body;
 
     if (!Array.isArray(trabajo_ids) || trabajo_ids.length === 0) {
@@ -706,7 +706,7 @@ router.post('/pagos', requiereAdmin, (req, res) => {
     });
 });
 
-router.put('/pagos/:id/anular', requiereAdmin, (req, res) => {
+router.put('/pagos/:id/anular', requierePermiso('laboratorio.pagar'), (req, res) => {
     const abono = db.prepare('SELECT * FROM pagos_laboratorio WHERE id = ?').get(req.params.id);
     if (!abono) return res.status(404).json({ error: 'Abono no encontrado' });
     if (abono.anulado) return res.status(400).json({ error: 'Este abono ya está anulado' });

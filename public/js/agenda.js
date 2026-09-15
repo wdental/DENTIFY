@@ -101,7 +101,7 @@ function sumarDias(fechaStr, dias) {
     usuarioSesion = await inicializarSidebar();
     if (!usuarioSesion) return;
 
-    if (usuarioSesion.rol === 'admin') {
+    if (tienePermiso(usuarioSesion, 'sistema.sync')) {
         document.getElementById('btn-sincronizar-ahora').classList.remove('oculto');
         document.getElementById('panel-sync-admin').classList.remove('oculto');
     }
@@ -471,7 +471,7 @@ async function abrirModalEdicion(citaId) {
 
 function agregarBotonBorrar(citaId) {
     eliminarBotonBorrar();
-    if (usuarioSesion.rol !== 'admin') return;
+    if (!tienePermiso(usuarioSesion, 'agenda.eliminar')) return;
     const acciones = document.querySelector('#form-cita .flex-entre');
     const boton = document.createElement('button');
     boton.type = 'button';
@@ -651,7 +651,7 @@ async function actualizarIndicadorSync() {
             indicador.classList.add(estado.ultimoResultado === 'con_errores' ? 'sync-indicador--error' : 'sync-indicador--pendiente');
         }
 
-        if (usuarioSesion.rol === 'admin') {
+        if (tienePermiso(usuarioSesion, 'sistema.sync')) {
             actualizarPanelAdmin(estado);
         }
     } catch (error) {

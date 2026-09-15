@@ -5,7 +5,7 @@ const express = require('express');
 const db = require('../db/conexion');
 const sincronizacion = require('../utils/sincronizacion');
 const googleCalendar = require('../utils/googleCalendar');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -19,13 +19,13 @@ router.get('/estado', (req, res) => {
 });
 
 // POST /api/sync/ejecutar - forzar sincronizacion ahora (solo admin)
-router.post('/ejecutar', requiereAdmin, async (req, res) => {
+router.post('/ejecutar', requierePermiso('sistema.sync'), async (req, res) => {
     const resultado = await sincronizacion.procesarColaPendientes();
     res.json({ ok: true, ...resultado, estado: sincronizacion.obtenerEstado() });
 });
 
 // GET /api/sync/log - ultimas entradas del log (solo admin)
-router.get('/log', requiereAdmin, (req, res) => {
+router.get('/log', requierePermiso('sistema.sync'), (req, res) => {
     const registros = db.prepare('SELECT * FROM sync_log ORDER BY id DESC LIMIT 50').all();
     res.json(registros);
 });

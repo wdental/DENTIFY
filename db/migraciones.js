@@ -529,6 +529,41 @@ function migrar(db) {
         const resultado = migrarEnvios();
         console.log(`Migracion: las idas y vueltas al laboratorio pasan a "envios_laboratorio" (${resultado.ordenes} orden(es), ${resultado.convertidos} reenvio(s) convertido(s) en envio)`);
     }
+
+    // -----------------------------------------------------------------
+    // Permisos por usuario: el catalogo es codigo (utils/permisos.js), la
+    // asignacion es datos (tabla permisos_usuario). Esta migracion NO le
+    // cambia los permisos a nadie: a cada usuario "asistencial" existente
+    // (activo o no, por si se reactiva) se le conceden exactamente los
+    // permisos que ese rol podia ejercer hasta hoy (todo lo que no era
+    // requiereAdmin); los "admin" no necesitan filas porque el rol implica
+    // todos los permisos. La condicion (que la tabla no exista) deja de
+    // cumplirse tras aplicarse: el bloque corre una sola vez.
+    // -----------------------------------------------------------------
+    const existeTablaUsuarios = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios'").get();
+    const existeTablaPermisos = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='permisos_usuario'").get();
+
+    if (existeTablaUsuarios && !existeTablaPermisos) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
+        const { PERMISOS_ASISTENCIAL_HISTORICO } = require('../utils/permisos');
+        const sembrarPermisos = db.transaction(() => {
+            db.exec(`
+                CREATE TABLE permisos_usuario (
+                    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                    permiso TEXT NOT NULL,
+                    PRIMARY KEY (usuario_id, permiso)
+                )
+            `);
+            const asistenciales = db.prepare("SELECT id FROM usuarios WHERE rol = 'asistencial'").all();
+            const insertar = db.prepare('INSERT INTO permisos_usuario (usuario_id, permiso) VALUES (?, ?)');
+            asistenciales.forEach((u) => {
+                PERMISOS_ASISTENCIAL_HISTORICO.forEach((p) => insertar.run(u.id, p));
+            });
+            return asistenciales.length;
+        });
+        const usuariosSembrados = sembrarPermisos();
+        console.log(`Migracion: tabla "permisos_usuario" creada; ${usuariosSembrados} usuario(s) asistencial(es) conserva(n) exactamente lo que podia(n) hacer hasta hoy`);
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)

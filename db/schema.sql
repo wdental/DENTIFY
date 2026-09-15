@@ -18,6 +18,18 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 
 -- ---------------------------------------------------------------------
+-- PERMISOS POR USUARIO
+-- El catalogo de permisos es codigo (utils/permisos.js); aqui solo vive
+-- la asignacion por usuario. El rol 'admin' implica todos los permisos y
+-- no necesita filas. Ver requierePermiso en middleware/auth.js.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS permisos_usuario (
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    permiso TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, permiso)
+);
+
+-- ---------------------------------------------------------------------
 -- CONTADOR DE HISTORIAS CLINICAS (para numero_historia secuencial por año)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS contador_historias (

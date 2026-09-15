@@ -42,7 +42,7 @@ const TABLAS_VIGILADAS = [
     'planes_tratamiento', 'plan_items', 'pagos', 'planes_pago',
     'trabajos_laboratorio', 'envios_laboratorio', 'pagos_laboratorio', 'laboratorios',
     'plantillas_documento', 'plantillas_evolucion',
-    'tratamientos', 'doctores', 'usuarios'
+    'tratamientos', 'doctores', 'usuarios', 'permisos_usuario'
 ];
 
 function contarFilas(db, tablas) {

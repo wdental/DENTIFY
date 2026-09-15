@@ -9,7 +9,7 @@ let temporizadorBusqueda = null;
     usuarioActual = await inicializarSidebar();
     if (!usuarioActual) return;
 
-    if (usuarioActual.rol === 'admin') {
+    if (tienePermiso(usuarioActual, 'pacientes.eliminar')) {
         document.getElementById('check-eliminados-envoltura').classList.remove('oculto');
     }
 
@@ -24,6 +24,9 @@ let temporizadorBusqueda = null;
     document.getElementById('check-mostrar-eliminados').addEventListener('change', cargarPacientes);
 
     document.getElementById('btn-nuevo-paciente').addEventListener('click', () => abrirModalPaciente());
+    if (!tienePermiso(usuarioActual, 'pacientes.gestionar')) {
+        document.getElementById('btn-nuevo-paciente').classList.add('oculto');
+    }
     document.getElementById('cerrar-modal-paciente').addEventListener('click', cerrarModalPaciente);
     document.getElementById('cancelar-modal-paciente').addEventListener('click', cerrarModalPaciente);
     document.getElementById('form-paciente').addEventListener('submit', guardarPaciente);
@@ -34,7 +37,7 @@ async function cargarPacientes() {
     const cuerpoTabla = document.getElementById('cuerpo-tabla-pacientes');
     const q = document.getElementById('campo-buscar').value.trim();
     const origen = document.getElementById('filtro-origen').value;
-    const mostrarEliminados = usuarioActual.rol === 'admin' && document.getElementById('check-mostrar-eliminados').checked;
+    const mostrarEliminados = tienePermiso(usuarioActual, 'pacientes.eliminar') && document.getElementById('check-mostrar-eliminados').checked;
 
     const parametros = new URLSearchParams();
     if (q) parametros.set('q', q);

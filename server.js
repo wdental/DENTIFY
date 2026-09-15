@@ -39,7 +39,7 @@ const rutasPagos = require('./routes/pagos');
 const rutasPlanesPago = require('./routes/planes-pago');
 const rutasLaboratorio = require('./routes/laboratorio');
 const rutasPlantillasEvolucion = require('./routes/plantillas-evolucion');
-const { protegerPagina, requiereSesion } = require('./middleware/auth');
+const { protegerPaginaConPermiso } = require('./middleware/auth');
 const { iniciarProgramador } = require('./utils/sincronizacion');
 
 const app = express();
@@ -95,22 +95,41 @@ app.use((err, req, res, next) => {
 });
 
 // -----------------------------------------------------------------
-// Archivos estaticos del frontend
+// Paginas protegidas: cada una exige sesion y, si aplica, el permiso de
+// su area ([] = solo sesion). Van ANTES de express.static — si no, el
+// static las serviria sin pasar por el guarda. Sin sesion: al login;
+// con sesion pero sin permiso: al panel principal.
 // -----------------------------------------------------------------
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Paginas protegidas (requieren sesion iniciada)
-const paginasProtegidas = [
-    'index.html', 'pacientes.html', 'paciente.html', 'importador.html', 'usuarios.html',
-    'agenda.html', 'doctores.html', 'imprimir-f033.html', 'plantillas.html', 'imprimir-consentimiento.html',
-    'tratamientos.html', 'imprimir-plan.html',
-    'caja.html', 'cuotas-vencidas.html', 'imprimir-recibo.html', 'imprimir-cierre-caja.html'
-];
-paginasProtegidas.forEach((pagina) => {
-    app.get(`/${pagina}`, protegerPagina, (req, res) => {
+const paginasProtegidas = {
+    'index.html': [],
+    'pacientes.html': ['pacientes.ver'],
+    'paciente.html': ['pacientes.ver'],
+    'importador.html': ['pacientes.importar'],
+    'usuarios.html': ['sistema.usuarios'],
+    'agenda.html': ['agenda.ver'],
+    'doctores.html': ['catalogos.doctores'],
+    'imprimir-f033.html': ['historia.ver'],
+    'plantillas.html': ['catalogos.plantillas'],
+    'imprimir-consentimiento.html': ['planes.ver'],
+    'tratamientos.html': ['catalogos.tratamientos'],
+    'imprimir-plan.html': ['planes.ver'],
+    'caja.html': ['caja.ver'],
+    'cuotas-vencidas.html': ['caja.ver'],
+    'imprimir-recibo.html': ['caja.ver'],
+    'imprimir-cierre-caja.html': ['caja.ver'],
+    'laboratorio.html': ['laboratorio.ver'],
+    'imprimir-orden-laboratorio.html': ['laboratorio.ver']
+};
+Object.entries(paginasProtegidas).forEach(([pagina, permisos]) => {
+    app.get(`/${pagina}`, protegerPaginaConPermiso(...permisos), (req, res) => {
         res.sendFile(path.join(__dirname, 'public', pagina));
     });
 });
+
+// -----------------------------------------------------------------
+// Archivos estaticos del frontend
+// -----------------------------------------------------------------
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
     if (req.session && req.session.usuario) {

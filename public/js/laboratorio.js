@@ -32,7 +32,7 @@ const ETIQUETAS_MOTIVO_ENVIO = {
     usuarioLaboratorio = await inicializarSidebar();
     if (!usuarioLaboratorio) return;
 
-    if (usuarioLaboratorio.rol === 'admin') {
+    if (tienePermiso(usuarioLaboratorio, 'catalogos.laboratorios')) {
         document.getElementById('pestana-laboratorios').classList.remove('oculto');
     }
 
@@ -44,6 +44,9 @@ const ETIQUETAS_MOTIVO_ENVIO = {
     });
 
     document.getElementById('btn-nuevo-trabajo').addEventListener('click', () => abrirModalTrabajo(null));
+    if (!tienePermiso(usuarioLaboratorio, 'laboratorio.gestionar')) {
+        document.getElementById('btn-nuevo-trabajo').classList.add('oculto');
+    }
     document.getElementById('cerrar-modal-trabajo').addEventListener('click', cerrarModalTrabajo);
     document.getElementById('cancelar-modal-trabajo').addEventListener('click', cerrarModalTrabajo);
     document.getElementById('form-trabajo').addEventListener('submit', guardarTrabajo);
@@ -257,21 +260,24 @@ function insigniaPago(t) {
 
 function accionesTrabajo(t) {
     const acciones = [];
+    const puedeGestionar = tienePermiso(usuarioLaboratorio, 'laboratorio.gestionar');
     acciones.push(`<button type="button" class="btn-texto" onclick="imprimirOrden(${t.id})">Imprimir orden</button>`);
 
-    if (t.estado === 'por_enviar') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'enviado')">Enviar</button>`);
-    if (t.estado === 'enviado') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'recibido')">Recibir</button>`);
-    if (t.estado === 'recibido') {
-        acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'instalado')">Entregar al paciente</button>`);
+    if (puedeGestionar) {
+        if (t.estado === 'por_enviar') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'enviado')">Enviar</button>`);
+        if (t.estado === 'enviado') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'recibido')">Recibir</button>`);
+        if (t.estado === 'recibido') {
+            acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalEstado(${t.id}, 'instalado')">Entregar al paciente</button>`);
+        }
+        // Un trabajo ya entregado puede volver al laboratorio por una
+        // reparacion: sigue siendo la misma orden.
+        if (t.estado === 'recibido' || t.estado === 'instalado') {
+            acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalReenvio(${t.id})">Reenviar</button>`);
+        }
+        if (t.estado !== 'cancelado') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalTrabajo(${t.id})">Editar</button>`);
     }
-    // Un trabajo ya entregado puede volver al laboratorio por una
-    // reparacion: sigue siendo la misma orden.
-    if (t.estado === 'recibido' || t.estado === 'instalado') {
-        acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalReenvio(${t.id})">Reenviar</button>`);
-    }
-    if (t.estado !== 'cancelado') acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalTrabajo(${t.id})">Editar</button>`);
     acciones.push(`<button type="button" class="btn-texto" onclick="abrirModalAbonos(${t.id})">Ver detalle</button>`);
-    if (usuarioLaboratorio.rol === 'admin' && t.estado !== 'cancelado' && t.abonado === 0) {
+    if (tienePermiso(usuarioLaboratorio, 'laboratorio.cancelar') && t.estado !== 'cancelado' && t.abonado === 0) {
         acciones.push(`<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('cancelar', ${t.id})">Cancelar</button>`);
     }
     return acciones.join(' ');
@@ -603,7 +609,7 @@ async function cargarCuentas() {
 }
 
 function grupoCuentaHtml(grupo) {
-    const puedePagar = usuarioLaboratorio.rol === 'admin';
+    const puedePagar = tienePermiso(usuarioLaboratorio, 'laboratorio.pagar');
     return `
         <div class="tarjeta" style="margin-bottom:16px;">
             <div class="flex-entre">
@@ -644,7 +650,7 @@ function alternarCuenta(trabajoId, marcado) {
 
 function actualizarBotonPagar() {
     const boton = document.getElementById('btn-marcar-pagados');
-    const puedePagar = usuarioLaboratorio.rol === 'admin' && seleccionCuentas.size > 0;
+    const puedePagar = tienePermiso(usuarioLaboratorio, 'laboratorio.pagar') && seleccionCuentas.size > 0;
     boton.classList.toggle('oculto', !puedePagar);
     if (puedePagar) {
         boton.textContent = seleccionCuentas.size === 1 ? 'Registrar abono' : `Abonar a ${seleccionCuentas.size} trabajos`;
@@ -742,7 +748,7 @@ async function cargarPagosRealizados() {
                             <td>${escaparLab(ETIQUETAS_METODO_LAB[p.metodo] || p.metodo || '')}</td>
                             <td class="texto-secundario">${escaparLab(p.referencia || '—')}</td>
                             <td>${dineroLab(p.monto)}</td>
-                            <td>${!p.anulado && usuarioLaboratorio.rol === 'admin'
+                            <td>${!p.anulado && tienePermiso(usuarioLaboratorio, 'laboratorio.pagar')
                                 ? `<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('anular-abono', ${p.id})">Anular</button>`
                                 : p.anulado ? `<span class="texto-secundario">anulado</span>` : ''}</td>
                         </tr>`).join('')}
@@ -805,7 +811,7 @@ async function abrirModalAbonos(trabajoId) {
                                 <td>${escaparLab(ETIQUETAS_METODO_LAB[a.metodo] || a.metodo)}</td>
                                 <td class="texto-secundario">${escaparLab(a.referencia || '—')}</td>
                                 <td class="texto-secundario">${escaparLab(a.registrado_por_nombre || '—')}</td>
-                                <td>${!a.anulado && usuarioLaboratorio.rol === 'admin'
+                                <td>${!a.anulado && tienePermiso(usuarioLaboratorio, 'laboratorio.pagar')
                                     ? `<button type="button" class="btn-texto" style="color:var(--rojo-alerta);" onclick="pedirMotivo('anular-abono', ${a.id})">Anular</button>`
                                     : a.anulado ? `<span class="texto-secundario">${escaparLab(a.motivo_anulacion || 'anulado')}</span>` : ''}</td>
                             </tr>`).join('')}
@@ -821,7 +827,7 @@ async function abrirModalAbonos(trabajoId) {
 // -----------------------------------------------------------------
 async function cargarLaboratorios() {
     const contenedor = document.getElementById('lista-laboratorios');
-    if (!contenedor || usuarioLaboratorio.rol !== 'admin') return;
+    if (!contenedor || !tienePermiso(usuarioLaboratorio, 'catalogos.laboratorios')) return;
     try {
         laboratoriosCache = await api.get('/api/laboratorio/laboratorios');
         contenedor.innerHTML = `

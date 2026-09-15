@@ -9,11 +9,11 @@ const crypto = require('crypto');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { generarNumeroHistoria } = require('../utils/numeroHistoria');
 
 const router = express.Router();
-router.use(requiereSesion, requiereAdmin);
+router.use(requiereSesion, requierePermiso('pacientes.importar'));
 
 const CARPETA_TEMPORAL = path.join(__dirname, '..', 'uploads', 'temp_importaciones');
 if (!fs.existsSync(CARPETA_TEMPORAL)) {

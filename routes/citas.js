@@ -5,7 +5,7 @@
 const express = require('express');
 const db = require('../db/conexion');
 const sincronizacion = require('../utils/sincronizacion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { hoyLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
@@ -112,7 +112,7 @@ function validarDatosCita(datos) {
 // -----------------------------------------------------------------
 // GET /api/citas - lista de citas por rango de fechas (y/o filtro doctor/paciente)
 // -----------------------------------------------------------------
-router.get('/', (req, res) => {
+router.get('/', requierePermiso('agenda.ver'), (req, res) => {
     const { doctor_id, paciente_id } = req.query;
     let { desde, hasta } = req.query;
 
@@ -148,7 +148,7 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/citas/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', requierePermiso('agenda.ver'), (req, res) => {
     const cita = db.prepare(`
         SELECT c.*, p.nombres AS paciente_nombres, p.apellidos AS paciente_apellidos
         FROM citas c JOIN pacientes p ON p.id = c.paciente_id
@@ -161,7 +161,7 @@ router.get('/:id', (req, res) => {
 // -----------------------------------------------------------------
 // POST /api/citas - crear cita
 // -----------------------------------------------------------------
-router.post('/', async (req, res) => {
+router.post('/', requierePermiso('agenda.gestionar'), async (req, res) => {
     const datos = req.body;
     const errorValidacion = validarDatosCita(datos);
     if (errorValidacion) return res.status(400).json({ error: errorValidacion });
@@ -222,7 +222,7 @@ router.post('/', async (req, res) => {
 // -----------------------------------------------------------------
 // PUT /api/citas/:id - editar / reagendar / cambiar estado
 // -----------------------------------------------------------------
-router.put('/:id', async (req, res) => {
+router.put('/:id', requierePermiso('agenda.gestionar'), async (req, res) => {
     const id = Number(req.params.id);
     const citaAnterior = db.prepare('SELECT * FROM citas WHERE id = ?').get(id);
     if (!citaAnterior) return res.status(404).json({ error: 'Cita no encontrada' });
@@ -303,7 +303,7 @@ router.put('/:id', async (req, res) => {
 // -----------------------------------------------------------------
 // DELETE /api/citas/:id - eliminar (solo admin)
 // -----------------------------------------------------------------
-router.delete('/:id', requiereAdmin, async (req, res) => {
+router.delete('/:id', requierePermiso('agenda.eliminar'), async (req, res) => {
     const id = Number(req.params.id);
     const cita = db.prepare('SELECT * FROM citas WHERE id = ?').get(id);
     if (!cita) return res.status(404).json({ error: 'Cita no encontrada' });

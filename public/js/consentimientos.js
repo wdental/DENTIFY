@@ -72,7 +72,7 @@ function filaConsentimiento(c) {
     const esRevocacion = c.decision === 'revocacion';
     const nombrePlantilla = esRevocacion ? `Revocación (${c.plantilla_nombre || 'consentimiento'})` : (c.plantilla_nombre || '—');
     const puedeRevocar = c.estado === 'aceptado' && !esRevocacion;
-    const puedeAnular = usuarioActual.rol === 'admin' && c.estado !== 'anulado';
+    const puedeAnular = tienePermiso(usuarioActual, 'planes.anular') && c.estado !== 'anulado';
     return `
         <tr class="${tachado}">
             <td>${nombrePlantilla}</td>

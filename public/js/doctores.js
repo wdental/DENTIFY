@@ -8,7 +8,7 @@ let usuarioSesion = null;
     usuarioSesion = await inicializarSidebar();
     if (!usuarioSesion) return;
 
-    if (usuarioSesion.rol !== 'admin') {
+    if (!tienePermiso(usuarioSesion, 'catalogos.doctores')) {
         document.querySelector('.contenido').innerHTML = '<div class="alerta alerta--error">No tiene permisos para ver esta seccion.</div>';
         return;
     }
