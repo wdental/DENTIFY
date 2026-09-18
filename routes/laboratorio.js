@@ -13,7 +13,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { generarNumeroOrdenLaboratorio } = require('../utils/numeroOrdenLaboratorio');
 const { hoyLocal } = require('../utils/fechaLocal');
 
@@ -44,12 +44,53 @@ const ETIQUETAS_ESTADO_PAGO = {
     pagado: 'Pagado'
 };
 
-// El total nunca se escribe a mano: es cantidad x costo unitario, como en
-// el registro manual de la clinica.
-function totalDelTrabajo(datos) {
-    const cantidad = Number(datos.cantidad) > 0 ? Math.trunc(Number(datos.cantidad)) : 1;
-    const unitario = Number(datos.costo_unitario) || 0;
-    return { cantidad, unitario, total: Math.round(cantidad * unitario * 100) / 100 };
+// Una orden lleva UNA O MAS lineas, cada una con su cantidad y costo
+// unitario (ej. 4 coronas a $90 y 1 provisional a $15). El total nunca se
+// escribe a mano: es la suma de las lineas, mas lo que el laboratorio
+// cobre por los reenvios. Devuelve { lineas, base } o { error }.
+// Compatibilidad: un payload viejo con cantidad/costo_unitario sueltos se
+// interpreta como una orden de una sola linea con el tipo de trabajo.
+const MAXIMO_LINEAS = 30;
+
+function normalizarLineas(datos) {
+    let lineas = Array.isArray(datos.lineas) ? datos.lineas : null;
+    if (!lineas) {
+        lineas = [{ descripcion: datos.tipo_trabajo, cantidad: datos.cantidad, costo_unitario: datos.costo_unitario }];
+    }
+    if (lineas.length === 0) return { error: 'La orden debe tener al menos una línea' };
+    if (lineas.length > MAXIMO_LINEAS) return { error: `La orden no puede llevar más de ${MAXIMO_LINEAS} líneas` };
+
+    const limpias = [];
+    for (let i = 0; i < lineas.length; i++) {
+        const linea = lineas[i] || {};
+        const descripcion = String(linea.descripcion || '').trim();
+        if (!descripcion) return { error: `La línea ${i + 1} no tiene descripción` };
+
+        const vacio = (v) => v === undefined || v === null || v === '';
+        const cantidad = vacio(linea.cantidad) ? 1 : Number(linea.cantidad);
+        if (!Number.isInteger(cantidad) || cantidad < 1) {
+            return { error: `La cantidad de la línea ${i + 1} debe ser un número entero de 1 o más` };
+        }
+        const unitario = vacio(linea.costo_unitario) ? 0 : Number(linea.costo_unitario);
+        if (!Number.isFinite(unitario) || unitario < 0) {
+            return { error: `El costo unitario de la línea ${i + 1} no es válido` };
+        }
+        limpias.push({ orden: i + 1, descripcion, cantidad, costo_unitario: Math.round(unitario * 100) / 100 });
+    }
+    const base = Math.round(limpias.reduce((suma, l) => suma + l.cantidad * l.costo_unitario, 0) * 100) / 100;
+    return { lineas: limpias, base };
+}
+
+function lineasDelTrabajo(trabajoId) {
+    return db.prepare('SELECT * FROM lineas_laboratorio WHERE trabajo_id = ? ORDER BY orden, id').all(trabajoId);
+}
+
+function guardarLineasDelTrabajo(trabajoId, lineas) {
+    db.prepare('DELETE FROM lineas_laboratorio WHERE trabajo_id = ?').run(trabajoId);
+    const insertar = db.prepare(
+        'INSERT INTO lineas_laboratorio (trabajo_id, orden, descripcion, cantidad, costo_unitario) VALUES (?, ?, ?, ?, ?)'
+    );
+    lineas.forEach((l) => insertar.run(trabajoId, l.orden, l.descripcion, l.cantidad, l.costo_unitario));
 }
 
 // Sugerencias para el campo "tipo de trabajo" (texto libre: la lista solo
@@ -66,7 +107,7 @@ const TIPOS_SUGERIDOS = [
 // -----------------------------------------------------------------
 // Catalogo de laboratorios
 // -----------------------------------------------------------------
-router.get('/laboratorios', (req, res) => {
+router.get('/laboratorios', requierePermiso('laboratorio.ver'), (req, res) => {
     const soloActivos = req.query.activo === '1';
     const filas = db.prepare(`
         SELECT * FROM laboratorios
@@ -76,7 +117,7 @@ router.get('/laboratorios', (req, res) => {
     res.json(filas);
 });
 
-router.post('/laboratorios', requiereAdmin, (req, res) => {
+router.post('/laboratorios', requierePermiso('catalogos.laboratorios'), (req, res) => {
     const { nombre, contacto, telefono, email, direccion, datos_transferencia, notas } = req.body;
     if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre del laboratorio es obligatorio' });
 
@@ -92,7 +133,7 @@ router.post('/laboratorios', requiereAdmin, (req, res) => {
     res.json({ ok: true, id: resultado.lastInsertRowid });
 });
 
-router.put('/laboratorios/:id', requiereAdmin, (req, res) => {
+router.put('/laboratorios/:id', requierePermiso('catalogos.laboratorios'), (req, res) => {
     const lab = db.prepare('SELECT id FROM laboratorios WHERE id = ?').get(req.params.id);
     if (!lab) return res.status(404).json({ error: 'Laboratorio no encontrado' });
 
@@ -134,6 +175,11 @@ const SQL_TRABAJO = `
            (SELECT COALESCE(SUM(pl.monto), 0) FROM pagos_laboratorio pl
              WHERE pl.trabajo_id = t.id AND pl.anulado = 0) AS abonado,
            (SELECT COUNT(*) FROM envios_laboratorio el WHERE el.trabajo_id = t.id) AS total_envios,
+           (SELECT COUNT(*) FROM lineas_laboratorio li WHERE li.trabajo_id = t.id) AS total_lineas,
+           (SELECT li.cantidad FROM lineas_laboratorio li WHERE li.trabajo_id = t.id
+             ORDER BY li.orden, li.id LIMIT 1) AS linea1_cantidad,
+           (SELECT li.costo_unitario FROM lineas_laboratorio li WHERE li.trabajo_id = t.id
+             ORDER BY li.orden, li.id LIMIT 1) AS linea1_costo_unitario,
            (SELECT el.motivo FROM envios_laboratorio el WHERE el.trabajo_id = t.id
              ORDER BY el.numero DESC LIMIT 1) AS motivo_envio_actual
     FROM trabajos_laboratorio t
@@ -190,7 +236,7 @@ function decorarTrabajo(fila) {
 }
 
 // GET /api/laboratorio/trabajos?estado=&laboratorio_id=&paciente_id=&vivos=1&por_pagar=1&busqueda=
-router.get('/trabajos', (req, res) => {
+router.get('/trabajos', requierePermiso('laboratorio.ver'), (req, res) => {
     const condiciones = [];
     const parametros = [];
 
@@ -217,11 +263,12 @@ router.get('/trabajos', (req, res) => {
     res.json(db.prepare(sql).all(...parametros).map(decorarTrabajo));
 });
 
-router.get('/trabajos/:id', (req, res) => {
+router.get('/trabajos/:id', requierePermiso('laboratorio.ver'), (req, res) => {
     const fila = db.prepare(`${SQL_TRABAJO} WHERE t.id = ?`).get(req.params.id);
     if (!fila) return res.status(404).json({ error: 'Trabajo no encontrado' });
 
     const decorado = decorarTrabajo(fila);
+    decorado.lineas = lineasDelTrabajo(fila.id);
     decorado.abonos = db.prepare(`
         SELECT pl.*, u.nombre AS registrado_por_nombre, ua.nombre AS anulado_por_nombre
         FROM pagos_laboratorio pl
@@ -249,7 +296,7 @@ router.get('/trabajos/:id', (req, res) => {
 });
 
 // Indicadores para el panel principal y la cabecera de la pagina.
-router.get('/resumen', (req, res) => {
+router.get('/resumen', requierePermiso('laboratorio.ver'), (req, res) => {
     const hoy = hoyLocal();
 
     const enLaboratorio = db.prepare("SELECT COUNT(*) AS total FROM trabajos_laboratorio WHERE estado = 'enviado'").get().total;
@@ -280,7 +327,7 @@ router.get('/resumen', (req, res) => {
 });
 
 // Cuentas por pagar agrupadas por laboratorio.
-router.get('/cuentas-por-pagar', (req, res) => {
+router.get('/cuentas-por-pagar', requierePermiso('laboratorio.ver'), (req, res) => {
     const filas = db.prepare(`${SQL_TRABAJO}
         WHERE t.estado != 'cancelado' AND t.costo > COALESCE(
             (SELECT SUM(pl.monto) FROM pagos_laboratorio pl WHERE pl.trabajo_id = t.id AND pl.anulado = 0), 0)
@@ -307,7 +354,7 @@ router.get('/cuentas-por-pagar', (req, res) => {
 });
 
 // Historial de pagos ya hechos a laboratorios, agrupados por factura.
-router.get('/pagos-realizados', (req, res) => {
+router.get('/pagos-realizados', requierePermiso('laboratorio.ver'), (req, res) => {
     const mes = req.query.mes || hoyLocal().slice(0, 7);
     const filas = db.prepare(`
         SELECT pl.*, t.numero_orden, t.tipo_trabajo, t.costo AS costo_trabajo,
@@ -340,14 +387,6 @@ function validarDatosTrabajo(req, res, datos) {
 
     if (!datos.tipo_trabajo || !String(datos.tipo_trabajo).trim()) {
         res.status(400).json({ error: 'Indique el tipo de trabajo' }); return false;
-    }
-    if (datos.cantidad !== undefined && datos.cantidad !== null && datos.cantidad !== '') {
-        const cantidad = Number(datos.cantidad);
-        if (!Number.isInteger(cantidad) || cantidad < 1) { res.status(400).json({ error: 'La cantidad debe ser un número entero de 1 o más' }); return false; }
-    }
-    if (datos.costo_unitario !== undefined && datos.costo_unitario !== null && datos.costo_unitario !== '') {
-        const unitario = Number(datos.costo_unitario);
-        if (!Number.isFinite(unitario) || unitario < 0) { res.status(400).json({ error: 'El costo unitario no es válido' }); return false; }
     }
     if (datos.fecha_estimada && datos.fecha_envio && datos.fecha_estimada < datos.fecha_envio) {
         res.status(400).json({ error: 'La fecha estimada de entrega no puede ser anterior al envío' }); return false;
@@ -384,20 +423,23 @@ function registrarEnvio(trabajoId, datos) {
     return siguiente;
 }
 
-// El total de la orden es cantidad x unitario mas lo que el laboratorio
-// haya cobrado por los reenvios.
+// El total de la orden es la suma de sus lineas mas lo que el
+// laboratorio haya cobrado por los reenvios.
+function baseDelTrabajo(trabajoId) {
+    return redondear(db.prepare(
+        'SELECT COALESCE(SUM(cantidad * costo_unitario), 0) AS base FROM lineas_laboratorio WHERE trabajo_id = ?'
+    ).get(trabajoId).base);
+}
+
 function recalcularCostoTrabajo(trabajoId) {
-    const fila = db.prepare(`
-        SELECT t.cantidad, t.costo_unitario,
-               COALESCE((SELECT SUM(el.costo_adicional) FROM envios_laboratorio el WHERE el.trabajo_id = t.id), 0) AS adicionales
-        FROM trabajos_laboratorio t WHERE t.id = ?
-    `).get(trabajoId);
-    if (!fila) return;
-    const total = redondear(fila.cantidad * fila.costo_unitario + fila.adicionales);
+    const adicionales = db.prepare(
+        'SELECT COALESCE(SUM(costo_adicional), 0) AS total FROM envios_laboratorio WHERE trabajo_id = ?'
+    ).get(trabajoId).total;
+    const total = redondear(baseDelTrabajo(trabajoId) + adicionales);
     db.prepare('UPDATE trabajos_laboratorio SET costo = ? WHERE id = ?').run(total, trabajoId);
 }
 
-router.post('/trabajos', (req, res) => {
+router.post('/trabajos', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const datos = req.body;
 
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(datos.paciente_id);
@@ -407,7 +449,8 @@ router.post('/trabajos', (req, res) => {
     // Si ya se indico fecha de envio, el trabajo nace "enviado".
     const estado = datos.fecha_envio ? 'enviado' : 'por_enviar';
 
-    const importe = totalDelTrabajo(datos);
+    const detalle = normalizarLineas(datos);
+    if (detalle.error) return res.status(400).json({ error: detalle.error });
 
     const transaccion = db.transaction(() => {
         const numeroOrden = generarNumeroOrdenLaboratorio(datos.fecha_envio || hoyLocal());
@@ -416,8 +459,8 @@ router.post('/trabajos', (req, res) => {
                 numero_orden, paciente_id, laboratorio_id, doctor_id, tipo_trabajo, descripcion,
                 piezas, color, indicaciones, estado, fecha_envio, fecha_estimada,
                 plan_item_id, cita_id, documentos_json,
-                cantidad, costo_unitario, costo, notas, creado_por
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                costo, notas, creado_por
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             numeroOrden, datos.paciente_id, datos.laboratorio_id, datos.doctor_id || null,
             String(datos.tipo_trabajo).trim(), (datos.descripcion || '').trim() || null,
@@ -426,10 +469,11 @@ router.post('/trabajos', (req, res) => {
             datos.fecha_envio || null, datos.fecha_estimada || null,
             datos.plan_item_id || null, datos.cita_id || null,
             Array.isArray(datos.documentos_ids) && datos.documentos_ids.length ? JSON.stringify(datos.documentos_ids) : null,
-            importe.cantidad, importe.unitario, importe.total,
+            detalle.base,
             (datos.notas || '').trim() || null,
             req.session.usuario.id
         );
+        guardarLineasDelTrabajo(resultado.lastInsertRowid, detalle.lineas);
         // Si ya salio hacia el laboratorio, queda registrado el envio 1.
         if (estado === 'enviado') {
             registrarEnvio(resultado.lastInsertRowid, {
@@ -449,7 +493,7 @@ router.post('/trabajos', (req, res) => {
 // Edicion: el costo queda fijo en cuanto hay abonos, porque quedo
 // conciliado con la factura del laboratorio; para corregirlo, un admin
 // anula los abonos primero.
-router.put('/trabajos/:id', (req, res) => {
+router.put('/trabajos/:id', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
@@ -457,48 +501,51 @@ router.put('/trabajos/:id', (req, res) => {
     const datos = req.body;
     if (!validarDatosTrabajo(req, res, datos)) return;
 
+    const detalle = normalizarLineas(datos);
+    if (detalle.error) return res.status(400).json({ error: detalle.error });
+
     // Con abonos ya registrados, el costo queda conciliado con lo que se le
     // pago al laboratorio: cambiarlo dejaria el saldo mintiendo. El resto
-    // del trabajo (fechas, indicaciones, notas) se sigue pudiendo corregir.
+    // del trabajo (fechas, indicaciones, notas, descripciones de las
+    // lineas) se sigue pudiendo corregir mientras el total no cambie.
+    // Se compara contra la suma de las lineas, no contra `costo`: el costo
+    // guardado ya incluye lo que el laboratorio cobro por los reenvios.
     const abonado = db.prepare(
         'SELECT COALESCE(SUM(monto), 0) AS total FROM pagos_laboratorio WHERE trabajo_id = ? AND anulado = 0'
     ).get(req.params.id).total;
-    const importe = totalDelTrabajo(datos);
-    // Se compara contra cantidad x unitario, no contra `costo`: el costo
-    // guardado ya incluye lo que el laboratorio cobro por los reenvios.
-    const baseActual = redondear(Number(trabajo.cantidad) * Number(trabajo.costo_unitario));
-    if (abonado > 0 && importe.total !== baseActual) {
+    if (abonado > 0 && detalle.base !== baseDelTrabajo(trabajo.id)) {
         return res.status(400).json({ error: 'Este trabajo ya tiene abonos registrados: para cambiar el costo, un administrador debe anular los abonos primero.' });
     }
 
-    db.prepare(`
-        UPDATE trabajos_laboratorio
-        SET laboratorio_id = ?, doctor_id = ?, tipo_trabajo = ?, descripcion = ?, piezas = ?,
-            color = ?, indicaciones = ?, fecha_envio = ?, fecha_estimada = ?, fecha_recepcion = ?,
-            fecha_instalacion = ?, plan_item_id = ?, cita_id = ?, documentos_json = ?,
-            cantidad = ?, costo_unitario = ?, costo = ?, notas = ?
-        WHERE id = ?
-    `).run(
-        datos.laboratorio_id, datos.doctor_id || null, String(datos.tipo_trabajo).trim(),
-        (datos.descripcion || '').trim() || null, (datos.piezas || '').trim() || null,
-        (datos.color || '').trim() || null, (datos.indicaciones || '').trim() || null,
-        datos.fecha_envio || null, datos.fecha_estimada || null,
-        datos.fecha_recepcion || null, datos.fecha_instalacion || null,
-        datos.plan_item_id || null, datos.cita_id || null,
-        Array.isArray(datos.documentos_ids) && datos.documentos_ids.length ? JSON.stringify(datos.documentos_ids) : null,
-        importe.cantidad, importe.unitario, importe.total,
-        (datos.notas || '').trim() || null,
-        req.params.id
-    );
-    // El total vuelve a incluir lo que el laboratorio haya cobrado por los
-    // reenvios, que no se toca desde este formulario.
-    recalcularCostoTrabajo(req.params.id);
+    db.transaction(() => {
+        db.prepare(`
+            UPDATE trabajos_laboratorio
+            SET laboratorio_id = ?, doctor_id = ?, tipo_trabajo = ?, descripcion = ?, piezas = ?,
+                color = ?, indicaciones = ?, fecha_envio = ?, fecha_estimada = ?, fecha_recepcion = ?,
+                fecha_instalacion = ?, plan_item_id = ?, cita_id = ?, documentos_json = ?, notas = ?
+            WHERE id = ?
+        `).run(
+            datos.laboratorio_id, datos.doctor_id || null, String(datos.tipo_trabajo).trim(),
+            (datos.descripcion || '').trim() || null, (datos.piezas || '').trim() || null,
+            (datos.color || '').trim() || null, (datos.indicaciones || '').trim() || null,
+            datos.fecha_envio || null, datos.fecha_estimada || null,
+            datos.fecha_recepcion || null, datos.fecha_instalacion || null,
+            datos.plan_item_id || null, datos.cita_id || null,
+            Array.isArray(datos.documentos_ids) && datos.documentos_ids.length ? JSON.stringify(datos.documentos_ids) : null,
+            (datos.notas || '').trim() || null,
+            req.params.id
+        );
+        guardarLineasDelTrabajo(trabajo.id, detalle.lineas);
+        // El total vuelve a incluir lo que el laboratorio haya cobrado por
+        // los reenvios, que no se toca desde este formulario.
+        recalcularCostoTrabajo(req.params.id);
+    })();
     res.json({ ok: true });
 });
 
 // Avance de estado: enviar / recibir / instalar. Cada paso registra su
 // fecha; nunca en el futuro (documenta algo que ya pasó).
-router.put('/trabajos/:id/estado', (req, res) => {
+router.put('/trabajos/:id/estado', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
@@ -564,7 +611,7 @@ router.put('/trabajos/:id/estado', (req, res) => {
 // deja el trabajo otra vez "en laboratorio". El numero de orden se
 // mantiene, que es el que el laboratorio tiene anotado: una protesis
 // total puede ir y volver varias veces y sigue siendo el mismo trabajo.
-router.post('/trabajos/:id/envios', (req, res) => {
+router.post('/trabajos/:id/envios', requierePermiso('laboratorio.gestionar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     if (trabajo.estado === 'cancelado') return res.status(400).json({ error: 'El trabajo está cancelado' });
@@ -608,7 +655,7 @@ router.post('/trabajos/:id/envios', (req, res) => {
     res.json({ ok: true, numero_envio: numero, numero_orden: trabajo.numero_orden });
 });
 
-router.put('/trabajos/:id/cancelar', requiereAdmin, (req, res) => {
+router.put('/trabajos/:id/cancelar', requierePermiso('laboratorio.cancelar'), (req, res) => {
     const trabajo = db.prepare('SELECT * FROM trabajos_laboratorio WHERE id = ?').get(req.params.id);
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     const abonadoCancelar = db.prepare(
@@ -649,7 +696,7 @@ function saldoDelTrabajo(trabajoId) {
     return redondear(Number(fila.costo) - Number(fila.abonado));
 }
 
-router.post('/pagos', requiereAdmin, (req, res) => {
+router.post('/pagos', requierePermiso('laboratorio.pagar'), (req, res) => {
     const { trabajo_ids, fecha, metodo, referencia, notas, montos } = req.body;
 
     if (!Array.isArray(trabajo_ids) || trabajo_ids.length === 0) {
@@ -706,7 +753,7 @@ router.post('/pagos', requiereAdmin, (req, res) => {
     });
 });
 
-router.put('/pagos/:id/anular', requiereAdmin, (req, res) => {
+router.put('/pagos/:id/anular', requierePermiso('laboratorio.pagar'), (req, res) => {
     const abono = db.prepare('SELECT * FROM pagos_laboratorio WHERE id = ?').get(req.params.id);
     if (!abono) return res.status(404).json({ error: 'Abono no encontrado' });
     if (abono.anulado) return res.status(400).json({ error: 'Este abono ya está anulado' });

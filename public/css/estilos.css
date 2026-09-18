@@ -2859,3 +2859,42 @@ tbody tr:hover { background-color: rgba(156, 122, 48, 0.05); }
     opacity: 1;
     background-color: rgba(156, 122, 48, 0.12);
 }
+
+/* Editor de lineas de una orden de laboratorio (una orden puede llevar
+   trabajos con precios distintos; el total es la suma de las lineas) */
+.lineas-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lineas-editor__fila {
+    display: grid;
+    grid-template-columns: 1fr 64px 100px 84px 26px;
+    gap: 8px;
+    align-items: center;
+}
+
+.lineas-editor__fila--titulos {
+    font-size: 0.72rem;
+    color: var(--gris-texto, #777);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.lineas-editor__subtotal {
+    font-size: 0.85rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.lineas-editor__quitar {
+    font-size: 1.1rem;
+    line-height: 1;
+    color: var(--rojo-alerta);
+}
+
+.lineas-editor__quitar:disabled {
+    opacity: 0.3;
+    cursor: default;
+}

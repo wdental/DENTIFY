@@ -9,7 +9,7 @@ let datosSubida = null; // { token, columnas, vistaPrevia, totalFilas }
     const usuario = await inicializarSidebar();
     if (!usuario) return;
 
-    if (usuario.rol !== 'admin') {
+    if (!tienePermiso(usuario, 'pacientes.importar')) {
         document.querySelector('.contenido').innerHTML = '<div class="alerta alerta--error">Solo un administrador puede importar pacientes.</div>';
         return;
     }

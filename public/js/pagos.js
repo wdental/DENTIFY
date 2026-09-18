@@ -166,7 +166,7 @@ function renderPlanesCuotas(planes) {
 
     contenedor.innerHTML = planes.map((pp) => {
         const cr = pp.cronograma;
-        const esAdmin = usuarioActual && usuarioActual.rol === 'admin';
+        const puedeCancelarCuotas = tienePermiso(usuarioActual, 'caja.cancelar_cuotas');
         const claseEstado = pp.estado === 'activo' ? 'insignia--dorado' : pp.estado === 'completado' ? 'insignia--verde' : 'insignia--rojo';
         return `
             <details class="plan-cuotas" ${pp.estado === 'activo' ? 'open' : ''}>
@@ -210,7 +210,7 @@ function renderPlanesCuotas(planes) {
                     ${cr.excedente > 0 ? `<p class="texto-secundario mb-0" style="margin-top:8px; font-size:0.8rem;">Excedente pagado sobre el acuerdo: ${dineroPago(cr.excedente)}</p>` : ''}
                     <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
                         ${pp.estado === 'activo' ? `<button type="button" class="btn btn-primario btn-sm" onclick="abrirModalRegistrarPago(${pp.id})">Registrar abono a este plan</button>` : ''}
-                        ${pp.estado === 'activo' && esAdmin ? `<button type="button" class="btn btn-peligro btn-sm" onclick="abrirModalCancelarPlanCuotas(${pp.id})">Cancelar plan de cuotas</button>` : ''}
+                        ${pp.estado === 'activo' && puedeCancelarCuotas ? `<button type="button" class="btn btn-peligro btn-sm" onclick="abrirModalCancelarPlanCuotas(${pp.id})">Cancelar plan de cuotas</button>` : ''}
                     </div>
                 </div>
             </details>
@@ -225,7 +225,7 @@ function renderHistorialPagos(pagos) {
         return;
     }
     const etiquetas = datosPagosPaciente.etiquetas_metodo || {};
-    const esAdmin = usuarioActual && usuarioActual.rol === 'admin';
+    const puedeAnular = tienePermiso(usuarioActual, 'caja.anular');
 
     contenedor.innerHTML = `
         <div class="tabla-envoltorio">
@@ -248,7 +248,7 @@ function renderHistorialPagos(pagos) {
                             <td>${escaparHtmlPago(p.registrado_por_nombre || '')}${p.doctor_nombre ? `<div class="texto-secundario" style="font-size:0.75rem;">${escaparHtmlPago(p.doctor_nombre)}</div>` : ''}</td>
                             <td style="white-space:nowrap;">
                                 <button type="button" class="btn-texto" onclick="abrirReciboPago(${p.id})">Recibo</button>
-                                ${esAdmin && !p.anulado ? `<button type="button" class="btn-texto" style="color: var(--rojo-alerta);" onclick="abrirModalAnularPago(${p.id})">Anular</button>` : ''}
+                                ${puedeAnular && !p.anulado ? `<button type="button" class="btn-texto" style="color: var(--rojo-alerta);" onclick="abrirModalAnularPago(${p.id})">Anular</button>` : ''}
                             </td>
                         </tr>
                     `).join('')}
@@ -346,9 +346,9 @@ function cerrarModalRegistrarPago() {
 function actualizarCampoReferenciaPago() {
     const metodo = document.getElementById('pg-metodo').value;
     const campo = document.getElementById('campo-pg-referencia');
-    campo.classList.toggle('oculto', !['transferencia', 'tarjeta'].includes(metodo));
+    campo.classList.toggle('oculto', !['transferencia', 'tarjeta_credito', 'tarjeta_debito'].includes(metodo));
     document.querySelector('#campo-pg-referencia label').textContent =
-        metodo === 'tarjeta' ? 'Nro. de voucher / referencia' : 'Nro. de comprobante de transferencia';
+        metodo.startsWith('tarjeta') ? 'Nro. de voucher / referencia' : 'Nro. de comprobante de transferencia';
 }
 
 // Sugerencias de concepto: items del plan aceptado (si el vinculo es un plan

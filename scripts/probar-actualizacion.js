@@ -40,9 +40,9 @@ const TABLAS_VIGILADAS = [
     'pacientes', 'citas', 'fichas_clinicas', 'odontogramas', 'odontograma_piezas',
     'evoluciones', 'diagnosticos', 'documentos_pacientes', 'firmas', 'consentimientos',
     'planes_tratamiento', 'plan_items', 'pagos', 'planes_pago',
-    'trabajos_laboratorio', 'envios_laboratorio', 'pagos_laboratorio', 'laboratorios',
+    'trabajos_laboratorio', 'envios_laboratorio', 'pagos_laboratorio', 'lineas_laboratorio', 'laboratorios',
     'plantillas_documento', 'plantillas_evolucion',
-    'tratamientos', 'doctores', 'usuarios'
+    'tratamientos', 'doctores', 'usuarios', 'permisos_usuario'
 ];
 
 function contarFilas(db, tablas) {

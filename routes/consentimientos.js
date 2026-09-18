@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { ahoraLocal, hoyLocal } = require('../utils/fechaLocal');
 const { resolverMarcadores, construirClausulaRepresentante, BLOQUES_DECISION, textoRevocacion, calcularEdad } = require('../utils/plantillas');
 
@@ -57,7 +57,7 @@ const SELECT_BASE = `
 // -----------------------------------------------------------------
 // GET /api/consentimientos/:pacienteId - historial completo
 // -----------------------------------------------------------------
-router.get('/:pacienteId', (req, res) => {
+router.get('/:pacienteId', requierePermiso('planes.ver'), (req, res) => {
     const filas = db.prepare(`${SELECT_BASE} WHERE c.paciente_id = ? ORDER BY c.id DESC`).all(req.params.pacienteId);
     res.json(filas);
 });
@@ -66,7 +66,7 @@ router.get('/:pacienteId', (req, res) => {
 // GET /api/consentimientos/:pacienteId/:id - uno (ver / imprimir), con su
 // consentimiento de origen o su revocacion vinculada si existen
 // -----------------------------------------------------------------
-router.get('/:pacienteId/:id', (req, res) => {
+router.get('/:pacienteId/:id', requierePermiso('planes.ver'), (req, res) => {
     const fila = db.prepare(`${SELECT_BASE} WHERE c.paciente_id = ? AND c.id = ?`).get(req.params.pacienteId, req.params.id);
     if (!fila) return res.status(404).json({ error: 'Consentimiento no encontrado' });
 
@@ -84,7 +84,7 @@ router.get('/:pacienteId/:id', (req, res) => {
 // PNG de la firma (quien = 'paciente' | 'doctor'), con la misma sesion
 // autenticada que el resto de la app (nunca estatico/publico).
 // -----------------------------------------------------------------
-router.get('/:pacienteId/:id/firma/:quien', (req, res) => {
+router.get('/:pacienteId/:id/firma/:quien', requierePermiso('planes.ver'), (req, res) => {
     const columna = req.params.quien === 'doctor' ? 'firma_doctor_path' : 'firma_paciente_path';
     const fila = db.prepare(`SELECT ${columna} AS ruta FROM consentimientos WHERE id = ? AND paciente_id = ?`)
         .get(req.params.id, req.params.pacienteId);
@@ -96,7 +96,7 @@ router.get('/:pacienteId/:id/firma/:quien', (req, res) => {
 // POST /api/consentimientos/:pacienteId - genera y firma un consentimiento
 // nuevo (decision: 'aceptado' | 'rechazado')
 // -----------------------------------------------------------------
-router.post('/:pacienteId', (req, res) => {
+router.post('/:pacienteId', requierePermiso('planes.gestionar'), (req, res) => {
     const pacienteId = Number(req.params.pacienteId);
     const paciente = db.prepare('SELECT * FROM pacientes WHERE id = ?').get(pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
@@ -192,7 +192,7 @@ router.post('/:pacienteId', (req, res) => {
 // revocacion como un consentimiento NUEVO vinculado al original (que
 // permanece intacto), y marca el original como 'revocado'.
 // -----------------------------------------------------------------
-router.post('/:pacienteId/:id/revocar', (req, res) => {
+router.post('/:pacienteId/:id/revocar', requierePermiso('planes.gestionar'), (req, res) => {
     const pacienteId = Number(req.params.pacienteId);
     const origen = db.prepare(`${SELECT_BASE} WHERE c.paciente_id = ? AND c.id = ?`).get(pacienteId, req.params.id);
     if (!origen) return res.status(404).json({ error: 'Consentimiento no encontrado' });
@@ -235,7 +235,7 @@ router.post('/:pacienteId/:id/revocar', (req, res) => {
 // PUT /api/consentimientos/:id/anular - solo admin. Borrado logico: el
 // consentimiento sigue existiendo y visible, marcado como anulado.
 // -----------------------------------------------------------------
-router.put('/:id/anular', requiereAdmin, (req, res) => {
+router.put('/:id/anular', requierePermiso('planes.anular'), (req, res) => {
     const consentimiento = db.prepare('SELECT id, estado FROM consentimientos WHERE id = ?').get(req.params.id);
     if (!consentimiento) return res.status(404).json({ error: 'Consentimiento no encontrado' });
     if (consentimiento.estado === 'anulado') return res.status(400).json({ error: 'Este consentimiento ya está anulado' });

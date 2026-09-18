@@ -144,18 +144,14 @@
                     <label for="tl-color">Color / tono</label>
                     <input type="text" id="tl-color" placeholder="Ej. A2">
                 </div>
-                <div class="campo">
-                    <label for="tl-cantidad">Cantidad</label>
-                    <input type="number" id="tl-cantidad" step="1" min="1" value="1">
-                </div>
-                <div class="campo">
-                    <label for="tl-costo-unitario">Costo unitario (USD)</label>
-                    <input type="number" id="tl-costo-unitario" step="0.01" min="0" placeholder="0.00">
-                </div>
-                <div class="campo">
-                    <label>Costo total</label>
-                    <div class="total-calculado" id="tl-costo-total">$0.00</div>
-                    <span class="seccion-clinica__ayuda">Cantidad × costo unitario. Es lo que se le paga al laboratorio.</span>
+                <div class="campo campo--ancho">
+                    <label>Líneas de la orden (lo que se le paga al laboratorio)</label>
+                    <div class="lineas-editor" id="tl-lineas"></div>
+                    <div class="flex-entre" style="margin-top:6px; align-items:center;">
+                        <button type="button" class="btn-texto" id="tl-agregar-linea">+ Agregar línea</button>
+                        <div>Costo total: <strong class="total-calculado" id="tl-costo-total">$0.00</strong></div>
+                    </div>
+                    <span class="seccion-clinica__ayuda">Una misma orden puede llevar trabajos con precios distintos (ej. 4 coronas a $90 y 1 provisional a $15). El total es la suma de las líneas.</span>
                 </div>
                 <div class="campo">
                     <label for="tl-fecha-envio">Fecha de envío</label>
@@ -323,7 +319,10 @@
         <button class="modal__cerrar" id="cerrar-modal-abonos">&times;</button>
         <h2 id="titulo-modal-abonos">Detalle del trabajo</h2>
         <div id="resumen-abonos"></div>
-        <h3>Idas y vueltas al laboratorio</h3>
+        <h3>Líneas de la orden</h3>
+        <p class="seccion-clinica__ayuda">El costo total es la suma de las líneas, más lo que el laboratorio cobre por un reenvío.</p>
+        <div id="lista-lineas-detalle"></div>
+        <h3 style="margin-top:24px;">Idas y vueltas al laboratorio</h3>
         <p class="seccion-clinica__ayuda">Todos los movimientos de esta orden, sin cambiar su número.</p>
         <div id="lista-envios"></div>
         <h3 style="margin-top:24px;">Abonos</h3>

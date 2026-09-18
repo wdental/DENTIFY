@@ -7,7 +7,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso, usuarioTienePermiso } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -16,7 +16,7 @@ const TIPOS_VALIDOS = ['consentimiento', 'certificado', 'otro'];
 
 // GET /api/plantillas?tipo=consentimiento&incluirInactivas=1
 router.get('/', (req, res) => {
-    const incluirInactivas = req.query.incluirInactivas === '1' && req.session.usuario.rol === 'admin';
+    const incluirInactivas = req.query.incluirInactivas === '1' && usuarioTienePermiso(req.session.usuario, 'catalogos.plantillas');
     const condiciones = [];
     const parametros = [];
     if (!incluirInactivas) condiciones.push('activo = 1');
@@ -33,7 +33,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/plantillas - solo admin
-router.post('/', requiereAdmin, (req, res) => {
+router.post('/', requierePermiso('catalogos.plantillas'), (req, res) => {
     const { nombre, tipo, procedimiento_asociado, contenido } = req.body;
     if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
     if (!TIPOS_VALIDOS.includes(tipo)) return res.status(400).json({ error: 'Tipo invalido' });
@@ -48,7 +48,7 @@ router.post('/', requiereAdmin, (req, res) => {
 
 // PUT /api/plantillas/:id - solo admin. No afecta consentimientos ya firmados
 // (contenido_final ya quedo resuelto e independiente en cada uno).
-router.put('/:id', requiereAdmin, (req, res) => {
+router.put('/:id', requierePermiso('catalogos.plantillas'), (req, res) => {
     const plantilla = db.prepare('SELECT id FROM plantillas_documento WHERE id = ?').get(req.params.id);
     if (!plantilla) return res.status(404).json({ error: 'Plantilla no encontrada' });
 

@@ -4,10 +4,10 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requiereSesion);
+router.use(requiereSesion, requierePermiso('historia.ver'));
 
 // -----------------------------------------------------------------
 // GET /api/cie10?q=texto - busca por codigo o descripcion (max 25 resultados)

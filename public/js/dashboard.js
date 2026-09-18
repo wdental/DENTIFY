@@ -33,20 +33,48 @@ let menuEstadoFlotante = null;
     window.addEventListener('resize', cerrarMenuEstado);
 })();
 
+// Oculta la tarjeta que contiene al elemento indicado (para las areas en
+// las que el usuario no tiene permiso el servidor manda null).
+function alternarTarjetaDashboard(idElemento, visible) {
+    const tarjeta = document.getElementById(idElemento).closest('.tarjeta');
+    if (tarjeta) tarjeta.classList.toggle('oculto', !visible);
+}
+
 async function cargarResumenDashboard() {
     try {
         const resumen = await api.get('/api/dashboard/resumen');
 
-        document.getElementById('valor-total-activos').textContent = resumen.totalActivos;
-        document.getElementById('valor-nuevos-mes').textContent = resumen.nuevosMes;
-        document.getElementById('valor-citas-hoy').textContent = resumen.citasHoy.length;
-        document.getElementById('valor-noshows-mes').textContent = resumen.noShowsMes;
-        document.getElementById('fecha-hoy-dashboard').textContent = formatearFechaConDia(fechaHoyIso());
-        dibujarIndicadoresFinancieros(resumen.finanzas);
-        dibujarIndicadoresLaboratorio(resumen.laboratorio);
+        // Pacientes
+        alternarTarjetaDashboard('valor-total-activos', resumen.totalActivos !== null);
+        alternarTarjetaDashboard('valor-nuevos-mes', resumen.nuevosMes !== null);
+        alternarTarjetaDashboard('grafico-origen', resumen.distribucionOrigen !== null);
+        if (resumen.totalActivos !== null) {
+            document.getElementById('valor-total-activos').textContent = resumen.totalActivos;
+            document.getElementById('valor-nuevos-mes').textContent = resumen.nuevosMes;
+            dibujarGraficoOrigen(resumen.distribucionOrigen);
+        }
 
-        dibujarGraficoOrigen(resumen.distribucionOrigen);
-        dibujarCitasHoy(resumen.citasHoy);
+        // Agenda
+        alternarTarjetaDashboard('valor-citas-hoy', resumen.citasHoy !== null);
+        alternarTarjetaDashboard('valor-noshows-mes', resumen.noShowsMes !== null);
+        alternarTarjetaDashboard('lista-citas-hoy', resumen.citasHoy !== null);
+        if (resumen.citasHoy !== null) {
+            document.getElementById('valor-citas-hoy').textContent = resumen.citasHoy.length;
+            document.getElementById('valor-noshows-mes').textContent = resumen.noShowsMes;
+            document.getElementById('fecha-hoy-dashboard').textContent = formatearFechaConDia(fechaHoyIso());
+            dibujarCitasHoy(resumen.citasHoy);
+        }
+
+        // Caja
+        alternarTarjetaDashboard('valor-saldos-pendientes', resumen.finanzas !== null);
+        alternarTarjetaDashboard('valor-ingresos-mes', resumen.finanzas !== null);
+        alternarTarjetaDashboard('valor-cuotas-vencidas', resumen.finanzas !== null);
+        dibujarIndicadoresFinancieros(resumen.finanzas);
+
+        // Laboratorio
+        alternarTarjetaDashboard('valor-en-laboratorio-dash', resumen.laboratorio !== null);
+        alternarTarjetaDashboard('valor-deuda-laboratorios', resumen.laboratorio !== null);
+        dibujarIndicadoresLaboratorio(resumen.laboratorio);
     } catch (error) {
         console.error('Error al cargar el resumen del panel:', error);
     }

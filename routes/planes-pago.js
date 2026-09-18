@@ -8,7 +8,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { redondear, calcularCronograma, pagosDelPlanPago } = require('../utils/finanzas');
 
 const router = express.Router();
@@ -37,13 +37,13 @@ function cargarConCronograma(id) {
 }
 
 // GET /api/planes-pago/paciente/:pacienteId - todos los acuerdos del paciente
-router.get('/paciente/:pacienteId', (req, res) => {
+router.get('/paciente/:pacienteId', requierePermiso('caja.ver'), (req, res) => {
     const filas = db.prepare(`${SELECT_PLAN_PAGO} WHERE pp.paciente_id = ? ORDER BY pp.id DESC`).all(req.params.pacienteId);
     res.json(filas.map((f) => cargarConCronograma(f.id)));
 });
 
 // GET /api/planes-pago/:id - uno con cronograma y pagos
-router.get('/:id', (req, res) => {
+router.get('/:id', requierePermiso('caja.ver'), (req, res) => {
     const planPago = cargarConCronograma(req.params.id);
     if (!planPago) return res.status(404).json({ error: 'Plan de cuotas no encontrado' });
     res.json(planPago);
@@ -54,7 +54,7 @@ router.get('/:id', (req, res) => {
 // body: { paciente_id, plan_id?, descripcion, monto_total, entrada,
 //         numero_cuotas, monto_cuota, dia_pago_mes, fecha_inicio, notas }
 // -----------------------------------------------------------------
-router.post('/', (req, res) => {
+router.post('/', requierePermiso('caja.registrar'), (req, res) => {
     const b = req.body || {};
     const pacienteId = Number(b.paciente_id);
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(pacienteId);
@@ -113,7 +113,7 @@ router.post('/', (req, res) => {
 // PUT /api/planes-pago/:id/cancelar - solo admin, con motivo. Los pagos
 // ya registrados contra el acuerdo permanecen intactos (son inmutables).
 // -----------------------------------------------------------------
-router.put('/:id/cancelar', requiereAdmin, (req, res) => {
+router.put('/:id/cancelar', requierePermiso('caja.cancelar_cuotas'), (req, res) => {
     const planPago = db.prepare('SELECT id, estado FROM planes_pago WHERE id = ?').get(req.params.id);
     if (!planPago) return res.status(404).json({ error: 'Plan de cuotas no encontrado' });
     if (planPago.estado !== 'activo') return res.status(400).json({ error: 'Solo se puede cancelar un plan de cuotas activo' });

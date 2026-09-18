@@ -9,7 +9,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { ahoraLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
@@ -69,7 +69,7 @@ function parsearFicha(fila) {
 // -----------------------------------------------------------------
 // GET /api/ficha-clinica/:pacienteId - ficha completa (todas las secciones)
 // -----------------------------------------------------------------
-router.get('/:pacienteId', (req, res) => {
+router.get('/:pacienteId', requierePermiso('historia.ver'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
 
@@ -81,7 +81,7 @@ router.get('/:pacienteId', (req, res) => {
 // GET /api/ficha-clinica/:pacienteId/alertas - resumen para banners
 // (cabecera de la ficha y modal de citas en la Agenda)
 // -----------------------------------------------------------------
-router.get('/:pacienteId/alertas', (req, res) => {
+router.get('/:pacienteId/alertas', requierePermiso('historia.ver'), (req, res) => {
     const fila = obtenerFicha(req.params.pacienteId);
     if (!fila || !fila.antecedentes_personales_json) {
         return res.json({ tieneAlertas: false, etiquetas: [] });
@@ -104,7 +104,7 @@ router.get('/:pacienteId/alertas', (req, res) => {
 // -----------------------------------------------------------------
 // PUT /api/ficha-clinica/:pacienteId/seccion/:seccion - guarda una seccion
 // -----------------------------------------------------------------
-router.put('/:pacienteId/seccion/:seccion', (req, res) => {
+router.put('/:pacienteId/seccion/:seccion', requierePermiso('historia.registrar'), (req, res) => {
     const columna = SECCIONES[req.params.seccion];
     if (!columna) return res.status(400).json({ error: 'Seccion invalida' });
 

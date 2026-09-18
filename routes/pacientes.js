@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso, usuarioTienePermiso } = require('../middleware/auth');
 const { generarNumeroHistoria } = require('../utils/numeroHistoria');
 
 const router = express.Router();
@@ -62,9 +62,9 @@ function validarCedula(cedula) {
 // -----------------------------------------------------------------
 // GET /api/pacientes - listado con busqueda y filtro
 // -----------------------------------------------------------------
-router.get('/', (req, res) => {
+router.get('/', requierePermiso('pacientes.ver'), (req, res) => {
     const { q, origen } = req.query;
-    const incluirInactivos = req.query.incluirInactivos === '1' && req.session.usuario.rol === 'admin';
+    const incluirInactivos = req.query.incluirInactivos === '1' && usuarioTienePermiso(req.session.usuario, 'pacientes.eliminar');
 
     let sql = 'SELECT * FROM pacientes WHERE 1=1';
     const parametros = [];
@@ -97,7 +97,7 @@ router.get('/', (req, res) => {
 // -----------------------------------------------------------------
 // GET /api/pacientes/:id - ficha completa de un paciente
 // -----------------------------------------------------------------
-router.get('/:id', (req, res) => {
+router.get('/:id', requierePermiso('pacientes.ver'), (req, res) => {
     const paciente = db.prepare('SELECT * FROM pacientes WHERE id = ?').get(req.params.id);
     if (!paciente) {
         return res.status(404).json({ error: 'Paciente no encontrado' });
@@ -109,7 +109,7 @@ router.get('/:id', (req, res) => {
 // -----------------------------------------------------------------
 // POST /api/pacientes - crear paciente nuevo
 // -----------------------------------------------------------------
-router.post('/', (req, res) => {
+router.post('/', requierePermiso('pacientes.gestionar'), (req, res) => {
     const datos = req.body;
 
     if (!datos.nombres || !datos.apellidos) {
@@ -159,7 +159,7 @@ router.post('/', (req, res) => {
 // -----------------------------------------------------------------
 // PUT /api/pacientes/:id - editar paciente
 // -----------------------------------------------------------------
-router.put('/:id', (req, res) => {
+router.put('/:id', requierePermiso('pacientes.gestionar'), (req, res) => {
     const id = Number(req.params.id);
     const datos = req.body;
 
@@ -212,7 +212,7 @@ router.put('/:id', (req, res) => {
 // -----------------------------------------------------------------
 // DELETE /api/pacientes/:id - eliminacion logica (solo admin)
 // -----------------------------------------------------------------
-router.delete('/:id', requiereAdmin, (req, res) => {
+router.delete('/:id', requierePermiso('pacientes.eliminar'), (req, res) => {
     const id = Number(req.params.id);
     const existente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(id);
     if (!existente) {
@@ -225,7 +225,7 @@ router.delete('/:id', requiereAdmin, (req, res) => {
 // -----------------------------------------------------------------
 // PUT /api/pacientes/:id/restaurar - revierte la eliminacion logica (solo admin)
 // -----------------------------------------------------------------
-router.put('/:id/restaurar', requiereAdmin, (req, res) => {
+router.put('/:id/restaurar', requierePermiso('pacientes.eliminar'), (req, res) => {
     const id = Number(req.params.id);
     const existente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(id);
     if (!existente) {
@@ -240,7 +240,7 @@ router.put('/:id/restaurar', requiereAdmin, (req, res) => {
 // -----------------------------------------------------------------
 
 // GET /api/pacientes/:id/documentos
-router.get('/:id/documentos', (req, res) => {
+router.get('/:id/documentos', requierePermiso('pacientes.ver'), (req, res) => {
     const documentos = db.prepare(
         'SELECT * FROM documentos_pacientes WHERE paciente_id = ? ORDER BY fecha_subida DESC'
     ).all(req.params.id);
@@ -248,7 +248,7 @@ router.get('/:id/documentos', (req, res) => {
 });
 
 // POST /api/pacientes/:id/documentos - subir archivo
-router.post('/:id/documentos', upload.single('archivo'), (req, res) => {
+router.post('/:id/documentos', requierePermiso('pacientes.gestionar'), upload.single('archivo'), (req, res) => {
     const pacienteId = Number(req.params.id);
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(pacienteId);
     if (!paciente) {
@@ -274,7 +274,7 @@ router.post('/:id/documentos', upload.single('archivo'), (req, res) => {
 });
 
 // GET /api/pacientes/:id/documentos/:docId/descargar
-router.get('/:id/documentos/:docId/descargar', (req, res) => {
+router.get('/:id/documentos/:docId/descargar', requierePermiso('pacientes.ver'), (req, res) => {
     const doc = db.prepare(
         'SELECT * FROM documentos_pacientes WHERE id = ? AND paciente_id = ?'
     ).get(req.params.docId, req.params.id);
@@ -292,7 +292,7 @@ router.get('/:id/documentos/:docId/descargar', (req, res) => {
 });
 
 // DELETE /api/pacientes/:id/documentos/:docId
-router.delete('/:id/documentos/:docId', (req, res) => {
+router.delete('/:id/documentos/:docId', requierePermiso('pacientes.gestionar'), (req, res) => {
     const doc = db.prepare(
         'SELECT * FROM documentos_pacientes WHERE id = ? AND paciente_id = ?'
     ).get(req.params.docId, req.params.id);

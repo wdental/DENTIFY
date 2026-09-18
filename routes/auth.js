@@ -4,6 +4,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db/conexion');
+const { permisosDeUsuario } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.post('/login', (req, res) => {
         doctor_id: fila.doctor_id || null
     };
 
-    res.json({ ok: true, usuario: req.session.usuario });
+    res.json({ ok: true, usuario: { ...req.session.usuario, permisos: permisosDeUsuario(req.session.usuario) } });
 });
 
 // POST /api/auth/logout
@@ -39,9 +40,12 @@ router.post('/logout', (req, res) => {
     });
 });
 
-// GET /api/auth/yo - devuelve el usuario en sesion (o null)
+// GET /api/auth/yo - devuelve el usuario en sesion (o null), con sus
+// permisos VIGENTES (se leen de la base en cada llamada: un cambio de
+// permisos aplica al recargar la pagina, sin cerrar sesion).
 router.get('/yo', (req, res) => {
-    res.json({ usuario: req.session.usuario || null });
+    if (!req.session.usuario) return res.json({ usuario: null });
+    res.json({ usuario: { ...req.session.usuario, permisos: permisosDeUsuario(req.session.usuario) } });
 });
 
 module.exports = router;

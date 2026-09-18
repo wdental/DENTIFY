@@ -12,7 +12,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -56,7 +56,7 @@ function validar(req, res) {
     return true;
 }
 
-router.post('/', requiereAdmin, (req, res) => {
+router.post('/', requierePermiso('catalogos.plantillas'), (req, res) => {
     if (!validar(req, res)) return;
     const { nombre, campo, texto, orden } = req.body;
 
@@ -72,7 +72,7 @@ router.post('/', requiereAdmin, (req, res) => {
     res.json({ ok: true, id: resultado.lastInsertRowid });
 });
 
-router.put('/:id', requiereAdmin, (req, res) => {
+router.put('/:id', requierePermiso('catalogos.plantillas'), (req, res) => {
     const plantilla = db.prepare('SELECT id FROM plantillas_evolucion WHERE id = ?').get(req.params.id);
     if (!plantilla) return res.status(404).json({ error: 'Plantilla no encontrada' });
     if (!validar(req, res)) return;
@@ -93,7 +93,7 @@ router.put('/:id', requiereAdmin, (req, res) => {
 
 // Borrado real: son textos de ayuda, no un registro clinico. Las
 // evoluciones ya escritas con esta plantilla no se tocan.
-router.delete('/:id', requiereAdmin, (req, res) => {
+router.delete('/:id', requierePermiso('catalogos.plantillas'), (req, res) => {
     const plantilla = db.prepare('SELECT id FROM plantillas_evolucion WHERE id = ?').get(req.params.id);
     if (!plantilla) return res.status(404).json({ error: 'Plantilla no encontrada' });
     db.prepare('DELETE FROM plantillas_evolucion WHERE id = ?').run(req.params.id);

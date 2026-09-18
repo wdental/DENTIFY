@@ -6,7 +6,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requiereAdmin, requierePermiso } = require('../middleware/auth');
 const { ahoraLocal, hoyLocal } = require('../utils/fechaLocal');
 
 const router = express.Router();
@@ -44,7 +44,7 @@ function parsearFilaEvolucion(fila) {
 // GET /api/evoluciones/:pacienteId - historial completo, orden cronologico
 // inverso (mas reciente primero). ?limite=N para el panel compacto.
 // -----------------------------------------------------------------
-router.get('/:pacienteId', (req, res) => {
+router.get('/:pacienteId', requierePermiso('historia.ver'), (req, res) => {
     const limite = req.query.limite ? Number(req.query.limite) : null;
     const filas = cargarEvoluciones(req.params.pacienteId, limite);
     res.json(filas.map(parsearFilaEvolucion));
@@ -54,7 +54,7 @@ router.get('/:pacienteId', (req, res) => {
 // GET /api/evoluciones/:pacienteId/cita-del-dia?fecha=YYYY-MM-DD - busca
 // una cita atendida de ese paciente en esa fecha, para ofrecer vincularla.
 // -----------------------------------------------------------------
-router.get('/:pacienteId/cita-del-dia', (req, res) => {
+router.get('/:pacienteId/cita-del-dia', requierePermiso('historia.ver'), (req, res) => {
     const fecha = req.query.fecha;
     if (!fecha) return res.json(null);
 
@@ -72,7 +72,7 @@ router.get('/:pacienteId/cita-del-dia', (req, res) => {
 // -----------------------------------------------------------------
 // POST /api/evoluciones/:pacienteId - registra una nueva sesion (INMUTABLE)
 // -----------------------------------------------------------------
-router.post('/:pacienteId', (req, res) => {
+router.post('/:pacienteId', requierePermiso('historia.registrar'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
 

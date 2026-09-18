@@ -6,7 +6,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -174,7 +174,7 @@ function validarExclusiones(piezas) {
 // -----------------------------------------------------------------
 // GET /api/odontograma/:pacienteId/versiones - listado para el selector
 // -----------------------------------------------------------------
-router.get('/:pacienteId/versiones', (req, res) => {
+router.get('/:pacienteId/versiones', requierePermiso('historia.ver'), (req, res) => {
     const versiones = db.prepare(`
         SELECT o.id, o.fecha_registro, o.es_version_activa, o.observaciones, o.tipo,
                d.nombre_completo AS doctor_nombre, u.nombre AS creado_por_nombre
@@ -191,7 +191,7 @@ router.get('/:pacienteId/versiones', (req, res) => {
 // -----------------------------------------------------------------
 // GET /api/odontograma/:pacienteId/activo - version activa + piezas
 // -----------------------------------------------------------------
-router.get('/:pacienteId/activo', (req, res) => {
+router.get('/:pacienteId/activo', requierePermiso('historia.ver'), (req, res) => {
     const odontograma = db.prepare(`
         SELECT o.*, d.nombre_completo AS doctor_nombre, u.nombre AS creado_por_nombre
         FROM odontogramas o
@@ -208,7 +208,7 @@ router.get('/:pacienteId/activo', (req, res) => {
 // -----------------------------------------------------------------
 // GET /api/odontograma/version/:id - version especifica, solo lectura
 // -----------------------------------------------------------------
-router.get('/version/:id', (req, res) => {
+router.get('/version/:id', requierePermiso('historia.ver'), (req, res) => {
     const odontograma = db.prepare(`
         SELECT o.*, d.nombre_completo AS doctor_nombre, u.nombre AS creado_por_nombre
         FROM odontogramas o
@@ -227,7 +227,7 @@ router.get('/version/:id', (req, res) => {
 // version activa (caries=C/c, perdidas=P/e, obturados=O/o por pieza,
 // con prioridad perdida > caries > obturado si una pieza tiene varias)
 // -----------------------------------------------------------------
-router.get('/:pacienteId/cpo-sugerido', (req, res) => {
+router.get('/:pacienteId/cpo-sugerido', requierePermiso('historia.ver'), (req, res) => {
     const odontograma = db.prepare(
         'SELECT id FROM odontogramas WHERE paciente_id = ? AND es_version_activa = 1'
     ).get(req.params.pacienteId);
@@ -266,7 +266,7 @@ router.get('/:pacienteId/cpo-sugerido', (req, res) => {
 // POST /api/odontograma/:pacienteId - registra una NUEVA version
 // (inmutable: desactiva la version anterior, nunca la modifica)
 // -----------------------------------------------------------------
-router.post('/:pacienteId', (req, res) => {
+router.post('/:pacienteId', requierePermiso('historia.registrar'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
 

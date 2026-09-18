@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { ahoraLocal } = require('../utils/fechaLocal');
 const { construirClausulaRepresentante, calcularEdad } = require('../utils/plantillas');
 
@@ -160,13 +160,13 @@ function cargarPlanConItems(planId) {
 // -----------------------------------------------------------------
 // GET /api/planes-tratamiento/:pacienteId - historial completo
 // -----------------------------------------------------------------
-router.get('/:pacienteId', (req, res) => {
+router.get('/:pacienteId', requierePermiso('planes.ver'), (req, res) => {
     const planes = db.prepare(`${SELECT_PLAN_BASE} WHERE pt.paciente_id = ? ORDER BY pt.id DESC`).all(req.params.pacienteId);
     res.json(planes);
 });
 
 // GET /api/planes-tratamiento/:pacienteId/actual - el borrador/presentado vigente, si existe
-router.get('/:pacienteId/actual', (req, res) => {
+router.get('/:pacienteId/actual', requierePermiso('planes.ver'), (req, res) => {
     const plan = db.prepare(`
         ${SELECT_PLAN_BASE} WHERE pt.paciente_id = ? AND pt.estado IN ('borrador', 'presentado')
         ORDER BY pt.id DESC LIMIT 1
@@ -180,7 +180,7 @@ router.get('/:pacienteId/actual', (req, res) => {
 // con esas piezas, para ofrecer marcarlos realizados desde una evolucion.
 // Registrado ANTES de "/:pacienteId/:id" para que "pendientes-por-pieza"
 // no sea interpretado como un id de plan.
-router.get('/:pacienteId/pendientes-por-pieza', (req, res) => {
+router.get('/:pacienteId/pendientes-por-pieza', requierePermiso('planes.ver', 'historia.registrar'), (req, res) => {
     const piezas = (req.query.piezas || '').split(',').map((p) => p.trim()).filter(Boolean);
     if (piezas.length === 0) return res.json([]);
 
@@ -195,7 +195,7 @@ router.get('/:pacienteId/pendientes-por-pieza', (req, res) => {
 });
 
 // GET /api/planes-tratamiento/:pacienteId/:id - uno completo, con items
-router.get('/:pacienteId/:id', (req, res) => {
+router.get('/:pacienteId/:id', requierePermiso('planes.ver'), (req, res) => {
     const plan = cargarPlanConItems(req.params.id);
     if (!plan || plan.paciente_id !== Number(req.params.pacienteId)) {
         return res.status(404).json({ error: 'Plan no encontrado' });
@@ -204,7 +204,7 @@ router.get('/:pacienteId/:id', (req, res) => {
 });
 
 // GET /api/planes-tratamiento/:pacienteId/:id/firma/:quien - imagen PNG de firma
-router.get('/:pacienteId/:id/firma/:quien', (req, res) => {
+router.get('/:pacienteId/:id/firma/:quien', requierePermiso('planes.ver'), (req, res) => {
     const fila = db.prepare('SELECT firma_paciente_path, firma_representante_path FROM planes_tratamiento WHERE id = ? AND paciente_id = ?')
         .get(req.params.id, req.params.pacienteId);
     const ruta = req.params.quien === 'representante' ? (fila && fila.firma_representante_path) : (fila && fila.firma_paciente_path);
@@ -219,7 +219,7 @@ router.get('/:pacienteId/:id/firma/:quien', (req, res) => {
 // body opcional: { odontograma_id } para generar desde una version
 // especifica (usado por la sugerencia automatica al guardar el odontograma).
 // -----------------------------------------------------------------
-router.post('/:pacienteId/generar', (req, res) => {
+router.post('/:pacienteId/generar', requierePermiso('planes.gestionar'), (req, res) => {
     const pacienteId = Number(req.params.pacienteId);
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
@@ -273,7 +273,7 @@ function asegurarEditable(plan, res) {
 // PUT /api/planes-tratamiento/:pacienteId/:id - edita condiciones/estado
 // (solo borrador/presentado -> permite volver a borrador para seguir editando)
 // -----------------------------------------------------------------
-router.put('/:pacienteId/:id', (req, res) => {
+router.put('/:pacienteId/:id', requierePermiso('planes.gestionar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!asegurarEditable(plan, res)) return;
 
@@ -285,7 +285,7 @@ router.put('/:pacienteId/:id', (req, res) => {
 });
 
 // POST /api/planes-tratamiento/:pacienteId/:id/items - agrega una linea manual desde el catalogo
-router.post('/:pacienteId/:id/items', (req, res) => {
+router.post('/:pacienteId/:id/items', requierePermiso('planes.gestionar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!asegurarEditable(plan, res)) return;
 
@@ -307,7 +307,7 @@ router.post('/:pacienteId/:id/items', (req, res) => {
 });
 
 // PUT /api/planes-tratamiento/:pacienteId/:id/items/:itemId - edita descripcion/precio/fase/orden
-router.put('/:pacienteId/:id/items/:itemId', (req, res) => {
+router.put('/:pacienteId/:id/items/:itemId', requierePermiso('planes.gestionar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!asegurarEditable(plan, res)) return;
 
@@ -337,7 +337,7 @@ router.put('/:pacienteId/:id/items/:itemId', (req, res) => {
 });
 
 // DELETE /api/planes-tratamiento/:pacienteId/:id/items/:itemId - quita una linea
-router.delete('/:pacienteId/:id/items/:itemId', (req, res) => {
+router.delete('/:pacienteId/:id/items/:itemId', requierePermiso('planes.gestionar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!asegurarEditable(plan, res)) return;
 
@@ -351,7 +351,7 @@ router.delete('/:pacienteId/:id/items/:itemId', (req, res) => {
 // POST /api/planes-tratamiento/:pacienteId/:id/presentar - vista formal
 // del plan (membrete + tabla por fases) -> estado 'presentado'
 // -----------------------------------------------------------------
-router.post('/:pacienteId/:id/presentar', (req, res) => {
+router.post('/:pacienteId/:id/presentar', requierePermiso('planes.gestionar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!asegurarEditable(plan, res)) return;
 
@@ -369,7 +369,7 @@ router.post('/:pacienteId/:id/presentar', (req, res) => {
 // paciente (y representante si es menor) -> estado 'aceptado', snapshot
 // inmutable con hash SHA-256, firma PNG en disco (patron de consentimientos).
 // -----------------------------------------------------------------
-router.post('/:pacienteId/:id/aceptar', (req, res) => {
+router.post('/:pacienteId/:id/aceptar', requierePermiso('planes.gestionar'), (req, res) => {
     const pacienteId = Number(req.params.pacienteId);
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, pacienteId);
     if (!plan) return res.status(404).json({ error: 'Plan no encontrado' });
@@ -444,7 +444,7 @@ router.post('/:pacienteId/:id/aceptar', (req, res) => {
 });
 
 // POST /api/planes-tratamiento/:pacienteId/:id/rechazar
-router.post('/:pacienteId/:id/rechazar', (req, res) => {
+router.post('/:pacienteId/:id/rechazar', requierePermiso('planes.gestionar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!plan) return res.status(404).json({ error: 'Plan no encontrado' });
     if (!ESTADOS_CON_UN_BORRADOR.includes(plan.estado)) {
@@ -462,7 +462,7 @@ router.post('/:pacienteId/:id/rechazar', (req, res) => {
 // un plan aceptado: crea un borrador nuevo con copia editable de los
 // items, vinculado por version_anterior_id. El aceptado queda intacto.
 // -----------------------------------------------------------------
-router.post('/:pacienteId/:id/nueva-version', (req, res) => {
+router.post('/:pacienteId/:id/nueva-version', requierePermiso('planes.gestionar'), (req, res) => {
     const pacienteId = Number(req.params.pacienteId);
     const planOrigen = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, pacienteId);
     if (!planOrigen) return res.status(404).json({ error: 'Plan no encontrado' });
@@ -508,7 +508,7 @@ router.post('/:pacienteId/:id/nueva-version', (req, res) => {
 // vincula el item a la evolucion que lo resolvio y actualiza el estado del
 // plan (primer realizado -> en_curso; todos resueltos -> sugerencia finalizado,
 // que el frontend confirma aparte via PUT estado).
-router.put('/:pacienteId/:id/items/:itemId/marcar-realizado', (req, res) => {
+router.put('/:pacienteId/:id/items/:itemId/marcar-realizado', requierePermiso('planes.gestionar', 'historia.registrar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!plan) return res.status(404).json({ error: 'Plan no encontrado' });
     if (!['aceptado', 'en_curso'].includes(plan.estado)) {
@@ -529,7 +529,7 @@ router.put('/:pacienteId/:id/items/:itemId/marcar-realizado', (req, res) => {
 });
 
 // PUT /api/planes-tratamiento/:pacienteId/:id/finalizar - solo cuando ya no hay pendientes
-router.put('/:pacienteId/:id/finalizar', (req, res) => {
+router.put('/:pacienteId/:id/finalizar', requierePermiso('planes.gestionar'), (req, res) => {
     const plan = db.prepare('SELECT * FROM planes_tratamiento WHERE id = ? AND paciente_id = ?').get(req.params.id, req.params.pacienteId);
     if (!plan) return res.status(404).json({ error: 'Plan no encontrado' });
     const pendientes = db.prepare("SELECT COUNT(*) AS n FROM plan_items WHERE plan_id = ? AND estado_item = 'pendiente'").get(plan.id).n;

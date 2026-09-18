@@ -7,7 +7,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 const { ahoraLocal } = require('../utils/fechaLocal');
 const { generarNumeroRecibo } = require('../utils/numeroRecibo');
 const { montoEnLetras } = require('../utils/montoEnLetras');
@@ -16,8 +16,23 @@ const { redondear, hoyIso, pagosDelPlanPago, resumenFinancieroPaciente, saldosGl
 const router = express.Router();
 router.use(requiereSesion);
 
-const METODOS = ['efectivo', 'transferencia', 'tarjeta', 'otro'];
-const ETIQUETAS_METODO = { efectivo: 'Efectivo', transferencia: 'Transferencia (Banco Pichincha)', tarjeta: 'Tarjeta', otro: 'Otro' };
+// Metodos ACTIVOS: los unicos admitidos en pagos nuevos. Desde la
+// especificacion de facturacion SRI (docs/fase-2-facturacion.md) la
+// tarjeta se separa en credito/debito (codigos SRI 19 y 16) y 'otro' se
+// retira por no ser facturable. Los pagos antiguos con 'tarjeta' u
+// 'otro' se conservan intactos y se siguen mostrando (HISTORICOS).
+const METODOS_ACTIVOS = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
+const METODOS_HISTORICOS = ['tarjeta', 'otro'];
+const METODOS = [...METODOS_ACTIVOS, ...METODOS_HISTORICOS];
+const ETIQUETAS_METODO = {
+    efectivo: 'Efectivo',
+    transferencia: 'Transferencia (Banco Pichincha)',
+    tarjeta_credito: 'Tarjeta de crédito',
+    tarjeta_debito: 'Tarjeta de débito',
+    tarjeta: 'Tarjeta',
+    otro: 'Otro'
+};
+const METODOS_CON_REFERENCIA = ['transferencia', 'tarjeta_credito', 'tarjeta_debito', 'tarjeta'];
 
 const SELECT_PAGO_BASE = `
     SELECT pg.*,
@@ -38,6 +53,14 @@ function esFechaIso(valor) {
     return typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valor) && !isNaN(new Date(valor + 'T00:00:00').getTime());
 }
 
+// Un metodo historico solo aparece en las vistas cuando el periodo tiene
+// pagos con el (asi los dias viejos siguen cuadrando y los nuevos no
+// cargan columnas muertas).
+function metodosVisibles(pagos) {
+    const presentes = new Set(pagos.map((p) => p.metodo));
+    return METODOS.filter((m) => METODOS_ACTIVOS.includes(m) || presentes.has(m));
+}
+
 function totalesPorMetodo(pagos) {
     const totales = {};
     METODOS.forEach((m) => { totales[m] = { metodo: m, etiqueta: ETIQUETAS_METODO[m], total: 0, cantidad: 0 }; });
@@ -51,7 +74,8 @@ function totalesPorMetodo(pagos) {
         total = redondear(total + Number(p.monto));
         cantidad++;
     });
-    return { por_metodo: Object.values(totales), total, cantidad, anulados };
+    const visibles = metodosVisibles(pagos);
+    return { por_metodo: visibles.map((m) => totales[m]), total, cantidad, anulados };
 }
 
 // Total valido abonado a un plan de cuotas (mismo criterio que el cronograma:
@@ -66,23 +90,23 @@ function totalPagadoPlanPago(planPagoId) {
 // GET /api/pagos/metodos - catalogo de metodos (etiquetas para el front)
 // -----------------------------------------------------------------
 router.get('/metodos', (req, res) => {
-    res.json(METODOS.map((m) => ({ valor: m, etiqueta: ETIQUETAS_METODO[m] })));
+    res.json(METODOS_ACTIVOS.map((m) => ({ valor: m, etiqueta: ETIQUETAS_METODO[m] })));
 });
 
 // -----------------------------------------------------------------
 // GET /api/pagos/caja/dia?fecha=YYYY-MM-DD - todos los pagos del dia
 // (incluidos los anulados, marcados) + totales por metodo sin anulados.
 // -----------------------------------------------------------------
-router.get('/caja/dia', (req, res) => {
+router.get('/caja/dia', requierePermiso('caja.ver'), (req, res) => {
     const fecha = esFechaIso(req.query.fecha) ? req.query.fecha : hoyIso();
     const pagos = db.prepare(`${SELECT_PAGO_BASE} WHERE pg.fecha_pago = ? ORDER BY pg.id`).all(fecha);
-    res.json({ fecha, pagos, totales: totalesPorMetodo(pagos), etiquetas_metodo: ETIQUETAS_METODO });
+    res.json({ fecha, pagos, totales: totalesPorMetodo(pagos), metodos_visibles: metodosVisibles(pagos), etiquetas_metodo: ETIQUETAS_METODO });
 });
 
 // -----------------------------------------------------------------
 // GET /api/pagos/caja/mes?mes=YYYY-MM - totales por dia y por metodo
 // -----------------------------------------------------------------
-router.get('/caja/mes', (req, res) => {
+router.get('/caja/mes', requierePermiso('caja.ver'), (req, res) => {
     const mes = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? req.query.mes : hoyIso().slice(0, 7);
     const pagos = db.prepare('SELECT fecha_pago, metodo, monto, anulado FROM pagos WHERE substr(fecha_pago, 1, 7) = ? ORDER BY fecha_pago, id').all(mes);
 
@@ -99,20 +123,20 @@ router.get('/caja/mes', (req, res) => {
         dia.cantidad++;
     });
 
-    res.json({ mes, dias: Object.values(porDia), totales: totalesPorMetodo(pagos), etiquetas_metodo: ETIQUETAS_METODO });
+    res.json({ mes, dias: Object.values(porDia), totales: totalesPorMetodo(pagos), metodos_visibles: metodosVisibles(pagos), etiquetas_metodo: ETIQUETAS_METODO });
 });
 
 // -----------------------------------------------------------------
 // GET /api/pagos/vencidas - cuotas vencidas de toda la clinica
 // -----------------------------------------------------------------
-router.get('/vencidas', (req, res) => {
+router.get('/vencidas', requierePermiso('caja.ver'), (req, res) => {
     res.json(cuotasVencidas());
 });
 
 // -----------------------------------------------------------------
 // GET /api/pagos/indicadores - tarjetas del dashboard
 // -----------------------------------------------------------------
-router.get('/indicadores', (req, res) => {
+router.get('/indicadores', requierePermiso('caja.ver'), (req, res) => {
     res.json(calcularIndicadores());
 });
 
@@ -134,7 +158,7 @@ function calcularIndicadores() {
 // GET /api/pagos/paciente/:pacienteId - historial completo + resumen
 // financiero (cuentas exigibles, saldo, planes de cuotas con cronograma).
 // -----------------------------------------------------------------
-router.get('/paciente/:pacienteId', (req, res) => {
+router.get('/paciente/:pacienteId', requierePermiso('caja.ver'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
 
@@ -144,7 +168,7 @@ router.get('/paciente/:pacienteId', (req, res) => {
 });
 
 // GET /api/pagos/paciente/:pacienteId/resumen - solo el resumen (panel derecho, modal)
-router.get('/paciente/:pacienteId/resumen', (req, res) => {
+router.get('/paciente/:pacienteId/resumen', requierePermiso('caja.ver'), (req, res) => {
     const paciente = db.prepare('SELECT id FROM pacientes WHERE id = ?').get(req.params.pacienteId);
     if (!paciente) return res.status(404).json({ error: 'Paciente no encontrado' });
     res.json(resumenFinancieroPaciente(paciente.id));
@@ -152,7 +176,7 @@ router.get('/paciente/:pacienteId/resumen', (req, res) => {
 
 // GET /api/pagos/paciente/:pacienteId/conceptos-sugeridos - items pendientes
 // del plan aceptado/en_curso para autocompletar el concepto del pago.
-router.get('/paciente/:pacienteId/conceptos-sugeridos', (req, res) => {
+router.get('/paciente/:pacienteId/conceptos-sugeridos', requierePermiso('caja.ver'), (req, res) => {
     const plan = db.prepare(
         "SELECT id, estado, total FROM planes_tratamiento WHERE paciente_id = ? AND estado IN ('aceptado', 'en_curso') ORDER BY id DESC LIMIT 1"
     ).get(req.params.pacienteId);
@@ -168,7 +192,7 @@ router.get('/paciente/:pacienteId/conceptos-sugeridos', (req, res) => {
 // -----------------------------------------------------------------
 // GET /api/pagos/:id - un pago con todo lo necesario para el recibo
 // -----------------------------------------------------------------
-router.get('/:id', (req, res) => {
+router.get('/:id', requierePermiso('caja.ver'), (req, res) => {
     const pago = db.prepare(`${SELECT_PAGO_BASE} WHERE pg.id = ?`).get(req.params.id);
     if (!pago) return res.status(404).json({ error: 'Pago no encontrado' });
     pago.monto_en_letras = montoEnLetras(pago.monto);
@@ -181,7 +205,7 @@ router.get('/:id', (req, res) => {
 // body: { paciente_id, concepto, monto, metodo, referencia, fecha_pago,
 //         doctor_id, plan_id, plan_item_id, plan_pago_id }
 // -----------------------------------------------------------------
-router.post('/', (req, res) => {
+router.post('/', requierePermiso('caja.registrar'), (req, res) => {
     const b = req.body || {};
     const pacienteId = Number(b.paciente_id);
     const paciente = db.prepare('SELECT id, activo FROM pacientes WHERE id = ?').get(pacienteId);
@@ -195,13 +219,17 @@ router.post('/', (req, res) => {
     if (monto > 999999999) return res.status(400).json({ error: 'El monto es demasiado grande' });
 
     const metodo = String(b.metodo || '').toLowerCase();
-    if (!METODOS.includes(metodo)) return res.status(400).json({ error: 'Método de pago no válido' });
+    if (!METODOS_ACTIVOS.includes(metodo)) {
+        return res.status(400).json({ error: METODOS_HISTORICOS.includes(metodo)
+            ? 'Ese método ya no se usa para pagos nuevos: elija efectivo, transferencia o tarjeta de crédito/débito'
+            : 'Método de pago no válido' });
+    }
 
     const fechaPago = b.fecha_pago ? String(b.fecha_pago).slice(0, 10) : hoyIso();
     if (!esFechaIso(fechaPago)) return res.status(400).json({ error: 'Fecha de pago no válida' });
     if (fechaPago > hoyIso()) return res.status(400).json({ error: 'La fecha de pago no puede ser futura' });
 
-    const referencia = ['transferencia', 'tarjeta'].includes(metodo) ? (String(b.referencia || '').trim() || null) : null;
+    const referencia = METODOS_CON_REFERENCIA.includes(metodo) ? (String(b.referencia || '').trim() || null) : null;
 
     let doctorId = null;
     if (b.doctor_id) {
@@ -265,7 +293,7 @@ router.post('/', (req, res) => {
 // el pago sigue existiendo (tachado) y conserva su numero de recibo.
 // Si abonaba un plan de cuotas ya completado, este vuelve a "activo".
 // -----------------------------------------------------------------
-router.put('/:id/anular', requiereAdmin, (req, res) => {
+router.put('/:id/anular', requierePermiso('caja.anular'), (req, res) => {
     const pago = db.prepare('SELECT id, anulado, plan_pago_id FROM pagos WHERE id = ?').get(req.params.id);
     if (!pago) return res.status(404).json({ error: 'Pago no encontrado' });
     if (pago.anulado) return res.status(400).json({ error: 'Este pago ya está anulado' });

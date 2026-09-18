@@ -26,6 +26,24 @@ const CLASE_ESTADO_CITA = {
     no_asistio: 'insignia--rojo'
 };
 
+// Pestanas de la ficha que exigen un permiso (las demas van con
+// pacientes.ver, que ya exige la pagina entera). Sin el permiso, la
+// pestana y su panel se ocultan y no se carga nada de esa area.
+const PERMISO_POR_PESTANA = {
+    'panel-citas': ['agenda.ver'],
+    'panel-ficha-clinica': ['historia.ver'],
+    'panel-consentimientos': ['planes.ver'],
+    'panel-plan-tratamiento': ['planes.ver'],
+    'panel-evolucion-tratamiento': ['historia.ver'],
+    'panel-pagos': ['caja.ver'],
+    'panel-laboratorio': ['laboratorio.ver']
+};
+
+function pestanaPermitida(idPanel) {
+    const permisos = PERMISO_POR_PESTANA[idPanel];
+    return !permisos || tienePermiso(usuarioActual, ...permisos);
+}
+
 (async () => {
     usuarioActual = await inicializarSidebar();
     if (!usuarioActual) return;
@@ -36,29 +54,64 @@ const CLASE_ESTADO_CITA = {
     }
 
     document.querySelectorAll('.pestana').forEach((boton) => {
+        // Sin permiso, la pestana se oculta y su panel queda inerte (nunca
+        // se activa); el panel NO se saca del DOM porque otros modulos
+        // referencian sus elementos al inicializarse.
+        if (!pestanaPermitida(boton.dataset.panel)) {
+            boton.classList.add('oculto');
+            return;
+        }
         boton.addEventListener('click', () => cambiarPestana(boton.dataset.panel));
     });
 
+    document.getElementById('btn-editar-paciente').classList.toggle('oculto', !tienePermiso(usuarioActual, 'pacientes.gestionar'));
     document.getElementById('btn-editar-paciente').addEventListener('click', abrirModalEdicion);
     document.getElementById('cerrar-modal-paciente').addEventListener('click', cerrarModalPaciente);
     document.getElementById('cancelar-modal-paciente').addEventListener('click', cerrarModalPaciente);
     document.getElementById('form-paciente').addEventListener('submit', guardarPaciente);
     document.getElementById('btn-eliminar-paciente').addEventListener('click', eliminarPaciente);
     document.getElementById('btn-restaurar-paciente').addEventListener('click', restaurarPaciente);
+    document.getElementById('form-subir-documento').classList.toggle('oculto', !tienePermiso(usuarioActual, 'pacientes.gestionar'));
     document.getElementById('form-subir-documento').addEventListener('submit', subirDocumento);
-    document.getElementById('btn-nueva-cita-paciente').addEventListener('click', irANuevaCita);
-    document.getElementById('btn-imprimir-f033').addEventListener('click', irAImprimirF033);
+    const btnNuevaCita = document.getElementById('btn-nueva-cita-paciente');
+    if (btnNuevaCita) {
+        btnNuevaCita.classList.toggle('oculto', !tienePermiso(usuarioActual, 'agenda.gestionar'));
+        btnNuevaCita.addEventListener('click', irANuevaCita);
+    }
+    const btnImprimirF033 = document.getElementById('btn-imprimir-f033');
+    if (btnImprimirF033) {
+        btnImprimirF033.classList.toggle('oculto', !tienePermiso(usuarioActual, 'historia.ver'));
+        btnImprimirF033.addEventListener('click', irAImprimirF033);
+    }
     vincularFechaLegible('p-fecha-nacimiento', 'p-fecha-nacimiento-legible');
 
+    // Botones de accion de las pestanas: se ocultan si el usuario puede VER
+    // el area pero no registrar/gestionar en ella (el servidor lo bloquea
+    // igual; esto evita botones que solo darian error).
+    [
+        ['btn-registrar-pago', 'caja.registrar'],
+        ['btn-crear-plan-cuotas', 'caja.registrar'],
+        ['btn-nuevo-trabajo-paciente', 'laboratorio.gestionar'],
+        ['btn-nuevo-consentimiento', 'planes.gestionar'],
+        ['btn-generar-plan', 'planes.gestionar'],
+        ['btn-nueva-evolucion', 'historia.registrar'],
+        ['btn-nueva-evolucion-seguimiento', 'historia.registrar']
+    ].forEach(([idBoton, permiso]) => {
+        const boton = document.getElementById(idBoton);
+        if (boton && !tienePermiso(usuarioActual, permiso)) boton.classList.add('oculto');
+    });
+
     // Enlace directo a una pestana (ej. "#pagos" desde Cuotas vencidas / Caja)
-    if (window.location.hash === '#pagos') cambiarPestanaReal('panel-pagos');
+    if (window.location.hash === '#pagos' && pestanaPermitida('panel-pagos')) cambiarPestanaReal('panel-pagos');
 
     await cargarPaciente();
     await cargarDocumentos();
-    await cargarCitasPaciente();
-    await cargarFichaClinica();
-    await cargarOdontograma();
-    if (typeof cargarConsentimientos === 'function') await cargarConsentimientos();
+    if (pestanaPermitida('panel-citas')) await cargarCitasPaciente();
+    if (pestanaPermitida('panel-ficha-clinica')) {
+        await cargarFichaClinica();
+        await cargarOdontograma();
+    }
+    if (pestanaPermitida('panel-consentimientos') && typeof cargarConsentimientos === 'function') await cargarConsentimientos();
 })();
 
 async function irAImprimirF033() {
@@ -130,8 +183,8 @@ async function cargarPaciente() {
 
         const eliminado = !pacienteActual.activo;
         document.getElementById('aviso-paciente-eliminado').classList.toggle('oculto', !eliminado);
-        document.getElementById('btn-eliminar-paciente').classList.toggle('oculto', !(usuarioActual.rol === 'admin' && !eliminado));
-        document.getElementById('btn-restaurar-paciente').classList.toggle('oculto', !(usuarioActual.rol === 'admin' && eliminado));
+        document.getElementById('btn-eliminar-paciente').classList.toggle('oculto', !(tienePermiso(usuarioActual, 'pacientes.eliminar') && !eliminado));
+        document.getElementById('btn-restaurar-paciente').classList.toggle('oculto', !(tienePermiso(usuarioActual, 'pacientes.eliminar') && eliminado));
     } catch (error) {
         document.getElementById('mensaje-ficha').innerHTML = `<div class="alerta alerta--error">${error.message}</div>`;
     }
@@ -265,7 +318,7 @@ async function cargarDocumentos() {
                 <span>${doc.nombre_original} <span class="texto-secundario">(${formatoTamano(doc.tamano)})</span></span>
                 <span>
                     <a class="btn-texto" href="/api/pacientes/${pacienteId}/documentos/${doc.id}/descargar" target="_blank">Descargar</a>
-                    <button class="btn-texto" style="color: var(--rojo-alerta);" onclick="eliminarDocumento(${doc.id})">Eliminar</button>
+                    ${tienePermiso(usuarioActual, 'pacientes.gestionar') ? `<button class="btn-texto" style="color: var(--rojo-alerta);" onclick="eliminarDocumento(${doc.id})">Eliminar</button>` : ''}
                 </span>
             </li>
         `).join('');

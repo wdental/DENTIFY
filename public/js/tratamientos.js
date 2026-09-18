@@ -31,7 +31,7 @@ const ETIQUETAS_HALLAZGO_MAPEO = {
     const usuario = await inicializarSidebar();
     if (!usuario) return;
 
-    if (usuario.rol !== 'admin') {
+    if (!tienePermiso(usuario, 'catalogos.tratamientos')) {
         document.querySelector('.contenido').innerHTML = '<div class="alerta alerta--error">No tiene permisos para ver esta sección.</div>';
         return;
     }

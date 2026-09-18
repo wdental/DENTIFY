@@ -4,7 +4,7 @@
 const express = require('express');
 const db = require('../db/conexion');
 const googleCalendar = require('../utils/googleCalendar');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso, usuarioTienePermiso } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -12,7 +12,7 @@ router.use(requiereSesion);
 // GET /api/doctores - lista de doctores (activos por defecto)
 // Los usuarios no admin solo ven doctores activos (para asignar citas)
 router.get('/', (req, res) => {
-    const incluirInactivos = req.query.incluirInactivos === '1' && req.session.usuario.rol === 'admin';
+    const incluirInactivos = req.query.incluirInactivos === '1' && usuarioTienePermiso(req.session.usuario, 'catalogos.doctores');
 
     const sql = incluirInactivos
         ? 'SELECT * FROM doctores ORDER BY nombre_completo'
@@ -28,7 +28,7 @@ router.get('/:id', (req, res) => {
     res.json(doctor);
 });
 
-router.use(requiereAdmin);
+router.use(requierePermiso('catalogos.doctores'));
 
 // POST /api/doctores - crear doctor
 router.post('/', (req, res) => {

@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const db = require('../db/conexion');
-const { requiereSesion, requiereAdmin } = require('../middleware/auth');
+const { requiereSesion, requierePermiso } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requiereSesion);
@@ -70,7 +70,7 @@ router.get('/mapeo', (req, res) => {
 });
 
 // PUT /api/tratamientos/mapeo/:hallazgoCodigo - solo admin
-router.put('/mapeo/:hallazgoCodigo', requiereAdmin, (req, res) => {
+router.put('/mapeo/:hallazgoCodigo', requierePermiso('catalogos.tratamientos'), (req, res) => {
     const codigo = req.params.hallazgoCodigo;
     if (!HALLAZGOS_MAPEABLES.includes(codigo)) return res.status(400).json({ error: 'Hallazgo no reconocido' });
 
@@ -115,12 +115,12 @@ function leerLibro(rutaArchivo) {
 }
 
 // GET /api/tratamientos/importar/campos
-router.get('/importar/campos', requiereAdmin, (req, res) => {
+router.get('/importar/campos', requierePermiso('catalogos.tratamientos'), (req, res) => {
     res.json(CAMPOS_TRATAMIENTO);
 });
 
 // POST /api/tratamientos/importar/subir
-router.post('/importar/subir', requiereAdmin, upload.single('archivo'), (req, res) => {
+router.post('/importar/subir', requierePermiso('catalogos.tratamientos'), upload.single('archivo'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No se recibio ningun archivo' });
 
     const extension = path.extname(req.file.originalname).toLowerCase();
@@ -146,7 +146,7 @@ router.post('/importar/subir', requiereAdmin, upload.single('archivo'), (req, re
 });
 
 // POST /api/tratamientos/importar/confirmar
-router.post('/importar/confirmar', requiereAdmin, (req, res) => {
+router.post('/importar/confirmar', requierePermiso('catalogos.tratamientos'), (req, res) => {
     const { token, mapeo } = req.body;
     if (!token || !mapeo) return res.status(400).json({ error: 'Datos de importacion incompletos' });
 
@@ -230,7 +230,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/tratamientos - solo admin
-router.post('/', requiereAdmin, (req, res) => {
+router.post('/', requierePermiso('catalogos.tratamientos'), (req, res) => {
     const { codigo, nombre, categoria, precio, hallazgo_asociado, variante_superficies, notas } = req.body;
     if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
     if (!CATEGORIAS_VALIDAS.includes(categoria)) return res.status(400).json({ error: 'Categoria invalida' });
@@ -249,7 +249,7 @@ router.post('/', requiereAdmin, (req, res) => {
 });
 
 // PUT /api/tratamientos/:id - solo admin
-router.put('/:id', requiereAdmin, (req, res) => {
+router.put('/:id', requierePermiso('catalogos.tratamientos'), (req, res) => {
     const tratamiento = db.prepare('SELECT id FROM tratamientos WHERE id = ?').get(req.params.id);
     if (!tratamiento) return res.status(404).json({ error: 'Tratamiento no encontrado' });
 

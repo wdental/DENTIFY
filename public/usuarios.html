@@ -30,13 +30,14 @@
                         <th>Nombre</th>
                         <th>Usuario</th>
                         <th>Rol</th>
+                        <th>Permisos</th>
                         <th>Doctor asociado</th>
                         <th>Estado</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody id="cuerpo-tabla-usuarios">
-                    <tr><td colspan="6" class="tabla-vacia">Cargando usuarios...</td></tr>
+                    <tr><td colspan="7" class="tabla-vacia">Cargando usuarios...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -74,9 +75,33 @@
                 <select id="u-doctor"><option value="">Ninguno</option></select>
                 <p class="seccion-clinica__ayuda" style="margin-top:4px;">Si esta cuenta es la de un odontólogo, los selectores de "Doctor" en la ficha clínica se precargan solos con su nombre.</p>
             </div>
+            <div class="campo" id="bloque-permisos-nuevo">
+                <label>Permisos del usuario</label>
+                <p class="seccion-clinica__ayuda" style="margin-top:0;">Marque lo que este usuario puede ver y hacer. Se puede cambiar en cualquier momento con el botón "Permisos" del listado.</p>
+                <div id="permisos-nuevo-usuario"></div>
+            </div>
+            <p class="seccion-clinica__ayuda oculto" id="nota-permisos-admin">Un administrador tiene siempre todos los permisos.</p>
             <div class="flex-entre" style="margin-top: 20px;">
                 <button type="button" class="btn btn-secundario" id="cancelar-modal-usuario">Cancelar</button>
                 <button type="submit" class="btn btn-primario">Crear usuario</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: permisos de un usuario -->
+<div class="modal-fondo" id="modal-permisos">
+    <div class="modal" style="max-width: 720px;">
+        <button class="modal__cerrar" id="cerrar-modal-permisos">&times;</button>
+        <h2>Permisos de <span id="permisos-nombre-usuario"></span></h2>
+        <p class="seccion-clinica__ayuda">Los cambios aplican de inmediato: en cuanto guarde, ese usuario solo verá en su menú y podrá usar lo que quede marcado.</p>
+        <div id="error-modal-permisos"></div>
+        <form id="form-permisos">
+            <input type="hidden" id="permisos-usuario-id">
+            <div id="permisos-usuario-contenedor"></div>
+            <div class="flex-entre" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secundario" id="cancelar-modal-permisos">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Guardar permisos</button>
             </div>
         </form>
     </div>
