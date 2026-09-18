@@ -9,7 +9,7 @@ function membreteWorldDental() {
         <div class="wd-membrete">
             <div class="wd-membrete__marca">World <span>Dental</span></div>
             <div class="wd-membrete__direccion">
-                Vital Center, Piso 2 · José Joaquín de Olmedo N2-33 y Luis Proaño<br>
+                Vital Center, Piso 2 · José Joaquín de Olmedo N2-33 y Luisa Proaño<br>
                 Conocoto, Quito, Ecuador
             </div>
         </div>
