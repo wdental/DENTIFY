@@ -16,8 +16,23 @@ const { redondear, hoyIso, pagosDelPlanPago, resumenFinancieroPaciente, saldosGl
 const router = express.Router();
 router.use(requiereSesion);
 
-const METODOS = ['efectivo', 'transferencia', 'tarjeta', 'otro'];
-const ETIQUETAS_METODO = { efectivo: 'Efectivo', transferencia: 'Transferencia (Banco Pichincha)', tarjeta: 'Tarjeta', otro: 'Otro' };
+// Metodos ACTIVOS: los unicos admitidos en pagos nuevos. Desde la
+// especificacion de facturacion SRI (docs/fase-2-facturacion.md) la
+// tarjeta se separa en credito/debito (codigos SRI 19 y 16) y 'otro' se
+// retira por no ser facturable. Los pagos antiguos con 'tarjeta' u
+// 'otro' se conservan intactos y se siguen mostrando (HISTORICOS).
+const METODOS_ACTIVOS = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
+const METODOS_HISTORICOS = ['tarjeta', 'otro'];
+const METODOS = [...METODOS_ACTIVOS, ...METODOS_HISTORICOS];
+const ETIQUETAS_METODO = {
+    efectivo: 'Efectivo',
+    transferencia: 'Transferencia (Banco Pichincha)',
+    tarjeta_credito: 'Tarjeta de crédito',
+    tarjeta_debito: 'Tarjeta de débito',
+    tarjeta: 'Tarjeta',
+    otro: 'Otro'
+};
+const METODOS_CON_REFERENCIA = ['transferencia', 'tarjeta_credito', 'tarjeta_debito', 'tarjeta'];
 
 const SELECT_PAGO_BASE = `
     SELECT pg.*,
@@ -38,6 +53,14 @@ function esFechaIso(valor) {
     return typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valor) && !isNaN(new Date(valor + 'T00:00:00').getTime());
 }
 
+// Un metodo historico solo aparece en las vistas cuando el periodo tiene
+// pagos con el (asi los dias viejos siguen cuadrando y los nuevos no
+// cargan columnas muertas).
+function metodosVisibles(pagos) {
+    const presentes = new Set(pagos.map((p) => p.metodo));
+    return METODOS.filter((m) => METODOS_ACTIVOS.includes(m) || presentes.has(m));
+}
+
 function totalesPorMetodo(pagos) {
     const totales = {};
     METODOS.forEach((m) => { totales[m] = { metodo: m, etiqueta: ETIQUETAS_METODO[m], total: 0, cantidad: 0 }; });
@@ -51,7 +74,8 @@ function totalesPorMetodo(pagos) {
         total = redondear(total + Number(p.monto));
         cantidad++;
     });
-    return { por_metodo: Object.values(totales), total, cantidad, anulados };
+    const visibles = metodosVisibles(pagos);
+    return { por_metodo: visibles.map((m) => totales[m]), total, cantidad, anulados };
 }
 
 // Total valido abonado a un plan de cuotas (mismo criterio que el cronograma:
@@ -66,7 +90,7 @@ function totalPagadoPlanPago(planPagoId) {
 // GET /api/pagos/metodos - catalogo de metodos (etiquetas para el front)
 // -----------------------------------------------------------------
 router.get('/metodos', (req, res) => {
-    res.json(METODOS.map((m) => ({ valor: m, etiqueta: ETIQUETAS_METODO[m] })));
+    res.json(METODOS_ACTIVOS.map((m) => ({ valor: m, etiqueta: ETIQUETAS_METODO[m] })));
 });
 
 // -----------------------------------------------------------------
@@ -76,7 +100,7 @@ router.get('/metodos', (req, res) => {
 router.get('/caja/dia', requierePermiso('caja.ver'), (req, res) => {
     const fecha = esFechaIso(req.query.fecha) ? req.query.fecha : hoyIso();
     const pagos = db.prepare(`${SELECT_PAGO_BASE} WHERE pg.fecha_pago = ? ORDER BY pg.id`).all(fecha);
-    res.json({ fecha, pagos, totales: totalesPorMetodo(pagos), etiquetas_metodo: ETIQUETAS_METODO });
+    res.json({ fecha, pagos, totales: totalesPorMetodo(pagos), metodos_visibles: metodosVisibles(pagos), etiquetas_metodo: ETIQUETAS_METODO });
 });
 
 // -----------------------------------------------------------------
@@ -99,7 +123,7 @@ router.get('/caja/mes', requierePermiso('caja.ver'), (req, res) => {
         dia.cantidad++;
     });
 
-    res.json({ mes, dias: Object.values(porDia), totales: totalesPorMetodo(pagos), etiquetas_metodo: ETIQUETAS_METODO });
+    res.json({ mes, dias: Object.values(porDia), totales: totalesPorMetodo(pagos), metodos_visibles: metodosVisibles(pagos), etiquetas_metodo: ETIQUETAS_METODO });
 });
 
 // -----------------------------------------------------------------
@@ -195,13 +219,17 @@ router.post('/', requierePermiso('caja.registrar'), (req, res) => {
     if (monto > 999999999) return res.status(400).json({ error: 'El monto es demasiado grande' });
 
     const metodo = String(b.metodo || '').toLowerCase();
-    if (!METODOS.includes(metodo)) return res.status(400).json({ error: 'Método de pago no válido' });
+    if (!METODOS_ACTIVOS.includes(metodo)) {
+        return res.status(400).json({ error: METODOS_HISTORICOS.includes(metodo)
+            ? 'Ese método ya no se usa para pagos nuevos: elija efectivo, transferencia o tarjeta de crédito/débito'
+            : 'Método de pago no válido' });
+    }
 
     const fechaPago = b.fecha_pago ? String(b.fecha_pago).slice(0, 10) : hoyIso();
     if (!esFechaIso(fechaPago)) return res.status(400).json({ error: 'Fecha de pago no válida' });
     if (fechaPago > hoyIso()) return res.status(400).json({ error: 'La fecha de pago no puede ser futura' });
 
-    const referencia = ['transferencia', 'tarjeta'].includes(metodo) ? (String(b.referencia || '').trim() || null) : null;
+    const referencia = METODOS_CON_REFERENCIA.includes(metodo) ? (String(b.referencia || '').trim() || null) : null;
 
     let doctorId = null;
     if (b.doctor_id) {

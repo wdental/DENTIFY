@@ -6,7 +6,7 @@
 // bloquea registrar pagos posteriores con esa fecha.
 // =====================================================================
 
-const ORDEN_METODOS_CIERRE = ['efectivo', 'transferencia', 'tarjeta', 'otro'];
+const ORDEN_METODOS_CIERRE = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
 (async () => {
     const parametros = new URLSearchParams(window.location.search);
@@ -29,7 +29,7 @@ function renderizarCierre(datos, usuario) {
     const generado = new Date().toLocaleString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const totales = datos.totales;
 
-    const gruposHtml = ORDEN_METODOS_CIERRE.map((metodo) => {
+    const gruposHtml = (datos.metodos_visibles || ORDEN_METODOS_CIERRE).map((metodo) => {
         const delMetodo = datos.pagos.filter((p) => p.metodo === metodo);
         if (delMetodo.length === 0) return '';
         const subtotal = delMetodo.filter((p) => !p.anulado).reduce((s, p) => s + Number(p.monto), 0);

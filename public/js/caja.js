@@ -5,7 +5,10 @@
 // de impresion del resumen (informativa, no bloquea nada).
 // =====================================================================
 
-const ORDEN_METODOS_CAJA = ['efectivo', 'transferencia', 'tarjeta', 'otro'];
+// Respaldo por si el servidor no manda metodos_visibles (no deberia
+// pasar); la lista real la decide el servidor: activos + historicos con
+// movimiento en el periodo.
+const ORDEN_METODOS_CAJA = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
 
 function dineroCaja(valor) {
     return '$' + Number(valor || 0).toFixed(2);
@@ -72,7 +75,7 @@ async function cargarCajaDia() {
     try {
         const datos = await api.get(`/api/pagos/caja/dia?fecha=${fecha}`);
         contenedor.innerHTML = renderTotalesCaja(datos.totales, `${datos.totales.cantidad} pago${datos.totales.cantidad === 1 ? '' : 's'} válido${datos.totales.cantidad === 1 ? '' : 's'}${datos.totales.anulados ? ` · ${datos.totales.anulados} anulado${datos.totales.anulados === 1 ? '' : 's'}` : ''}`)
-            + renderPagosPorMetodo(datos.pagos, datos.etiquetas_metodo);
+            + renderPagosPorMetodo(datos.pagos, datos.etiquetas_metodo, datos.metodos_visibles || ORDEN_METODOS_CAJA);
     } catch (error) {
         contenedor.innerHTML = `<div class="alerta alerta--error">${error.message}</div>`;
     }
@@ -97,12 +100,12 @@ function renderTotalesCaja(totales, notaGeneral) {
     `;
 }
 
-function renderPagosPorMetodo(pagos, etiquetas) {
+function renderPagosPorMetodo(pagos, etiquetas, metodos) {
     if (!pagos || pagos.length === 0) {
         return '<p class="texto-secundario mb-0">No hay pagos registrados en esta fecha.</p>';
     }
 
-    return ORDEN_METODOS_CAJA.map((metodo) => {
+    return metodos.map((metodo) => {
         const delMetodo = pagos.filter((p) => p.metodo === metodo);
         if (delMetodo.length === 0) return '';
         const subtotal = delMetodo.filter((p) => !p.anulado).reduce((s, p) => s + Number(p.monto), 0);
@@ -150,6 +153,7 @@ async function cargarCajaMes() {
         const nombreMesCrudo = new Date(anio, numeroMes - 1, 1).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' });
         const nombreMes = nombreMesCrudo.charAt(0).toUpperCase() + nombreMesCrudo.slice(1);
 
+        const metodosMes = datos.metodos_visibles || ORDEN_METODOS_CAJA;
         let tablaHtml = '<p class="texto-secundario mb-0">No hay pagos registrados en este mes.</p>';
         if (datos.dias.length > 0) {
             tablaHtml = `
@@ -158,7 +162,7 @@ async function cargarCajaMes() {
                         <thead>
                             <tr>
                                 <th>Día</th>
-                                ${ORDEN_METODOS_CAJA.map((m) => `<th>${escaparHtmlCaja(datos.etiquetas_metodo[m])}</th>`).join('')}
+                                ${metodosMes.map((m) => `<th>${escaparHtmlCaja(datos.etiquetas_metodo[m])}</th>`).join('')}
                                 <th>Pagos</th><th>Total del día</th><th></th>
                             </tr>
                         </thead>
@@ -166,7 +170,7 @@ async function cargarCajaMes() {
                             ${datos.dias.map((d) => `
                                 <tr>
                                     <td>${formatearFechaConDia(d.fecha)}</td>
-                                    ${ORDEN_METODOS_CAJA.map((m) => `<td>${d[m] > 0 ? dineroCaja(d[m]) : '<span class="texto-secundario">—</span>'}</td>`).join('')}
+                                    ${metodosMes.map((m) => `<td>${d[m] > 0 ? dineroCaja(d[m]) : '<span class="texto-secundario">—</span>'}</td>`).join('')}
                                     <td>${d.cantidad}${d.anulados ? ` <span class="texto-secundario">(+${d.anulados} anulado${d.anulados === 1 ? '' : 's'})</span>` : ''}</td>
                                     <td><strong>${dineroCaja(d.total)}</strong></td>
                                     <td><a class="btn-texto" href="/caja.html?fecha=${d.fecha}">Ver día</a></td>

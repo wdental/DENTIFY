@@ -668,6 +668,64 @@ function migrar(db) {
             db.pragma('foreign_keys = ON');
         }
     }
+
+    // -----------------------------------------------------------------
+    // Metodos de pago para la facturacion SRI: la tarjeta se separa en
+    // credito/debito (codigos SRI 19 y 16) y 'otro' se retira de los
+    // pagos nuevos. El CHECK de `pagos` se amplia para admitir los dos
+    // metodos nuevos; 'tarjeta' y 'otro' siguen siendo validos para que
+    // NINGUN pago historico cambie (un pago registrado es inmutable).
+    // SQLite no permite alterar un CHECK: se reconstruye la tabla
+    // copiando todas las filas. Nada referencia a pagos(id), asi que la
+    // reconstruccion no arrastra otras tablas.
+    // -----------------------------------------------------------------
+    const tablaPagosSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='pagos'").get();
+    const columnasPagosMetodo = db.prepare("PRAGMA table_info(pagos)").all().map((c) => c.name);
+    if (tablaPagosSql && columnasPagosMetodo.includes('concepto') && !/tarjeta_credito/.test(tablaPagosSql.sql)) {
+        respaldarAntesDeActualizar(db);  // copia de seguridad antes de tocar nada
+        const ampliarMetodos = db.transaction(() => {
+            db.exec(`
+                CREATE TABLE pagos_nueva (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    numero_recibo TEXT NOT NULL UNIQUE,
+                    paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                    plan_id INTEGER REFERENCES planes_tratamiento(id),
+                    plan_item_id INTEGER REFERENCES plan_items(id),
+                    plan_pago_id INTEGER REFERENCES planes_pago(id),
+                    concepto TEXT NOT NULL,
+                    monto REAL NOT NULL CHECK (monto > 0),
+                    metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito', 'tarjeta', 'otro')),
+                    referencia TEXT,
+                    fecha_pago TEXT NOT NULL,
+                    registrado_por INTEGER REFERENCES usuarios(id),
+                    doctor_id INTEGER REFERENCES doctores(id),
+                    anulado INTEGER NOT NULL DEFAULT 0,
+                    motivo_anulacion TEXT,
+                    anulado_por INTEGER REFERENCES usuarios(id),
+                    anulado_en TEXT,
+                    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            `);
+            db.exec(`
+                INSERT INTO pagos_nueva (
+                    id, numero_recibo, paciente_id, plan_id, plan_item_id, plan_pago_id, concepto, monto,
+                    metodo, referencia, fecha_pago, registrado_por, doctor_id,
+                    anulado, motivo_anulacion, anulado_por, anulado_en, fecha_creacion
+                )
+                SELECT id, numero_recibo, paciente_id, plan_id, plan_item_id, plan_pago_id, concepto, monto,
+                       metodo, referencia, fecha_pago, registrado_por, doctor_id,
+                       anulado, motivo_anulacion, anulado_por, anulado_en, fecha_creacion
+                FROM pagos
+            `);
+            db.exec('DROP TABLE pagos');
+            db.exec('ALTER TABLE pagos_nueva RENAME TO pagos');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_pagos_paciente ON pagos (paciente_id)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_pagos_fecha ON pagos (fecha_pago)');
+            return db.prepare('SELECT COUNT(*) AS total FROM pagos').get().total;
+        });
+        const pagosConservados = ampliarMetodos();
+        console.log(`Migracion: metodos de pago tarjeta_credito/tarjeta_debito habilitados en "pagos" (${pagosConservados} pago(s) existente(s) conservado(s) sin cambios)`);
+    }
 }
 
 // Siembra la tabla doctores solo si esta vacia (primera vez)

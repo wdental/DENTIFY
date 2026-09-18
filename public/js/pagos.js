@@ -346,9 +346,9 @@ function cerrarModalRegistrarPago() {
 function actualizarCampoReferenciaPago() {
     const metodo = document.getElementById('pg-metodo').value;
     const campo = document.getElementById('campo-pg-referencia');
-    campo.classList.toggle('oculto', !['transferencia', 'tarjeta'].includes(metodo));
+    campo.classList.toggle('oculto', !['transferencia', 'tarjeta_credito', 'tarjeta_debito'].includes(metodo));
     document.querySelector('#campo-pg-referencia label').textContent =
-        metodo === 'tarjeta' ? 'Nro. de voucher / referencia' : 'Nro. de comprobante de transferencia';
+        metodo.startsWith('tarjeta') ? 'Nro. de voucher / referencia' : 'Nro. de comprobante de transferencia';
 }
 
 // Sugerencias de concepto: items del plan aceptado (si el vinculo es un plan

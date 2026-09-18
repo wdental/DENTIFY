@@ -494,7 +494,10 @@ CREATE TABLE IF NOT EXISTS pagos (
     plan_pago_id INTEGER REFERENCES planes_pago(id),
     concepto TEXT NOT NULL,
     monto REAL NOT NULL CHECK (monto > 0),
-    metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia', 'tarjeta', 'otro')),
+    -- 'tarjeta' (sin desglose) y 'otro' son HISTORICOS: los pagos nuevos
+    -- usan tarjeta_credito / tarjeta_debito (codigos SRI 19 y 16) y 'otro'
+    -- se retiro por no ser facturable. Ver docs/fase-2-facturacion.md.
+    metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito', 'tarjeta', 'otro')),
     referencia TEXT,
     fecha_pago TEXT NOT NULL,
     registrado_por INTEGER REFERENCES usuarios(id),
